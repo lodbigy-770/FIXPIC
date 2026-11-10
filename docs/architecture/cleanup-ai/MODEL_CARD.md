@@ -64,7 +64,7 @@
 
 ## 7. אופן שילוב במערכת
 
-- הטעינה דרך `IInpaintModel` (ראו `ARCHITECTURE.md` §11).
+- הטעינה דרך `InpaintModel` (ראו `ARCHITECTURE.md` §11).
 - שמות Tensors ופרמטרי קלט נקראים מהקובץ ומ-`model.json`; לא מקודדים בקוד (ADR-005).
 - הקבצים יישמרו ב-`models/big-lama/` יחד עם `README.md` (Revision, גדלים, SHA256, רישיון).
 

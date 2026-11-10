@@ -7,7 +7,7 @@
 
 - פשטות, מקומיות, קלות תחזוקה.
 - הפרדה מלאה בין UI, מנוע עיבוד ומודל.
-- המודל הוא "תוסף" מאחורי ממשק קבוע (`IInpaintModel`), כך שאפשר להחליף אותו.
+- המודל הוא "תוסף" מאחורי ממשק קבוע (`InpaintModel`), כך שאפשר להחליף אותו.
 - אפס תלות ברשת, GPU או CUDA.
 - כל החלטה משמעותית מתועדת כ-ADR בסעיף 12.
 
@@ -15,7 +15,7 @@
 
 ```
 ┌──────────────────────────────────────────────┐
-│ UI Layer (WPF)                               │
+│ UI Layer (PySide6/Qt)                        │
 │  Canvas, Toolbar, Before/After, Progress     │
 ├──────────────────────────────────────────────┤
 │ Application Services                         │
@@ -29,7 +29,7 @@
 │  │  ROI → Tiling → Pre → Infer → Post →  │   │
 │  │  Blend                                │   │
 │  └───────────────────────────────────────┘   │
-│  Model Manager  →  IInpaintModel             │
+│  Model Manager  →  InpaintModel             │
 ├──────────────────────────────────────────────┤
 │ ONNX Runtime (CPU EP)  [אופציונלי: OpenVINO] │
 └──────────────────────────────────────────────┘
@@ -88,7 +88,7 @@
 - ציור מסכה: Layer נפרד מעל התמונה, לא משנה את התמונה עד הרצה.
 - תמונות עם ערוץ Alpha: ה-Alpha נשמר בנפרד וממוזג חזרה (המודל מקבל RGB).
 - ICC/EXIF: נשמרים בשמירה כשהפורמט תומך בכך.
-- **נתיבים בעברית:** קריאה וכתיבה של קבצים דרך זרמי .NET (`FileStream`) ופענוח מתוך באפר בזיכרון (למשל `ImDecode`), ולא דרך נתיב שנמסר לספריית C++. הסיבה: ידוע ש-`cv2.imread` ב-Windows נכשל בנתיבים עם תווים שאינם ASCII. **לאמת בבדיקה** עם תיקיות ושמות קבצים בעברית, וגם עם שם משתמש Windows בעברית.
+- **נתיבים בעברית:** קריאה וכתיבה דרך `np.fromfile` + `cv2.imdecode` ו-`cv2.imencode` + `tofile`, ולא `cv2.imread`/`cv2.imwrite` עם נתיב. הסיבה: ידוע ש-`cv2.imread` ב-Windows נכשל בנתיבים עם תווים שאינם ASCII. **לאמת בבדיקה** עם תיקיות ושמות קבצים בעברית, וגם עם שם משתמש Windows בעברית.
 
 ## 6. תקשורת עם ONNX Runtime
 
@@ -96,7 +96,7 @@
 - אפשרויות Session (להתחיל מברירות מחדל ולמדוד): `IntraOpNumThreads` לפי ליבות פיזיות, `GraphOptimizationLevel = ORT_ENABLE_ALL`, `ExecutionMode = Sequential`.
 - שמות Input/Output **נקראים מהמודל בזמן טעינה** (`session.InputMetadata`), לא קבועים בקוד.
 - ללא `Providers` שאינם CPU. אין חבילות CUDA/DirectML.
-- אופציה עתידית: OpenVINO EP (Intel) מאחורי אותו `IInpaintModel`, מוכרע ב-M1.5 לפי מדידות.
+- אופציה עתידית: OpenVINO EP (Intel) מאחורי אותו `InpaintModel`, מוכרע ב-M1.5 לפי מדידות.
 
 ## 7. ניהול זיכרון ועיבוד CPU
 
@@ -143,13 +143,13 @@
 
 ממשק מוצע (פסאודו-קוד):
 
-```
-interface IInpaintModel {
-    ModelInfo Info { get; }          // שם, גרסה, רישיון, גדלי קלט נתמכים
-    void Load(ModelConfig cfg);
-    InpaintOutput Run(Tensor image, Tensor mask, CancellationToken ct);
-    void Unload();
-}
+```python
+class InpaintModel(Protocol):
+    info: ModelInfo                      # שם, גרסה, רישיון, גדלי קלט נתמכים
+    def load(self, cfg: ModelConfig) -> None: ...
+    def run(self, image: np.ndarray, mask: np.ndarray,
+            cancel: CancelToken) -> np.ndarray: ...
+    def unload(self) -> None: ...
 ```
 
 - כל מודל מגיע עם `model.json` (מטא-דאטה) בתיקייה משלו: `models/<name>/`.
@@ -164,11 +164,13 @@ interface IInpaintModel {
 - **חלופות:** OpenVINO (נבחן ב-M1.5 כהאצה ל-Intel); PyTorch (כבד, לא נדרש).
 - **סטטוס:** מאושר.
 
-### ADR-002 – Stack: C# / WPF לממשק; מנוע – להכרעה
-- **החלטה זמנית:** WPF ל-UI; מנוע עיבוד ב-C# עם OpenCvSharp (או EmguCV) + `Microsoft.ML.OnnxRuntime`.
-- **סיבה:** פשטות פיתוח, חבילת NuGet אחת למריץ, פחות שכבות Interop.
-- **חלופה:** ליבת C++ (DLL) – רק אם המדידות ב-M1.5 מראות צוואר בקבוק בעיבוד התמונה (לא ב-Inference).
-- **סטטוס:** זמני, מוכרע ב-M1.5.
+### ADR-002 – Stack: Python (עודכן 2026-11-10)
+- **החלטה:** Python 3.12 לכל המערכת: UI, תזמור ועיבוד. החישוב הכבד רץ בקוד נייטיב: ONNX Runtime (Inference) ו-OpenCV/NumPy (עיבוד תמונה).
+- **סיבה:** העדפת המשתמש (Python או Node, אם הביצועים לא נפגעים). זמן ה-Inference נקבע ע"י ONNX Runtime ואינו תלוי בשפה, ועיבוד ה-ROI הוא פעולות NumPy/OpenCV על מערכים קטנים. ה-PoC הקיים (`tools/poc/probe_and_run.py`) כבר ב-Python ונבדק בסביבת העבודה, ואפשר להמשיך ממנו ישירות.
+- **מחיר (שקיפות):** אריזה גדולה יותר, זמן עלייה איטי יותר, קושי באריזה נקייה (ראו ADR-007), ו-Python בלולאת האירועים של ה-UI. מדידות אלה ב-M1.5.
+- **חלופות:** C#/WPF (נדחה בעקבות העדפת המשתמש; יתרונו העיקרי היה אריזה וגודל, לא מהירות Inference). Node – נדחה, ראו ADR-007.
+- **נקודת החזרה:** אם M1.5 יראה צוואר בקבוק מחוץ ל-Inference, מעבירים רק את הרכיב הזה לקוד נייטיב (Cython/C++), בלי שכתוב כללי. המנוע מאחורי `InpaintModel` ולכן ההחלפה מקומית.
+- **סטטוס:** מאושר כברירת מחדל, בכפוף למדידות M1.5.
 
 ### ADR-003 – עיבוד ROI ולא תמונה מלאה
 - **החלטה:** Crop סביב המסכה עם הקשר, מיזוג חוזר רק בתוך המסכה.
@@ -186,12 +188,16 @@ interface IInpaintModel {
 - **מחיר:** דורשת Latency נמוך ל-ROI קטן; משפיעה על Undo (Patch לכל משיכה) ועל תור המשימות.
 - **סטטוס:** מאושר, בכפוף למדידת Latency ב-M1.5.
 
-### ADR-007 – אפליקציית Windows עצמאית: WPF עם Canvas מקומי
-- **החלטה:** WPF עם רכיב ציור מותאם (Skia או WriteableBitmap). ללא דפדפן, WebView2 וElectron. **הוכרע סופית** לפי דרישת המשתמש (כלי עצמאי, לא דרך הדפדפן).
-- **סיבה:** תמונות גדולות ומסכות עוברות בין UI למנוע בלי גשר JS; אין תלות ב-WebView2 Runtime בהתקנה Offline; מנוע אחד ב-C#.
-- **פריסה:** Self-contained (`win-x64`), כך שאין צורך להתקין .NET. קובצי ONNX Runtime נארזים בחבילה. הפרטים הסופיים של האריזה יוכרעו ב-M5.
-- **RTL:** `FlowDirection=RightToLeft` ברמת החלון; סרגל הכלים והסליידרים מתהפכים בהתאם; בדיקת יישור וסדר טאבים ידנית.
-- **סטטוס:** מאושר. (הערכה שיפוטית, לא נבדקה בפועל על חומרת יעד.)
+### ADR-007 – אפליקציית Windows עצמאית: PySide6 (Qt), לא דפדפן ולא Electron
+- **החלטה:** ממשק PySide6 (Qt for Python) עם `QGraphicsView`/`QPainter` לציור, Zoom/Pan ושכבת מסכה. ללא דפדפן, WebView2 וElectron (דרישת המשתמש: כלי עצמאי, לא דרך הדפדפן).
+- **סיבה:** Qt מספק RTL מובנה (`setLayoutDirection`), ציור עצמאי בלי גשר JS, ומשתלב ישירות עם NumPy (`QImage` מ-buffer).
+- **Node נדחה:** האפשרות הממשית שם היא Electron, שהוא דפדפן Chromium ארוז, וזה מנוגד לדרישה. בנוסף, לעיבוד תמונה (Dilate, Feather, Padding) אין ב-Node חלופה בוגרת ל-OpenCV (opencv.js רץ ב-WASM, איטי יותר).
+- **רישוי:** PySide6 ברישיון LGPL. נדרשת הפצה בקישור דינמי ושמירת הודעות הרישיון; לאמת משפטית. PyQt6 נפסל (GPL או רישיון מסחרי בתשלום).
+- **אריזה:** PyInstaller במצב `onedir` (לא `onefile`, כדי להקטין זמן עלייה וחשד אנטי-וירוס), או Nuitka; מתקין Inno Setup; Python, ONNX Runtime והמודל נארזים בפנים; חתימה דיגיטלית. פרטים סופיים ב-M5.
+- **RTL:** `QApplication.setLayoutDirection(Qt.RightToLeft)`; בדיקת יישור וסדר טאבים ידנית.
+- **ביצועי UI:** תצוגת תמונה של 24MP ב-Zoom/Pan חלק צריכה פירמידת הקטנות או Tiles לתצוגה. **לבדוק ב-M1.5.**
+- **Threading:** `run` של ONNX Runtime ב-Python משחרר ככל הנראה את ה-GIL, ולכן ה-UI נשאר רספונסיבי עם `QThread`. **לא אומת, לבדוק ב-M1.5.**
+- **סטטוס:** מאושר כברירת מחדל, בכפוף למדידות M1.5. (מחליף את הגרסה הקודמת של ADR-007, WPF.)
 
 ### ADR-008 – הרחבת מסכה כברירת מחדל
 - **החלטה:** Dilate אוטומטי למסכת המשיכה.
@@ -207,3 +213,29 @@ interface IInpaintModel {
 - **החלטה:** אין קידוד קשיח; נקרא מ-`session` + `model.json`.
 - **סיבה:** דרישת המשתמש לא להניח, והחלפת מודל קלה.
 - **סטטוס:** מאושר.
+
+## 13. ספריות ומבנה קוד מוצע (הצעה, טרם מומש)
+
+| תחום | ספרייה | הערה |
+|------|--------|------|
+| ממשק | PySide6 | LGPL; ראו ADR-007 |
+| הרצת מודל | onnxruntime (CPU) | בלי חבילות GPU |
+| עיבוד תמונה | opencv-python-headless, numpy | |
+| קלט/פלט תמונה | cv2.imdecode/imencode, np.fromfile/tofile; Pillow ל-EXIF/ICC אם יידרש | נתיבים בעברית |
+| Threading | QThread / QRunnable | ראו ADR-007 |
+| בדיקות | pytest | |
+| אריזה | PyInstaller (onedir) או Nuitka; Inno Setup | M5 |
+
+```
+src/fixpic/
+  app.py            נקודת כניסה
+  ui/               חלון ראשי, Canvas, סרגל כלים (RTL)
+  engine/           InpaintEngine, Job Scheduler, ROI/Tiling
+  pipeline/         Pre/Post, מיזוג, פעולות מסכה
+  models/           Model Manager, מימוש ONNX
+  history/          Undo/Redo (Patches)
+  io/               טעינה/שמירה (נתיבי Unicode)
+  strings/          he.json (מחרוזות עברית)
+tests/
+tools/poc/          ה-PoC הקיים; נקודת התחלה למנוע
+```
