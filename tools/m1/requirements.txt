@@ -1,0 +1,4 @@
+onnxruntime>=1.30
+opencv-python-headless
+numpy
+psutil

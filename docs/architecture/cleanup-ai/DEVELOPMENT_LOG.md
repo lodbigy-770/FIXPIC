@@ -148,3 +148,24 @@
 **קבצים שהשתנו:** `models/big-lama/README.md`, `LICENSE`, `UPSTREAM_README.md` (חדשים); `MODEL_CARD.md`, `ARCHITECTURE.md`, `PLAN.md`, `DEVELOPMENT_LOG.md`, `tools/poc/probe_and_run.py`.
 
 **משימות להמשך:** להשיג את תוכן הקובץ; SHA256; `probe`; PoC; Latency Spike.
+
+---
+
+## 2026-11-10 – M1: כלי בדיקה להרצה מקומית (המודל לא נגיש לסביבת העבודה)
+
+**שלב:** Milestone 1 (Model Integration) – הכנת כלי; ההרצה על המודל האמיתי נעשית אצל המשתמש.
+
+**הכרעת משתמש:** הפרויקט לשימוש אישי ולא מסחרי. נרשם ב-`PLAN.md` §8; בדיקה משפטית מסחרית אינה נדרשת כעת.
+
+**מה בוצע**
+- נבדק שוב: `git lfs pull` לא אפשרי מסביבת העבודה (הרשת חוסמת את שרת ה-LFS), לכן קובץ ה-ONNX נשאר pointer בריפו וההרצה עוברת למחשב המשתמש.
+- נוסף `tools/m1/m1_check.py` עם `verify` (גודל ו-SHA256 מול ערכי ה-pointer, זיהוי pointer), `probe` (שמות, טיפוסים וצורות Tensors), `run` (קדם-עיבוד כמו predict של LaMa: symmetric padding לכפולות של 8, מסכה `> 0`, חיתוך הריפוד, המרה ל-8 ביט בקליפ וקטימה), ו-`all`. הבדיקות האוטומטיות: צורת פלט, NaN, טווח, פיקסלים מחוץ למסכה, שינוי בתוך המסכה. נמדדים זמן Cold/Warm וזיכרון שיא, ונכתב `m1_results.json` עם מפרט המחשב.
+- נוסף `tools/m1/requirements.txt`, `M1-RUNBOOK.md` (שלבי ביצוע) והשורה `m1_out/` ב-`.gitignore`.
+
+**בדיקות:** הכלי רץ מקצה לקצה על מודל דמה (קלט `rgb`+`mask`, פלט `inpainted`, צורה דינמית): 3 מקרים סינתטיים ותמונה בגודל לא כפולה של 8 (157x203) עברו. על קובץ ה-pointer האמיתי `verify` נכשל כמצופה. **לא נבדק על Big LaMa.**
+
+**הערות:** הקבצים `PROGRESS.md`, `UNIFY-PLAN.md`, `CHANGELOG.md` ו-`LAYOUT-SPEC.md` שהוזכרו בנוהל העבודה אינם קיימים בריפו. עודכנו במקומם `DEVELOPMENT_LOG.md`, `PLAN.md` §8 ו-`ROADMAP.md`.
+
+**קבצים שהשתנו:** `tools/m1/m1_check.py`, `tools/m1/requirements.txt`, `docs/architecture/cleanup-ai/M1-RUNBOOK.md` (חדשים); `PLAN.md`, `ROADMAP.md`, `DEVELOPMENT_LOG.md`, `.gitignore`.
+
+**הבא:** המשתמש מריץ לפי `M1-RUNBOOK.md` ושולח את התוצאות; לאחר מכן השלמת `MODEL_CARD.md` וסימון M1, ואז M1.5 (Latency Spike).
