@@ -126,3 +126,25 @@
 2. לאמת SHA256 מול ה-pointer ואת הגודל.
 3. `probe_and_run.py probe` על הקובץ, ואז עדכון `MODEL_CARD.md`.
 4. תיעוד Revision/רישיון מ-Hugging Face (דורש גישה לריפו ב-HF, או שהמשתמש יספק).
+
+---
+
+## 2026-11-10 – קליטת מסמכי המודל (README ו-LICENSE מ-HF)
+
+**שלב:** שלבים 1–2 – חלקי; תוכן קובץ ה-ONNX עדיין לא נגיש.
+
+**מה בוצע**
+- התקבלו `LICENSE` ו-`README` מריפו ה-HF. נבדק: `LICENSE` הוא Apache-2.0 עם "Copyright [2021] Samsung Research". הקבצים הועתקו ל-`models/big-lama/` (`LICENSE`, `UPSTREAM_README.md`).
+- נכתב `models/big-lama/README.md` (מקור, קבצים, גדלים, SHA256, רישיון, הפעלה). ערכי `inpainter.onnx` (גודל ו-SHA256) הם מה-pointer בלבד ומסומנים כך.
+- `MODEL_CARD.md` נכתב מחדש על סמך ה-README, עם מקרא ברור: [README]/[pointer]/[אומת]. שום נתון עדיין אינו [אומת] מול הקובץ.
+- ממצאים מרכזיים מה-README: קלט `rgb` ו-`mask` (1 = להסרה), פלט `inpainted`; **צורה דינמית** (H,W כפולות של 8, בין 64 ל-4096); ריפוד symmetric; סף מסכה `> 0`; ONNX Runtime 1.30+; FFT כמכפלות מטריצות; דיווח ביצועים: 4.6 שניות ל-1536² על 16 threads.
+
+**החלטות טכניות:** ADR-010 (קלט דינמי: Padding לכפולות של 8, ROI בגודל מקורי עד תקרה, הקשר מתכוונן). זמני עד אימות.
+
+**שינויים ב-PoC (`tools/poc/probe_and_run.py`):** ריפוד השתנה מ-`BORDER_REFLECT_101` ל-`BORDER_REFLECT` (symmetric, כפי ב-LaMa); סף המסכה הפך לפרמטר עם ברירת מחדל `> 0` (במקום `> 127`). נבדק מחדש על מודל הדמה בלבד: עבר.
+
+**בעיות שנותרו:** אין גישה לתוכן ה-LFS. Revision ב-HF לא ידוע. תנאי נתוני האימון לא נבדקו.
+
+**קבצים שהשתנו:** `models/big-lama/README.md`, `LICENSE`, `UPSTREAM_README.md` (חדשים); `MODEL_CARD.md`, `ARCHITECTURE.md`, `PLAN.md`, `DEVELOPMENT_LOG.md`, `tools/poc/probe_and_run.py`.
+
+**משימות להמשך:** להשיג את תוכן הקובץ; SHA256; `probe`; PoC; Latency Spike.

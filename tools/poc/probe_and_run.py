@@ -11,7 +11,7 @@ Usage:
                                 [--out out.png] [--range 01|255] [--mask-polarity 1|0]
                                 [--threads N] [--multiple 8]
 Without --image/--mask a synthetic test image and mask are generated.
-White (>127) pixels in the mask file = area to remove.
+Mask pixels above --mask-threshold (default 0, as in the big-lama README) = area to remove.
 
 Status: plumbing validated on a dummy model only; NOT yet run on Big LaMa.
 """
@@ -97,7 +97,9 @@ def main():
                     help="value the model expects for 'remove' pixels (assumption)")
     ap.add_argument("--threads", type=int, default=0)
     ap.add_argument("--multiple", type=int, default=8,
-                    help="pad dynamic-shape inputs to a multiple of this (assumption)")
+                    help="pad dynamic-shape inputs to a multiple of this (big-lama README: 8)")
+    ap.add_argument("--mask-threshold", type=int, default=0,
+                    help="mask pixel is 1 where value > threshold (big-lama README: > 0)")
     ap.add_argument("--image-input")
     ap.add_argument("--mask-input")
     a = ap.parse_args()
@@ -121,7 +123,7 @@ def main():
         print("using synthetic image + mask")
     if m.shape != img.shape[:2]:
         sys.exit("mask and image sizes differ")
-    mbin = (m > 127).astype(np.uint8)
+    mbin = (m > a.mask_threshold).astype(np.uint8)
     if mbin.sum() == 0:
         sys.exit("empty mask")
     H0, W0 = img.shape[:2]
@@ -142,8 +144,8 @@ def main():
     else:
         ph = (-H0) % a.multiple
         pw = (-W0) % a.multiple
-        im2 = cv2.copyMakeBorder(img, 0, ph, 0, pw, cv2.BORDER_REFLECT_101)
-        m2 = cv2.copyMakeBorder(mbin, 0, ph, 0, pw, cv2.BORDER_REFLECT_101)
+        im2 = cv2.copyMakeBorder(img, 0, ph, 0, pw, cv2.BORDER_REFLECT)  # OpenCV BORDER_REFLECT == symmetric padding (as in LaMa predict)
+        m2 = cv2.copyMakeBorder(mbin, 0, ph, 0, pw, cv2.BORDER_REFLECT)  # OpenCV BORDER_REFLECT == symmetric padding (as in LaMa predict)
         pad = (ph, pw)
 
     scale = 1.0 if a.rng == "255" else 1.0 / 255.0
