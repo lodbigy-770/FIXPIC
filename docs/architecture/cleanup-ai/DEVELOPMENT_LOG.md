@@ -104,3 +104,25 @@
 **בדיקות:** אין בדיקות קוד. כל ההחלפות בקבצי התיעוד הוחלו (patch עם assert).
 
 **נשאר פתוח:** תקציב Latency (אחרי מדידה). **הבא:** הורדת המודל, שלבים 1–2, Latency Spike.
+
+---
+
+## 2026-11-10 – קבלת המודל לריפו (כ-LFS pointer בלבד; התוכן עדיין לא נגיש)
+
+**שלב:** שלב 1 (קליטת מודל) – בוצע חלקית.
+
+**מה נמצא:** המשתמש דחף לריפו את הקומיט `8cccc36` ("Add Big LaMa ONNX model") עם הקובץ `models/big-lama/inpainter.onnx` ו-`.gitattributes` (`models/big-lama/*.onnx` דרך Git LFS).
+
+**נתונים מה-pointer (לא אומתו מול הקובץ עצמו):**
+- `oid sha256:ef85edd865769c03c753b5faa066be713a46a9c80c8f77954c67c0bb3a4ba2ff`
+- `size 208851664` בתים (כ-199MB)
+
+**בעיה:** בסביבת העבודה הורד רק ה-pointer (134 בתים). התקנתי `git-lfs` (3.4.1), אך `git lfs pull` נכשל: הרשת חוסמת את `github-cloud.githubusercontent.com` (שם מאוחסן אובייקט ה-LFS), וגם את `media.githubusercontent.com`. `raw.githubusercontent.com` מחזיר את ה-pointer ולא את התוכן. לכן לא בוצעו: אימות SHA256 של הקובץ האמיתי, טעינה ב-ONNX Runtime, `probe`, ו-PoC.
+
+**לא בוצע במכוון:** `models/big-lama/README.md` ו-`MODEL_CARD.md` לא עודכנו, כי אין עדיין נתונים מאומתים (Revision של HF, שמות Tensors, רישיון).
+
+**משימות להמשך:**
+1. לספק את תוכן הקובץ לסביבה (פתיחת הדומיינים `github-cloud.githubusercontent.com` ו-`media.githubusercontent.com`, או העלאה כ-GitHub Release asset).
+2. לאמת SHA256 מול ה-pointer ואת הגודל.
+3. `probe_and_run.py probe` על הקובץ, ואז עדכון `MODEL_CARD.md`.
+4. תיעוד Revision/רישיון מ-Hugging Face (דורש גישה לריפו ב-HF, או שהמשתמש יספק).
