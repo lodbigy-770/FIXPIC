@@ -63,7 +63,7 @@
 
 ראו `ROADMAP.md` לפירוט מלא. תקציר:
 
-0. קליטת מודל ומחקר (שלבים 1–2 במסמך המשימה) – **ממתין להורדת המודל**
+0. קליטת מודל ומחקר (שלבים 1–2 במסמך המשימה) – **בוצע ע"י KIRO, הורץ אצל המשתמש; ממתין לאישור המשתמש (ראו `PROGRESS.md`)**
 1. Milestone 1 – Model Integration
 2. Milestone 2 – Core Inpainting Engine
 3. Milestone 3 – Editing Interface

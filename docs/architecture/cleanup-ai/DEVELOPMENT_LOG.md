@@ -169,3 +169,31 @@
 **קבצים שהשתנו:** `tools/m1/m1_check.py`, `tools/m1/requirements.txt`, `docs/architecture/cleanup-ai/M1-RUNBOOK.md` (חדשים); `PLAN.md`, `ROADMAP.md`, `DEVELOPMENT_LOG.md`, `.gitignore`.
 
 **הבא:** המשתמש מריץ לפי `M1-RUNBOOK.md` ושולח את התוצאות; לאחר מכן השלמת `MODEL_CARD.md` וסימון M1, ואז M1.5 (Latency Spike).
+
+---
+
+## 2026-11-11 – סקירת קומיטים של KIRO (שלב 0) ועדכון תיעוד
+
+**שלב:** שלב 0 (קליטת מודל ואפיון) – סקירה ותיעוד. לא נוסף קוד, והמודל לא הועתק לסביבת העבודה (בהנחיית המשתמש, שבודק אצלו).
+
+**מה KIRO עשה**
+- `9923eb3` (KIRO1): מפרט ב-`.kiro/specs/stage-0-model-validation/` (דרישות, עיצוב, משימות) והחבילה `stage0_validation/`: `FileValidator` (SHA256, גודל, זיהוי LFS pointer), `ModelInspector` (טעינת session, שמות/טיפוסים/צורות Tensors, זיהוי תפקידים), `ModelCardUpdater` (עדכון `MODEL_CARD.md`). נוספו גם `LICENSE (2)` ו-`README (3).md` בתיקיית המודל.
+- `94d3064` (KIRO2): `ReportGenerator`, `ValidationOrchestrator`, נקודת הכניסה `validate_stage0.py` (קודי יציאה 0–6), `stage0_validation/README.md`, עדכון `MODEL_CARD.md` (וגיבוי `MODEL_CARD.md.bak`), וסימון כל משימות הליבה ב-`tasks.md` (1–11, 14).
+
+**מה נבדק בסביבת Claude (על עותק זמני, בלי לשנות את הריפו)**
+- 21 בדיקות עוברות. 9 נכשלות: 3 ב-`test_file_validator.py` ו-6 ב-`TestLoadSessionWithRealModel`. כולן דורשות את קובץ ה-ONNX האמיתי, והכישלון מצופה כי כאן הקובץ הוא pointer של 134 בתים.
+- `python validate_stage0.py` על ה-pointer מסתיים בקוד 1 (אי-התאמת גודל), לא נוגע ב-`MODEL_CARD.md`, והדוח קריא.
+- `_tmp_test_model_card.py` הוא סקריפט ולא קובץ pytest: הוא קורא ל-`sys.exit` בזמן import, ולכן `pytest` קורס עליו ב-INTERNALERROR.
+
+**ממצאים**
+1. **אין ראיה שמורה להרצה המקומית.** `MODEL_CARD.md.bak` מול `MODEL_CARD.md` מראים שהכלי כתב לכרטיס (סימון [אומת] בסעיפים 2 ו-3 ושתי משימות שסומנו `[x]`), והכלי כותב רק אחרי הצלחת כל שלבי האימות. אבל לא נשמר פלט הרצה, ולכן אי אפשר לשחזר ממנו את הנתונים (טיפוסים, מידות). לא שוחזר כאן.
+2. **`update_section_3` החליף בפועל רק סימון, ושמות Tensors זהים לאלה שה-README טען** (`rgb`, `mask`, `inpainted`). זה עקבי עם README, אך לא מוכיח שמידות דינמיות נבדקו מעבר ל-`verify_dimension_constraints`.
+3. **`MODEL_CARD.md` היה סותר את עצמו**: כותרת "אומת בשלב 0" לצד "טרם נבדק" ו-"לא אומתו". תוקן בשני מקומות, בלי למחוק את הסתייגות שסעיפים 4–6 עדיין [README].
+4. **ל-KIRO לא נכתבה `test_model_card_updater.py`** (משימה 12.3, אופציונלית), וגם לא בדיקות property-based (משימה 13). במקומה קיים הסקריפט הזמני.
+5. **קבצים מיותרים בריפו (לא נמחקו, ממתין לאישור):** `_tmp_test_model_card.py`, `docs/.../MODEL_CARD.md.bak`, `models/big-lama/LICENSE (2)` (שונה מ-`LICENSE` בגודל: 11,348 מול 11,549 בתים, כנראה סיומות שורה), `models/big-lama/README (3).md` (גרסה גולמית של README עם YAML, שונה מ-`UPSTREAM_README.md`).
+
+**קבצים שהשתנו:** `ROADMAP.md` (סטטוס שלב 0 וסימון `[x]` בחמש משימות, פיצול משימת האפיון), `PLAN.md` §5, `MODEL_CARD.md` (שתי הערות מיושנות), `DEVELOPMENT_LOG.md`, וקובץ חדש `PROGRESS.md` (מסמך המשך).
+
+**הערה:** `PROGRESS.md` נוצר עכשיו כי נוהל העבודה מפנה אליו. `UNIFY-PLAN.md` ו-`CHANGELOG.md` עדיין לא קיימים, והם לא נוצרו כי לא ידוע תוכנם המצופה.
+
+**הבא:** המשתמש מאשר ששלב 0 עבר אצלו ומריץ M1 לפי `M1-RUNBOOK.md`; אחר כך משלימים `MODEL_CARD.md` סעיפים 4–6 ועוברים ל-M1.5.

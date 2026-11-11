@@ -7,15 +7,18 @@
 
 **תלות:** הורדת המודל ע"י המשתמש (אין גישה ל-Hugging Face מסביבת העבודה).
 
+**סטטוס (2026-11-11):** בוצע בעיקרו ע"י KIRO (קומיטים `9923eb3`, `94d3064`): נבנתה חבילת `stage0_validation/` עם נקודת כניסה `validate_stage0.py`, וההרצה נעשתה אצל המשתמש על הקובץ האמיתי. בסביבת Claude הקובץ נשאר LFS pointer (הרשת חוסמת את `github-cloud.githubusercontent.com`), ולכן **התוצאה לא שוחזרה כאן**. הראיה לכך שההרצה עברה: `MODEL_CARD.md.bak` מול `MODEL_CARD.md` מראים שהכלי כתב לכרטיס, והוא כותב רק אחרי שכל שלבי האימות עברו. לא נשמר פלט הרצה. נשאר לאשר מהמשתמש (ראו `PROGRESS.md`).
+
 **מטרות:** להכניס את קבצי המודל לריפו ולאפיין אותו על בסיס הקבצים בפועל.
 
 **משימות**
 - [ ] בדיקת מבנה הריפו ב-HF; זיהוי קובץ ה-ONNX וקבצי עזר (config, metadata, external data).
-- [ ] הורדת קבצים נחוצים בלבד אל `models/big-lama/`.
+- [x] הורדת קבצים נחוצים בלבד אל `models/big-lama/` (ONNX דרך LFS, README, LICENSE).
 - [ ] תיעוד: Revision/Commit, שמות, גדלים, SHA256, רישיון (`models/big-lama/README.md`).
-- [ ] בדיקת Git LFS ואימות שאין קבצי pointer.
-- [ ] שלב 2: אפיון Input/Mask/Output Tensors, טווח מידות, Padding, נרמול, זיכרון.
-- [ ] כתיבת `MODEL_CARD.md` על סמך נתונים מאומתים.
+- [x] בדיקת Git LFS ואימות שאין קבצי pointer (`FileValidator`; הורצה אצל המשתמש, KIRO2).
+- [x] אפיון שמות, תפקידים ומידות של Input/Mask/Output Tensors (`ModelInspector`; הורץ אצל המשתמש).
+- [ ] אפיון Padding, נרמול וזיכרון בפועל (נשאר ל-M1).
+- [x] עדכון `MODEL_CARD.md` על ידי `ModelCardUpdater` (סעיפים 1, 2, 3 ורשימת המשימות; גיבוי ב-`MODEL_CARD.md.bak`). סעיפים 4–6 עדיין [README] ויאומתו ב-M1.
 
 **תוצרים:** `models/big-lama/*`, `MODEL_CARD.md` מלא.
 **בדיקות:** SHA256 תואם; `onnxruntime.InferenceSession` נטען; גודל קובץ תואם לצפוי.
