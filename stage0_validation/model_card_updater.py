@@ -6,10 +6,18 @@ Provides functions to read, back up, and update the MODEL_CARD.md file
 with verified data from the model inspection steps.
 
 MODEL_CARD structure (docs/architecture/cleanup-ai/MODEL_CARD.md):
-  - Section 1: מקור ורישיון  – SHA256 / file-size status markers
-  - Section 3: מבנה קלט ופלט – tensor names, verified with [README – לאמת ב-`probe`]
+  - Section 1: מקור ורישיון  – SHA256 / file-size status markers ([pointer] → [אומת])
+  - Section 3: מבנה קלט ופלט – tensor names + "[README – לאמת ב-`probe`]" header marker
   - Section 8: משימות להשלמת הכרטיס – task checklist (- [ ] / - [x])
   Top-level blockquotes carry the "אומת בשלב 0" timestamp note.
+
+Actual MODEL_CARD section-3 table rows (as they exist on disk):
+  | Input תמונה | `rgb`, `[1, 3, H, W]`, float, ערכים 0–1 |
+  | Input מסכה | `mask`, `[1, 1, H, W]`; **1 = אזור למילוי/הסרה, 0 = לשמירה** |
+  | Output | `inpainted`, `[1, 3, H, W]`, 0–1 |
+
+The replace calls use the `` `name` `` substring (which always appears right after
+the pipe separator) so they work regardless of what follows on the same row.
 """
 
 import shutil
@@ -70,71 +78,101 @@ def backup_model_card(path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# 6.3  update_section_1  (implemented here, used in task 6.3)
+# 6.3  update_section_1
 # ---------------------------------------------------------------------------
 
-def update_section_1(content: str) -> str:
+def update_section_1(content: str, file_info: dict) -> str:
     """
     Update section 1 status markers for SHA256 and file size.
 
     Replaces every occurrence of the ``[pointer]`` status marker with
-    ``[אומת]``.  All other markers are left untouched.
+    ``[אומת]``.  All other markers ([README], [לא ידוע], [ידע כללי]) are
+    left untouched.
+
+    The ``file_info`` dict is accepted for interface consistency with the
+    orchestrator (it carries ``sha256`` and ``size`` values), but the
+    replacement target is the literal marker string ``[pointer]`` which
+    appears in the MODEL_CARD rows for both SHA256 and file-size entries.
 
     Args:
-        content: Full MODEL_CARD content as a string.
+        content:   Full MODEL_CARD content as a string.
+        file_info: Dict with keys ``"sha256"`` (str) and ``"size"`` (int)
+                   describing the verified file.  Used for documentation
+                   purposes; the actual replacement key is ``[pointer]``.
 
     Returns:
-        Updated content string.
+        Updated content string with all plain ``[pointer]`` markers replaced
+        by ``[אומת]``.  Bold occurrences (``**[pointer]**``) in the legend
+        line are intentionally left untouched so the glossary remains correct.
     """
-    return content.replace("[pointer]", "[אומת]")
+    # Replace only plain [pointer], not **[pointer]** in the legend.
+    # We do this by replacing the bold variant with a placeholder, performing
+    # the plain replacement, then restoring the bold variant.
+    PLACEHOLDER = "\x00BOLD_POINTER\x00"
+    content = content.replace("**[pointer]**", PLACEHOLDER)
+    content = content.replace("[pointer]", "[אומת]")
+    content = content.replace(PLACEHOLDER, "**[pointer]**")
+    return content
 
 
 # ---------------------------------------------------------------------------
-# 6.4  update_section_3  (implemented here, used in task 6.4)
+# 6.4  update_section_3
 # ---------------------------------------------------------------------------
 
-def update_section_3(
-    content: str,
-    image_name: str,
-    mask_name: str,
-    output_name: str,
-) -> str:
+def update_section_3(content: str, metadata: dict) -> str:
     """
     Update section 3 (מבנה קלט ופלט) with verified tensor names.
 
-    Replaces the placeholder tensor name strings in the table with the
-    actual names discovered during model inspection, and replaces the
-    "[README – לאמת ב-`probe`]" section heading marker with "[אומת]".
+    Performs two categories of replacement:
+
+    1. **Section header marker** – replaces the string
+       ``[README – לאמת ב-`probe`]`` in the section-3 heading with
+       ``[אומת]``.
+
+    2. **Table row tensor names** – replaces the backtick-quoted placeholder
+       names (``rgb``, ``mask``, ``inpainted``) in the input/output rows
+       with the actual names read from the ONNX model:
+         - ``| Input תמונה | `rgb``` → ``| Input תמונה | `{image_name}```
+         - ``| Input מסכה | `mask``` → ``| Input מסכה | `{mask_name}```
+         - ``| Output | `inpainted``` → ``| Output | `{output_name}```
+
+    All other markers ([README], [לא ידוע], [ידע כללי]) are left untouched.
 
     Args:
-        content:     Full MODEL_CARD content as a string.
-        image_name:  Verified name of the image input tensor (e.g. "image").
-        mask_name:   Verified name of the mask input tensor (e.g. "mask").
-        output_name: Verified name of the output tensor (e.g. "output").
+        content:  Full MODEL_CARD content as a string.
+        metadata: Dict with keys ``"image"``, ``"mask"``, ``"output"`` whose
+                  values are ``TensorInfo`` objects (each having a ``.name``
+                  attribute).
 
     Returns:
         Updated content string.
     """
-    # Replace "[README – לאמת ב-`probe`]" in section heading with "[אומת]"
+    image_name = metadata["image"].name
+    mask_name = metadata["mask"].name
+    output_name = metadata["output"].name
+
+    # Replace "[README – לאמת ב-`probe`]" in the section 3 header
     content = content.replace(
         "[README – לאמת ב-`probe`]",
         "[אומת]",
     )
 
     # Update the image-input tensor name in the table row.
-    # The original row uses the README-sourced name `rgb`.
+    # Actual row: | Input תמונה | `rgb`, `[1, 3, H, W]`, float, ערכים 0–1 |
     content = content.replace(
         "| Input תמונה | `rgb`",
         f"| Input תמונה | `{image_name}`",
     )
 
     # Update the mask-input tensor name in the table row.
+    # Actual row: | Input מסכה | `mask`, `[1, 1, H, W]`; ...
     content = content.replace(
         "| Input מסכה | `mask`",
         f"| Input מסכה | `{mask_name}`",
     )
 
     # Update the output tensor name in the table row.
+    # Actual row: | Output | `inpainted`, `[1, 3, H, W]`, 0–1 |
     content = content.replace(
         "| Output | `inpainted`",
         f"| Output | `{output_name}`",
@@ -144,7 +182,7 @@ def update_section_3(
 
 
 # ---------------------------------------------------------------------------
-# 6.5  update_task_list  (implemented here, used in task 6.5)
+# 6.5  update_task_list
 # ---------------------------------------------------------------------------
 
 def update_task_list(content: str, completed_tasks: List[str]) -> str:
@@ -182,7 +220,7 @@ def update_task_list(content: str, completed_tasks: List[str]) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 6.6  add_verification_note  (implemented here, used in task 6.6)
+# 6.6  add_verification_note
 # ---------------------------------------------------------------------------
 
 def add_verification_note(content: str, timestamp: str | None = None) -> str:
@@ -221,7 +259,7 @@ def add_verification_note(content: str, timestamp: str | None = None) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 6.7  write_model_card  (implemented here, used in task 6.7)
+# 6.7  write_model_card
 # ---------------------------------------------------------------------------
 
 def write_model_card(path: Path, content: str) -> None:

@@ -44,6 +44,9 @@ def _minimal_onnx_bytes() -> bytes:
             [helper.make_tensor_value_info("y", TensorProto.FLOAT, [1])],
         )
         model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 11)])
+        # Pin IR version to 8 (max supported by common onnxruntime builds).
+        # Newer onnx packages default to IR v9+ which some runtimes reject.
+        model.ir_version = 8
         return model.SerializeToString()
     except ImportError:
         return None  # skip if onnx package is unavailable

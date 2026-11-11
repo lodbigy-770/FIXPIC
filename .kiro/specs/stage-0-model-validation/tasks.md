@@ -31,7 +31,7 @@
     - החזרת True אם זה LFS pointer (שגיאה), False אחרת
     - _Requirements: 2.1, 2.2, 2.3_
 
-- [~] 3. Checkpoint - אימות FileValidator
+- [x] 3. Checkpoint - אימות FileValidator
   - הרצת בדיקות יחידה ל-FileValidator
   - אימוד פונקציות על קובץ המודל בפועל
   - ודא שכל הבדיקות עוברות, שאל את המשתמש אם מתעוררות שאלות
@@ -68,76 +68,76 @@
     - רישום האילוצים שהתגלו או "[לא ידוע - יש לאמת בבדיקה]"
     - _Requirements: 6.1, 6.2, 6.3, 6.4_
 
-- [~] 5. Checkpoint - אימות ModelInspector
+- [x] 5. Checkpoint - אימות ModelInspector
   - הרצת בדיקות יחידה ל-ModelInspector
   - אימות טעינת session וחילוץ metadata מהמודל
   - ודא שכל הבדיקות עוברות, שאל את המשתמש אם מתעוררות שאלות
 
-- [ ] 6. מימוש ModelCardUpdater לעדכון תיעוד
-  - [-] 6.1 מימוש parse_model_card()
+- [x] 6. מימוש ModelCardUpdater לעדכון תיעוד
+  - [x] 6.1 מימוש parse_model_card()
     - קריאת MODEL_CARD.md כמחרוזת
     - שמירת כל התוכן בזיכרון לעדכון
     - _Requirements: 8.1, 8.2, 8.3_
   
-  - [ ] 6.2 מימוש backup_model_card()
+  - [x] 6.2 מימוש backup_model_card()
     - יצירת קובץ גיבוי עם סיומת .md.bak
     - העתקת MODEL_CARD.md לגיבוי לפני עדכון
     - _Requirements: 7.4, 7.5_
   
-  - [~] 6.3 מימוש update_section_1()
+  - [x] 6.3 מימוש update_section_1()
     - עדכון סטטוס SHA256 מ-"[pointer]" ל-"[אומת]"
     - עדכון סטטוס גודל קובץ מ-"[pointer]" ל-"[אומת]"
     - שמירה על מבנה הטבלה המקורי
     - _Requirements: 7.4, 7.5, 8.1, 8.2, 8.4_
   
-  - [~] 6.4 מימוש update_section_3()
+  - [x] 6.4 מימוש update_section_3()
     - עדכון שמות tensors בטבלה (image, mask, output)
     - החלפת "[README – לאמת ב-`probe`]" ב-"[אומת]"
     - שמירה על כל הסימונים האחרים ([README], [לא ידוע], [ידע כללי])
     - _Requirements: 7.1, 7.2, 7.3, 8.1, 8.2, 8.4_
   
-  - [~] 6.5 מימוש update_task_list()
+  - [x] 6.5 מימוש update_task_list()
     - מציאת סעיף 8 (משימות להשלמת הכרטיס)
     - החלפת "- [ ]" ב-"- [x]" למשימות שהושלמו (SHA256 ו-probe)
     - שמירה על משימות שטרם הושלמו
     - _Requirements: 7.7_
   
-  - [~] 6.6 מימוש add_verification_note()
+  - [x] 6.6 מימוש add_verification_note()
     - יצירת הערת אימות עם timestamp
     - הוספת ההערה בראש המסמך אחרי הכותרת
     - פורמט: "> אומת בשלב 0 ב-{timestamp}"
     - _Requirements: 7.6, 8.3_
   
-  - [~] 6.7 מימוש write_model_card()
+  - [x] 6.7 מימוש write_model_card()
     - כתיבת התוכן המעודכן חזרה ל-MODEL_CARD.md
     - שימוש ב-UTF-8 encoding לשמירת תווים עבריים
     - _Requirements: 7.1, 7.2, 7.3, 7.4, 7.5, 7.6, 7.7, 8.3_
 
-- [~] 7. Checkpoint - אימות ModelCardUpdater
+- [x] 7. Checkpoint - אימות ModelCardUpdater
   - הרצת בדיקות יחידה ל-ModelCardUpdater
   - אימות שמירת מבנה ועדכון סימונים נכונים
   - ודא שכל הבדיקות עוברות, שאל את המשתמש אם מתעוררות שאלות
 
-- [ ] 8. מימוש ReportGenerator ליצירת דוחות
-  - [~] 8.1 מימוש log_step()
+- [x] 8. מימוש ReportGenerator ליצירת דוחות
+  - [x] 8.1 מימוש log_step()
     - הדפסת שם שלב וסטטוס לקונסול
     - פורמט: "[STEP_NAME] status"
     - הוספת פרטים אופציונלית
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5_
   
-  - [~] 8.2 מימוש generate_summary()
+  - [x] 8.2 מימוש generate_summary()
     - יצירת סיכום מפורט של כל התהליך
     - הצגת סטטוס כל שלב עם סימונים (✓/✗)
     - הצגת נתונים שהתגלו ושגיאות (אם היו)
     - _Requirements: 10.1, 10.6_
   
-  - [~] 8.3 מימוש format_error()
+  - [x] 8.3 מימוש format_error()
     - עיצוב הודעת שגיאה קריאה עם הקשר
     - הוספת סוג השגיאה, הודעה, ו-stack trace
     - _Requirements: 10.6_
 
-- [ ] 9. מימוש ValidationOrchestrator לתיאום התהליך
-  - [~] 9.1 יצירת validate_model() ראשית
+- [x] 9. מימוש ValidationOrchestrator לתיאום התהליך
+  - [x] 9.1 יצירת validate_model() ראשית
     - יצירת ValidationReport
     - קריאה ל-FileValidator.validate()
     - קריאה ל-ModelInspector.load_session() וextract_metadata()
@@ -145,19 +145,19 @@
     - טיפול בחריגות בכל שלב (הפסקה במקרה של כישלון)
     - _Requirements: 1.1, 1.2, 1.3, 1.4, 2.1, 2.2, 2.3, 2.4, 3.1, 3.2, 3.3, 3.4_
   
-  - [~] 9.2 הוספת לוגיקת דיווח ושגיאות
+  - [x] 9.2 הוספת לוגיקת דיווח ושגיאות
     - קריאה ל-ReportGenerator.log_step() בכל שלב
     - קריאה ל-ReportGenerator.generate_summary() בסיום
     - החזרת קוד יציאה מתאים (0 להצלחה, 1-6 לשגיאות שונות)
     - _Requirements: 10.1, 10.2, 10.3, 10.4, 10.5, 10.6_
 
-- [~] 10. יצירת נקודת כניסה ראשית
+- [x] 10. יצירת נקודת כניסה ראשית
   - יצירת validate_stage0.py כסקריפט ראשי
   - קריאה ל-ValidationOrchestrator.validate_model()
   - טיפול ב-command line arguments (אם נדרש)
   - _Requirements: 9.1, 9.2, 9.3, 9.4, 9.5_
 
-- [~] 11. Checkpoint סופי - אינטגרציה ובדיקה מקיפה
+- [x] 11. Checkpoint סופי - אינטגרציה ובדיקה מקיפה
   - הרצת התהליך המלא על קובץ המודל בפועל
   - אימות שכל השלבים עוברים בהצלחה
   - בדיקת MODEL_CARD.md המעודכן לוודא שמירת מבנה ועדכונים נכונים
@@ -214,7 +214,7 @@
     - וידוא שרק משימות שהושלמו מסומנות [x]
     - משימות שלא הושלמו נשארות [ ]
 
-- [~] 14. תיעוד השימוש והפעלה
+- [x] 14. תיעוד השימוש והפעלה
   - הוספת הוראות הפעלה ל-README או למסמך נפרד
   - תיעוד דרישות (onnxruntime>=1.30.0)
   - דוגמאות שימוש והפלט הצפוי
