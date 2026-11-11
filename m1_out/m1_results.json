@@ -1,0 +1,42 @@
+{
+  "meta": {
+    "platform": "Windows-11-10.0.22631-SP0",
+    "python": "3.14.3",
+    "cpu_count": 4,
+    "onnxruntime": "1.31.1",
+    "threads_setting": "default",
+    "model_load_s": 2.718
+  },
+  "cases": [
+    {
+      "name": "person",
+      "width": 534,
+      "height": 800,
+      "mask_pixels": 78137,
+      "cold_s": 7.981,
+      "warm_s": 7.5,
+      "peak_mb": 1267,
+      "max_diff_outside_raw": 0
+    },
+    {
+      "name": "scratch",
+      "width": 800,
+      "height": 534,
+      "mask_pixels": 1498,
+      "cold_s": 9.691,
+      "warm_s": 9.532,
+      "peak_mb": 1278,
+      "max_diff_outside_raw": 0
+    },
+    {
+      "name": "text",
+      "width": 800,
+      "height": 534,
+      "mask_pixels": 9421,
+      "cold_s": 7.098,
+      "warm_s": 6.626,
+      "peak_mb": 1278,
+      "max_diff_outside_raw": 0
+    }
+  ]
+}
