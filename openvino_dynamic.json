@@ -1,0 +1,137 @@
+{
+  "meta": {
+    "platform": "Windows-11-10.0.22631-SP0",
+    "python": "3.14.3",
+    "onnxruntime": "1.31.1",
+    "cpu": "Intel(R) Core(TM) i5-6500T CPU @ 2.50GHz",
+    "logical_cores": 4,
+    "physical_cores": null,
+    "cpu_mhz_max": null,
+    "ram_gb": null,
+    "on_battery": null,
+    "load_before_pct": null,
+    "openvino": "2026.4.1-22982-e213a147257-releases/2026/4",
+    "ov_devices": {
+      "CPU": "Intel(R) Core(TM) i5-6500T CPU @ 2.50GHz",
+      "GPU": "Intel(R) HD Graphics 530 (iGPU)"
+    }
+  },
+  "settings": {
+    "sizes": [
+      256,
+      384,
+      512
+    ],
+    "threads": [
+      3
+    ],
+    "repeats": 3,
+    "devices": [
+      "CPU"
+    ],
+    "mask_fraction": 0.3,
+    "image": "samples/text.png",
+    "check_tolerance_255": 3.0
+  },
+  "rows": [
+    {
+      "backend": "ov-cpu t3",
+      "side": 256,
+      "megapixels": 0.066,
+      "compile_s": 5.559,
+      "first_s": 0.821,
+      "n": 3,
+      "total_median_s": 0.808,
+      "total_min_s": 0.799,
+      "total_max_s": 0.821,
+      "infer_median_s": 0.806,
+      "spread_pct": 3,
+      "peak_mb": null,
+      "capped": false,
+      "vs_ort": {
+        "max_abs_255": 0.001,
+        "mean_abs_255": 0.0001
+      }
+    },
+    {
+      "backend": "ov-cpu t3",
+      "side": 384,
+      "megapixels": 0.147,
+      "compile_s": 5.642,
+      "first_s": 1.8,
+      "n": 3,
+      "total_median_s": 1.846,
+      "total_min_s": 1.645,
+      "total_max_s": 1.869,
+      "infer_median_s": 1.835,
+      "spread_pct": 12,
+      "peak_mb": null,
+      "capped": false
+    },
+    {
+      "backend": "ov-cpu t3",
+      "side": 512,
+      "megapixels": 0.262,
+      "compile_s": 5.667,
+      "first_s": 3.229,
+      "n": 3,
+      "total_median_s": 3.275,
+      "total_min_s": 3.09,
+      "total_max_s": 3.312,
+      "infer_median_s": 3.256,
+      "spread_pct": 7,
+      "peak_mb": null,
+      "capped": false
+    },
+    {
+      "backend": "ov-cpu t3 dynamic",
+      "side": 256,
+      "megapixels": 0.066,
+      "compile_s": 5.111,
+      "first_s": 1.091,
+      "n": 3,
+      "total_median_s": 0.945,
+      "total_min_s": 0.92,
+      "total_max_s": 1.018,
+      "infer_median_s": 0.942,
+      "spread_pct": 10,
+      "peak_mb": null,
+      "capped": false,
+      "vs_ort": {
+        "max_abs_255": 0.001,
+        "mean_abs_255": 0.0001
+      }
+    },
+    {
+      "backend": "ov-cpu t3 dynamic",
+      "side": 384,
+      "megapixels": 0.147,
+      "compile_s": 0.0,
+      "first_s": 1.917,
+      "n": 3,
+      "total_median_s": 1.723,
+      "total_min_s": 1.714,
+      "total_max_s": 1.743,
+      "infer_median_s": 1.714,
+      "spread_pct": 2,
+      "peak_mb": null,
+      "capped": false
+    },
+    {
+      "backend": "ov-cpu t3 dynamic",
+      "side": 512,
+      "megapixels": 0.262,
+      "compile_s": 0.0,
+      "first_s": 3.582,
+      "n": 3,
+      "total_median_s": 3.14,
+      "total_min_s": 3.12,
+      "total_max_s": 3.142,
+      "infer_median_s": 3.119,
+      "spread_pct": 1,
+      "peak_mb": null,
+      "capped": false
+    }
+  ],
+  "finished": "2026-11-12 14:15:05"
+}
