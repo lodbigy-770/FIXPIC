@@ -2,3 +2,5 @@ onnxruntime>=1.30
 opencv-python-headless
 numpy
 psutil
+# optional, only for tools/m1/openvino_spike.py (has a Python 3.14 wheel):
+# openvino

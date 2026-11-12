@@ -350,3 +350,26 @@ ROI גדול מקלט המודל: להקטין (Resize זול) ולהריץ ב-5
 **קבצים שהשתנו:** `PLAN.md`, `PARITY-SPEC.md`, `ARCHITECTURE.md` (ADR-002), `M1-RUNBOOK.md`, `ROADMAP.md`, `PROGRESS.md`, `DEVELOPMENT_LOG.md`.
 
 **הבא:** שיחה A: סקריפט OpenVINO ו-3 threads. שיחה B: M2.
+
+---
+
+## 2026-11-12 – M1.5 (שיחה A): כלי OpenVINO ו-3 threads
+
+**שלב:** Milestone 1.5, חלק OpenVINO/3 threads – **הכלי נכתב; המדידות טרם בוצעו.**
+
+**נבדק ב-PyPI:** `openvino` 2026.4.1 מספק גלגל cp314 ל-Windows x64, כך שרץ על Python 3.14. `onnxruntime-openvino` 1.24.1 נעצר ב-cp313, ולכן לא משתמשים בו; הכלי משתמש ב-API הנייטיב של OpenVINO (`pip install openvino`). לא נבדק אם OpenVINO 2026 תומך ב-iGPU של הדור הזה (HD 530); ההרצה עם `--devices CPU GPU` תראה אם ההתקן מופיע.
+
+**מה נוסף:** `tools/m1/openvino_spike.py`, שמשתמש ב-`latency_spike.py` (אותם Pre/Infer/Post, אותו קלט) כדי שהמספרים יהיו ברי השוואה ל-`latency_results.json`. בתהליך אחד, לפי הסדר: ORT CPU ב-3 וב-4 threads (בסיס להשוואה באותו רעש רקע), OpenVINO CPU ב-3 וב-4 threads (hint של LATENCY, דיוק f32), ואופציונלית iGPU (`--devices CPU GPU`) ו-OpenVINO בצורה דינמית (`--dynamic`). גדלים ברירת מחדל 256/384/512 (מצבי התקציב), עם `--big` גם 768. OpenVINO דורש צורה סטטית לכל גודל, ולכן זמן ה-compile לכל גודל נמדד בנפרד: הוא רלוונטי אם ה-UI מחליף גודל ROI בכל משיכה, ופחות אם נשארים בכמה גדלים קבועים (עם מטמון לפי גודל). נוספה בדיקת נכונות: התוצאה של כל backend מושווית ל-ORT בתוך המסכה בגודל הראשון, ונשמר max/mean בסקאלה 0–255 (הדגל מופיע מעל הפרש 3). הפלט: `openvino_results.json`.
+
+**נבדק כאן:** הרצה מקצה לקצה על מודל ONNX דמה (3 קונבולוציות) בסביבת Claude (ליבה אחת, Linux, Python 3.12, openvino 2026.4.1): ORT ו-OpenVINO סטטי ודינמי, גודל שאינו כפולה של 8 (130), יצירת ה-JSON, והודעה על התקן GPU שאינו קיים. ההפרש מול ORT במודל הדמה הוא 0. **המספרים מהמודל הדמה חסרי משמעות.** לא נבדק על Big LaMa ולא על Windows; ייתכן ש-OpenVINO ידחה אופרטורים של Big LaMa (FFT), ואז השורה תסומן כשגיאה בפלט ולא תפיל את ההרצה.
+
+**הרצה אצל המשתמש:**
+```
+.venv\Scripts\python.exe -m pip install openvino
+.venv\Scripts\python.exe tools\m1\openvino_spike.py --devices CPU GPU
+```
+(כ-5–8 דקות; לשלוח את הפלט ואת `openvino_results.json`. חיבור לחשמל, בלי עומס, בלי שימוש במחשב.)
+
+**קבצים שהשתנו:** `tools/m1/openvino_spike.py` (חדש), `tools/m1/requirements.txt` (openvino כשורה אופציונלית בהערה), `ROADMAP.md`, `PROGRESS.md`, `DEVELOPMENT_LOG.md`.
+
+**הבא:** המשתמש מריץ ושולח; אחר כך ניתוח, ואז UI Spike, GIL וזמן עלייה, ואריזה על 3.14.
