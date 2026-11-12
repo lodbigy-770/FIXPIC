@@ -712,3 +712,23 @@ ROI גדול מקלט המודל: להקטין (Resize זול) ולהריץ ב-5
 **לא שונה:** `ARCHITECTURE.md`, `PARITY-SPEC.md`, `M1-RUNBOOK.md` (אין בהם משימות מסומנות). תוכן המשימות עצמן לא שונה, רק סימונים, הערות ופירוק.
 
 **שים לב:** הסימונים נשענים על מה שכתוב ב-LOG ו-`PROGRESS.md`, ולא על בדיקה מחודשת של הקוד. שיחה B אחראית על סעיף M2; אם היא נוגעת באותן שורות במקביל, ייתכן קונפליקט ב-rebase.
+
+---
+
+## 2026-11-12 – M2.6 (שיחה B): Job Scheduler
+
+**שלב:** Milestone 2, חלק שישי. **M2 עדיין פתוח** (נשארו M2.7–M2.9).
+
+**מה בוצע**
+- `src/fixpic/engine/scheduler.py` (חדש): `JobScheduler` ו-`Job`. תור FIFO של עד 3 עבודות **ממתינות** (העבודה הרצה לא נספרת, PARITY-SPEC §3); Worker יחיד (`fixpic-worker`, daemon) שמריץ `Pipeline.run` עבודה אחת בכל זמן (ADR-009). `submit` מחזיר `Job` עם `wait`/`result`/`cancel`/`state`; תור מלא = `QueueFullError`, Scheduler שלא רץ = `SchedulerClosedError` (שתיהן חדשות ב-`errors.py`).
+- **ביטול:** עבודה ממתינה מוסרת מהתור מיד (המקום בתור מתפנה מיד); עבודה רצה מקבלת ביטול ב-`CancelToken` ונבדקת בין חלונות. `cancel_all()` הוא ה-Race של Undo (ARCHITECTURE §4א): מבטל את הרצה ומרוקן את התור. **עבודה שבוטלה לעולם לא מחזירה תוצאה**, גם אם ההרצה הסתיימה בפועל לפני שהביטול נבדק, כדי ש-Undo לא ייכתב.
+- **Warm-up ברקע:** `start()` מפעיל Warm-up ב-thread של ה-Worker, bucket אחד בכל פעם (384 קודם, אחר כך 256, 512). עבודה בתור קודמת ל-bucket הבא; עבודה שמגיעה באמצע compile ממתינה לסיומו (עד כ-6 שניות לפי M1.5, לא נמדד כאן). כשל ב-Warm-up מעביר את `warmup_state` ל-FAILED, עוצר את המשך ה-buckets ואינו חוסם עבודות (compile בשימוש ראשון). `wait_warmup()` לבדיקות וכלים.
+- `Pipeline`: נוספו `warmup_order()` ופרמטר `sizes` ל-`warmup` (תואם לאחור).
+- כל חריגה לא צפויה בעבודה מומרת ל-`InferenceError` (עם `__cause__`), וה-Worker ממשיך (ARCHITECTURE §10). קלט ומסכה משוחררים בסיום העבודה (24MP הוא כ-72MB לתמונה).
+- **חוזים למי שיחבר UI (M3):** ה-callbacks (`on_progress`, `on_done`) רצים ב-thread של ה-Worker ויש להעביר אותם ל-thread של ה-UI (Qt signal); ה-Scheduler לא מעתיק את התמונה, והמתקשר לא משנה אותה עד סיום העבודה.
+
+**בדיקות:** `tests/test_scheduler.py`, 17 בדיקות: סדר FIFO ו-Worker יחיד, מגבלת 3 ופינוי מקום, ביטול ממתינה/רצה, `cancel_all` ואחריו Scheduler תקין, כשל מוגדר וחריגה לא צפויה בלי להפיל את ה-Worker, callbacks שבורים, פתיחה/סגירה, `shutdown` באמצע עבודה ובאמצע Warm-up, סדר Warm-up, עבודה בין buckets, כשל Warm-up, ובדיקה עם `AutoModel` על מודל ONNX סינתטי. הרצתי את קובץ הבדיקות 5 פעמים ברצף ללא כשל. סה"כ 88 עוברות, 3 מדולגות (`test_real_model.py`).
+
+**לא נבדק:** זמני compile והשפעת Warm-up על Latency של עבודה ראשונה על Big LaMa ועל ה-i5-6500T (הסביבה כאן אחרת); התנהגות על Windows/Python 3.14; ההשפעה של import של `openvino` ב-thread הרקע על ה-GIL (נשאר פתוח מ-M1.5, ה-import כרגע רץ ב-`AutoModel.load` לפני ה-Scheduler).
+
+**הבא:** M2.7: CLI לבדיקה (`python -m fixpic`) ובדיקות 1/12/24MP, מסכות קטנות/גדולות/מרובות/ריקה, מודל פגום, וביטול באמצע.

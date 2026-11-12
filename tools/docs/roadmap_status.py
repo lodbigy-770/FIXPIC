@@ -17,7 +17,7 @@ BEGIN, END = "<!-- STATUS:BEGIN -->", "<!-- STATUS:END -->"
 NOTES = {
     "שלב 0": "נשארו: Revision ב-HF ותיעוד מלא ב-README של המודל (דורש גישה ל-Hugging Face)",
     "Milestone 1.5": "נסגר; אימות אריזה על Python 3.14 הועבר ל-M5",
-    "Milestone 2": "בעבודה (שיחה B): M2.1–M2.5 בוצעו; נשארו M2.6–M2.9",
+    "Milestone 2": "בעבודה (שיחה B): M2.1–M2.6 בוצעו; נשארו M2.7–M2.9",
 }
 
 

@@ -30,6 +30,14 @@ class OutOfMemoryError(FixPicError):
     אינו InferenceError בכוונה: זה אינו כשל backend, ולכן אין מעבר ל-fallback."""
 
 
+class QueueFullError(FixPicError):
+    """התור מלא (3 ממתינות, PARITY-SPEC §3): העבודה לא התקבלה; המתקשר מחכה לפינוי ומנסה שוב."""
+
+
+class SchedulerClosedError(FixPicError):
+    """ה-Scheduler לא רץ (טרם הופעל, או כבר נסגר): העבודה לא התקבלה."""
+
+
 def is_oom(exc: BaseException) -> bool:
     """זיהוי כשל זיכרון מחריגות של numpy/OpenVINO/ORT (אין להן טיפוס אחיד)."""
     if isinstance(exc, (MemoryError, OutOfMemoryError)):

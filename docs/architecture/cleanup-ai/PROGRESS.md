@@ -10,7 +10,7 @@
 | שלב 0 – קליטת מודל ואימות | **בוצע ואושר** ע"י פלט ההרצה של המשתמש (קוד יציאה 0). הטווח 64–4096 עדיין לא אומת |
 | M1 – הרצת Big LaMa על CPU | **בוצע (2026-11-11).** 3 דוגמאות אמיתיות ו-3 סינתטיות עברו, הריפוד נבדק, הפלט מחוץ למסכה זהה למקור. איכות: אדם טוב, טקסט טוב מאוד, שריטה טובה. ממצא: 6.6–9.7 שניות ל-0.43MP על 4 ליבות, בלי תלות בגודל המסכה |
 | M1.5 – Latency Spike | **בוצע ונסגר (2026-11-12), למעט אימות אריזה על 3.14 שהועבר ל-M5.** OpenVINO CPU ב-3 threads (ADR-011 מאושר) 0.81/1.85/3.27 שניות ל-256/384/512 מול ORT; iGPU נפסל; צורה דינמית: compile יחיד 5.1 שניות, Latency דומה (256 איטי ב-16%); מטמון compile חוסך כ-3 שניות לצורה במחיר כ-210MB, והוחלט לא להפעיל כברירת מחדל; ה-GIL משוחרר בזמן `run`, אין צורך ברכיב נייטיב, זמן import כ-1.5–2 שניות; UI Spike: פירמידת הקטנות מספיקה ל-24MP, ללא Tiles. פירוט ב-`DEVELOPMENT_LOG.md` |
-| M2 – Core Inpainting Engine | **M2.1–M2.5 בוצעו (2026-11-12):** (M2.4: קיבוץ מסכות, Tiling, Feathering; M2.5: תקרת זיכרון, התאוששות מ-OOM, דיווח התקדמות) (M2.3: `ModelManager` ו-`models/big-lama/model.json` עם sha256 מה-LFS pointer) `InpaintModel`, `OrtModel`, `OvModel` (OpenVINO ראשי, compile לכל bucket), `AutoModel` (fallback אוטומטי ל-ORT בכשל טעינה/compile/הרצה), `Pipeline.warmup`, ו-Pipeline עם ROI ל-buckets. 71 בדיקות עוברות עם מודל ONNX סינתטי (כולל תיקון אימות file ב-Windows, M2.5.1) (פריטיות OV/ORT ≤3). **לא נבדק מול Big LaMa האמיתי** (LFS pointer בסביבת Claude): `tests/test_real_model.py` רץ אצל המשתמש. נשאר: M2.6–M2.9 (פירוק ב-DEVELOPMENT_LOG) |
+| M2 – Core Inpainting Engine | **M2.1–M2.6 בוצעו (2026-11-12):** (M2.6: `JobScheduler` ב-`engine/scheduler.py`: FIFO עד 3, Worker יחיד, Warm-up ברקע, ביטול ו-`cancel_all`) (M2.4: קיבוץ מסכות, Tiling, Feathering; M2.5: תקרת זיכרון, התאוששות מ-OOM, דיווח התקדמות) (M2.3: `ModelManager` ו-`models/big-lama/model.json` עם sha256 מה-LFS pointer) `InpaintModel`, `OrtModel`, `OvModel` (OpenVINO ראשי, compile לכל bucket), `AutoModel` (fallback אוטומטי ל-ORT בכשל טעינה/compile/הרצה), `Pipeline.warmup`, ו-Pipeline עם ROI ל-buckets. 88 בדיקות עוברות עם מודל ONNX סינתטי (כולל תיקון אימות file ב-Windows, M2.5.1) (פריטיות OV/ORT ≤3). **לא נבדק מול Big LaMa האמיתי** (LFS pointer בסביבת Claude): `tests/test_real_model.py` רץ אצל המשתמש. נשאר: M2.7–M2.9 (פירוק ב-DEVELOPMENT_LOG) |
 | M3–M5 | טרם התחיל |
 
 ## הגבלות סביבה (חשוב)
@@ -58,5 +58,5 @@
 (הטוקן אצלי; אספק אותו בשיחה.)
 אופן עבודה: כמו תמיד (שכפול/pull, קריאת PROGRESS.md וסעיף השלב ב-ROADMAP.md, ARCHITECTURE.md לפי הצורך, שלב אחד, עדכון PROGRESS/ROADMAP/DEVELOPMENT_LOG, קומיט ופוש עם git pull --rebase לפני, מחבר Claude <noreply@anthropic.com>, חיפוש רק עם grep ו-sed, סיכום בקצרה).
 הקשר: אני שיחה B. שלבים 0, M1 ו-M1.5 (מדידות) בוצעו; תקציב Latency ו-Python 3.14 הוכרעו (ראו PROGRESS.md). שיחה A משלימה את M1.5 במקביל ולא אגע בתחומה (tools/m1).
-משימה: M2 – Core Inpainting Engine. M2.1–M2.5 בוצעו (ראו סעיף M2 ב-ROADMAP.md); להמשיך ב-M2.6 (Job Scheduler), לפי הפירוק ב-ROADMAP.
+משימה: M2 – Core Inpainting Engine. M2.1–M2.6 בוצעו (ראו סעיף M2 ב-ROADMAP.md); להמשיך ב-M2.7 (CLI ובדיקות 1/12/24MP), לפי הפירוק ב-ROADMAP.
 ```
