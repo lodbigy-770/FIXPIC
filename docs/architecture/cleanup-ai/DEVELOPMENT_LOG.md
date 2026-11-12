@@ -335,3 +335,18 @@ ROI גדול מקלט המודל: להקטין (Resize זול) ולהריץ ב-5
 **קבצים שהשתנו:** `MODEL_CARD.md` (§6), `ROADMAP.md`, `PROGRESS.md`, `DEVELOPMENT_LOG.md`.
 
 **הבא:** אישור התקציב; אחר כך OpenVINO ו-3 threads (דורשים סקריפט חדש), UI Spike, ואימות GIL וזמן עלייה.
+
+---
+
+## 2026-11-12 – M1.5: הכרעות המשתמש (תקציב Latency ו-Python 3.14)
+
+**שלב:** Milestone 1.5 – תיעוד הכרעות. **השלב עדיין לא הושלם.**
+
+**הוכרע:**
+1. **תקציב Latency** אושר כפי שהוצע בערך הקודם (אינטראקטיבי עד 256, רגיל עד 384, איכות עד 512 ידני, 768+ ידני בלבד). עודכנו `PLAN.md` §3, `PARITY-SPEC.md` §3 ו-§6 (השאלה הפתוחה נסגרה), והסיכון בטבלת הסיכונים ב-PLAN תוקן (עלות כמעט לינארית, לא מהר יותר).
+2. **Python 3.14** (ולא 3.12). ADR-002 ו-PLAN עודכנו, וב-`M1-RUNBOOK.md` נכתב "3.12 ומעלה". נבדק ב-PyPI: PySide6 6.12.0 דורש Python >=3.10,<3.16 ויש לו גלגל abi3 ל-Windows x64, ולכן אמור לעבוד. ONNX Runtime 1.31.1, OpenCV ו-NumPy כבר רצו אצל המשתמש על 3.14.3. **לא נבדק:** אריזה בפועל (PyInstaller/Nuitka) ותמיכת OpenVINO ב-3.14.
+3. **עבודה במקביל:** שיחה A משלימה את M1.5 (OpenVINO, 3 threads, UI Spike, GIL, זמן עלייה, אריזה), ושיחה B מבצעת M2. כללי הפרדה ופרומפטים ב-`PROGRESS.md`.
+
+**קבצים שהשתנו:** `PLAN.md`, `PARITY-SPEC.md`, `ARCHITECTURE.md` (ADR-002), `M1-RUNBOOK.md`, `ROADMAP.md`, `PROGRESS.md`, `DEVELOPMENT_LOG.md`.
+
+**הבא:** שיחה A: סקריפט OpenVINO ו-3 threads. שיחה B: M2.
