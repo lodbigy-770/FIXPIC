@@ -6,7 +6,7 @@ import logging
 
 import numpy as np
 
-from ..errors import InferenceError, ModelLoadError
+from ..errors import InferenceError, ModelLoadError, OutOfMemoryError
 from .base import CancelToken, ModelConfig, ModelInfo
 from .ort_model import OrtModel, check_model_file
 
@@ -46,6 +46,8 @@ class AutoModel:
         if self._active is self._primary and hasattr(self._primary, "warmup"):
             try:
                 self._primary.warmup(sizes, cancel)
+            except OutOfMemoryError:
+                raise
             except (InferenceError, ModelLoadError) as e:   # CancelledError עולה כלפי חוץ
                 self._switch(str(e))
 
@@ -56,6 +58,8 @@ class AutoModel:
             return self._fallback.run(image, mask, cancel)
         try:
             return self._primary.run(image, mask, cancel)
+        except OutOfMemoryError:                          # אינו כשל backend: ללא מעבר ל-ORT
+            raise
         except (InferenceError, ModelLoadError) as e:     # compile או הרצה נכשלו: ללא קריסה
             self._switch(str(e))
             return self._fallback.run(image, mask, cancel)

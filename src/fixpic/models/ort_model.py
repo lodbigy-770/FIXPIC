@@ -7,7 +7,7 @@ from pathlib import Path
 
 import numpy as np
 
-from ..errors import InferenceError, ModelLoadError
+from ..errors import InferenceError, ModelLoadError, OutOfMemoryError, is_oom
 from ..pipeline.prepost import postprocess, preprocess
 from .base import CancelToken, ModelConfig, ModelInfo
 
@@ -68,6 +68,8 @@ class OrtModel:
         try:
             out = self._sess.run([self._out_name], {self._img_name: rgb, self._mask_name: m})[0]
         except Exception as e:  # noqa: BLE001
+            if is_oom(e):
+                raise OutOfMemoryError(f"נגמר הזיכרון בהרצת המודל: {e}") from e
             raise InferenceError(f"הרצת המודל נכשלה: {e}") from e
         return postprocess(out, hw)
 

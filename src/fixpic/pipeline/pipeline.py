@@ -2,17 +2,21 @@
 פיקסלים מחוץ למסכה האפקטיבית (אחרי הרחבה) זהים למקור לבייט, גם עם Feathering וגם עם Tiling."""
 from __future__ import annotations
 
-import math
+import logging
 from dataclasses import dataclass, field
+from typing import Callable
 
 import cv2
 import numpy as np
 
-from ..errors import EmptyMaskError, InvalidInputError
+from ..errors import EmptyMaskError, InvalidInputError, OutOfMemoryError, is_oom
 from ..models.base import CancelToken, InpaintModel
 from .feather import feather_alpha
 from .grouping import Group, group_mask
 from .roi import RoiPlan, plan_roi_bbox, tile_cores, tile_plan
+
+log = logging.getLogger("fixpic.pipeline")
+STRIP = 128   # שורות בכל פעימת מיזוג: מונע מערכי float בגודל החלון כולו
 
 
 @dataclass(frozen=True)
@@ -28,6 +32,28 @@ class PipelineConfig:
     min_scale: float = 0.5       # מתחתיו, ב-"auto", עוברים לאריחים; ערך זמני (איכות לא נמדדה)
     tile_overlap: int = 64       # הקשר סביב ליבת האריח
     max_tiles: int = 64          # מעל זה חוזרים להקטנה (תקרת זמן)
+    memory_limit_mb: int | None = None   # תקרת זיכרון להערכה מראש (כולל המודל); None = ללא בדיקה
+    model_overhead_mb: int = 1600        # שיא תהליך של OpenVINO נמדד ב-M1.5: 1.51GB; ערך מעוגל כלפי מעלה
+    oom_retry: bool = True               # בכשל זיכרון: ניסיון חוזר ב-bucket קטן יותר
+
+
+@dataclass(frozen=True)
+class Progress:
+    done: int       # חלונות (הרצות מודל) שהושלמו
+    total: int      # סך החלונות המתוכננים; יכול לגדול אחרי ניסיון חוזר ב-OOM
+    stage: str      # "inpaint" | "done"
+
+
+ProgressFn = Callable[[Progress], None]
+
+
+def estimate_memory_mb(h: int, w: int, model_overhead_mb: int = 0) -> int:
+    """הערכה מראש של שיא הזיכרון של עיבוד תמונה h×w (מעל התמונה שהמתקשר מחזיק), כולל המודל.
+    מקדם הבתים לפיקסל מכויל בבדיקה (tests/test_m25.py) מול tracemalloc, עם מרווח ביטחון."""
+    return int(model_overhead_mb + BYTES_PER_PIXEL * h * w / 2**20) + 1
+
+
+BYTES_PER_PIXEL = 32      # נמדד: עד 28.4 בייט/פיקסל בעיבוד מסכה ענקית בהקטנה (tracemalloc, 12MP ו-24MP)
 
 
 @dataclass(frozen=True)
@@ -38,6 +64,8 @@ class InpaintResult:
     rois: list = field(default_factory=list)   # כל ה-ROI/האריחים שהורצו
     groups: int = 1
     model_calls: int = 0
+    size_used: int = 0           # ה-bucket שבו הושלם הקבוצה האחרונה (קטן מהמבוקש אחרי OOM)
+    oom_retries: int = 0
 
 
 class Pipeline:
@@ -59,7 +87,7 @@ class Pipeline:
 
     # ------------------------------------------------------------------ run
     def run(self, image: np.ndarray, mask: np.ndarray, size: int | None = None,
-            cancel: CancelToken | None = None) -> InpaintResult:
+            cancel: CancelToken | None = None, progress: ProgressFn | None = None) -> InpaintResult:
         c = self.cfg
         size = size or c.default_size
         if size not in c.sizes:
@@ -69,6 +97,10 @@ class Pipeline:
         if mask.ndim != 2 or mask.shape != image.shape[:2]:
             raise InvalidInputError("המסכה חייבת להיות [H,W] באותו גודל כמו התמונה")
         cancel = cancel or CancelToken()
+        if c.memory_limit_mb is not None:
+            need = estimate_memory_mb(*image.shape[:2], c.model_overhead_mb)
+            if need > c.memory_limit_mb:
+                raise OutOfMemoryError(f"הערכת זיכרון {need}MB חורגת מהתקרה {c.memory_limit_mb}MB; התמונה לא שונתה")
 
         m = (mask > 0).astype(np.uint8)
         if not m.any():
@@ -79,36 +111,79 @@ class Pipeline:
             m = cv2.dilate(m, k)
         cancel.raise_if_cancelled()
 
-        groups = group_mask(m, size, c.margin_ratio, c.min_margin)
+        hw = image.shape[:2]
+        try:
+            groups = group_mask(m, size, c.margin_ratio, c.min_margin)
+        except MemoryError as e:
+            raise OutOfMemoryError(f"נגמר הזיכרון בניתוח המסכה: {e}") from e
         result = image.copy()                       # כשל באמצע אינו משנה את הקלט
         rois: list[RoiPlan] = []
+        st = _State(progress, sum(self._count(g, size, hw) for g in groups))
+        used = size
         for g in groups:
             cancel.raise_if_cancelled()
-            self._run_group(result, m, g, size, cancel, rois)
-        return InpaintResult(result, m, rois[0], rois, len(groups), len(rois))
+            used = self._run_group_with_retry(image, result, m, g, size, cancel, rois, st, hw)
+        st.emit("done")
+        return InpaintResult(result, m, rois[0], rois, len(groups), len(rois), used, st.retries)
+
+    def _count(self, g: Group, size: int, hw) -> int:
+        """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
+        _, cores = self._strategy(g, size, hw)
+        if cores is None:
+            return 1
+        bx, by = g.box[0], g.box[1]
+        return sum(1 for x0, y0, x1, y1 in cores if g.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
+
+    def _run_group_with_retry(self, image, result, m, g: Group, size, cancel, rois, st, hw) -> int:
+        sizes = sorted((s for s in self.cfg.sizes if s <= size), reverse=True)
+        n_before = len(rois)
+        for i, s in enumerate(sizes):
+            try:
+                self._run_group(result, m, g, s, cancel, rois, st)
+                return s
+            except (OutOfMemoryError, MemoryError) as e:
+                if not is_oom(e):
+                    raise
+                # מחזירים את פיקסלי הקבוצה למקור (רק הם שונו על ידה) ומנסים bucket קטן יותר
+                sel = g.mask > 0
+                x0, y0, x1, y1 = g.box
+                result[y0:y1, x0:x1][sel] = image[y0:y1, x0:x1][sel]
+                del rois[n_before:]
+                if not self.cfg.oom_retry or i + 1 >= len(sizes):
+                    raise e if isinstance(e, OutOfMemoryError) else OutOfMemoryError(f"נגמר הזיכרון: {e}") from e
+                log.warning("OOM ב-bucket %d, ניסיון חוזר ב-%d", s, sizes[i + 1])
+                st.retries += 1
+                st.total += self._count(g, sizes[i + 1], hw)
+        raise AssertionError("unreachable")
 
     # ---------------------------------------------------------------- group
-    def _run_group(self, result, m, g: Group, size, cancel, rois) -> None:
+    def _strategy(self, g: Group, size: int, hw):
+        """(תוכנית ה-ROI, ליבות אריחים או None)."""
         c = self.cfg
-        hw = result.shape[:2]
         p = plan_roi_bbox(g.box, hw, size, c.margin_ratio, c.min_margin)
-        use_tiles = False
         if p.downscaled and c.large_strategy != "downscale":
             cores = tile_cores(g.box, size, c.tile_overlap)
             if len(cores) <= c.max_tiles and (c.large_strategy == "tile" or p.scale < c.min_scale):
-                use_tiles = True
-        if not use_tiles:
-            self._infer(result, m, g, p, (g.box), cancel, rois)
+                return p, cores
+        return p, None
+
+    def _run_group(self, result, m, g: Group, size, cancel, rois, st) -> None:
+        hw = result.shape[:2]
+        p, cores = self._strategy(g, size, hw)
+        if cores is None:
+            self._infer(result, m, g, p, g.box, cancel, rois)
+            st.step()
             return
         gm = Group(g.box, g.mask.copy())            # "נותר למילוי": ריק אחרי כל אריח
+        bx, by = g.box[0], g.box[1]
         for core in cores:
             cancel.raise_if_cancelled()
             x0, y0, x1, y1 = core
-            bx, by = g.box[0], g.box[1]
             if not gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any():
                 continue
             self._infer(result, m, gm, tile_plan(x0, y0, x1, y1, hw, size), core, cancel, rois)
             gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx] = 0
+            st.step()
 
     # ---------------------------------------------------------------- infer
     def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois) -> None:
@@ -128,7 +203,10 @@ class Pipeline:
             roi_m = cv2.copyMakeBorder(roi_m, 0, pad_b, 0, pad_r, cv2.BORDER_CONSTANT, value=0)
         cancel.raise_if_cancelled()
 
-        out = self.model.run(np.ascontiguousarray(roi_img), np.ascontiguousarray(roi_m), cancel)
+        try:
+            out = self.model.run(np.ascontiguousarray(roi_img), np.ascontiguousarray(roi_m), cancel)
+        except MemoryError as e:
+            raise OutOfMemoryError(f"נגמר הזיכרון בהרצת המודל: {e}") from e
         if out.shape != (size, size, 3) or out.dtype != np.uint8:
             raise InvalidInputError(f"פלט המודל בצורה/טיפוס לא צפויים: {out.shape} {out.dtype}")
         out = out[:p.in_h, :p.in_w]
@@ -138,25 +216,51 @@ class Pipeline:
         rois.append(p)
 
         # אזור הכתיבה: g.mask בתוך commit_box. alpha מחושב מהמסכה המלאה, כך שרק קצה המסכה האמיתי מעומעם
-        # ולא גבולות האריחים. מחוץ למסכה alpha = 0.
-        sel = np.zeros((p.height, p.width), bool)
+        # ולא גבולות האריחים. מחוץ למסכה alpha = 0. המיזוג בפסים כדי לא להחזיק float32 בגודל החלון.
         cx0, cy0, cx1, cy1 = (max(commit_box[0], p.x0) - p.x0, max(commit_box[1], p.y0) - p.y0,
                               min(commit_box[2], p.x1) - p.x0, min(commit_box[3], p.y1) - p.y0)
-        sel[cy0:cy1, cx0:cx1] = win_mask[cy0:cy1, cx0:cx1] > 0
-        alpha = self._alpha(m, p)
-        a = np.where(sel, alpha, 0.0)[..., None]
-        base = win_img.astype(np.float32)
-        blended = np.rint(base + (out.astype(np.float32) - base) * a)
-        win_img[sel] = blended.astype(np.uint8)[sel]   # win_img הוא view של result
+        if cx1 <= cx0 or cy1 <= cy0:
+            return
+        region = (p.x0 + cx0, p.y0 + cy0, p.x0 + cx1, p.y0 + cy1)
+        alpha = self._alpha(m, region)
+        for r0 in range(cy0, cy1, STRIP):
+            r1 = min(cy1, r0 + STRIP)
+            sel = win_mask[r0:r1, cx0:cx1] > 0
+            if not sel.any():
+                continue
+            dst = win_img[r0:r1, cx0:cx1]                      # view של result
+            a = np.where(sel, alpha[r0 - cy0:r1 - cy0], 0.0)[..., None]
+            base = dst.astype(np.float32)
+            blended = np.rint(base + (out[r0:r1, cx0:cx1].astype(np.float32) - base) * a).astype(np.uint8)
+            dst[sel] = blended[sel]
 
-    def _alpha(self, m, p: RoiPlan) -> np.ndarray:
+    def _alpha(self, m, region) -> np.ndarray:
         f = self.cfg.feather_px
+        x0, y0, x1, y1 = region
         if f <= 0:
-            return m[p.y0:p.y1, p.x0:p.x1].astype(np.float32)
+            return m[y0:y1, x0:x1].astype(np.float32)
         h, w = m.shape
-        ex0, ey0, ex1, ey1 = max(0, p.x0 - f - 1), max(0, p.y0 - f - 1), min(w, p.x1 + f + 1), min(h, p.y1 + f + 1)
+        ex0, ey0, ex1, ey1 = max(0, x0 - f - 1), max(0, y0 - f - 1), min(w, x1 + f + 1), min(h, y1 + f + 1)
         al = feather_alpha(np.ascontiguousarray(m[ey0:ey1, ex0:ex1]), f)
-        return al[p.y0 - ey0:p.y1 - ey0, p.x0 - ex0:p.x1 - ex0]
+        return al[y0 - ey0:y1 - ey0, x0 - ex0:x1 - ex0]
+
+
+class _State:
+    """מונה התקדמות. חריגה ב-callback אינה מפילה את העיבוד (נרשמת ביומן)."""
+
+    def __init__(self, fn: ProgressFn | None, total: int) -> None:
+        self.fn, self.total, self.done, self.retries = fn, total, 0, 0
+
+    def step(self) -> None:
+        self.done += 1
+        self.emit("inpaint")
+
+    def emit(self, stage: str) -> None:
+        if self.fn:
+            try:
+                self.fn(Progress(self.done, max(self.total, self.done), stage))
+            except Exception:  # noqa: BLE001
+                log.exception("callback של התקדמות נכשל")
 
 
 def _paste(dst: np.ndarray, src: np.ndarray, src_box, p: RoiPlan) -> None:

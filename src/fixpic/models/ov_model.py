@@ -5,7 +5,7 @@ import threading
 
 import numpy as np
 
-from ..errors import InferenceError, ModelLoadError
+from ..errors import InferenceError, ModelLoadError, OutOfMemoryError, is_oom
 from ..pipeline.prepost import postprocess, preprocess
 from .base import CancelToken, ModelConfig, ModelInfo
 from .ort_model import check_model_file
@@ -54,6 +54,8 @@ class OvModel:
                         "NUM_STREAMS": 1,
                     })
                 except Exception as e:  # noqa: BLE001
+                    if is_oom(e):
+                        raise OutOfMemoryError(f"נגמר הזיכרון ב-compile לצורה {h}x{w}: {e}") from e
                     raise ModelLoadError(f"compile נכשל לצורה {h}x{w}: {e}") from e
                 self._compiled[key] = c
             return c
@@ -81,6 +83,8 @@ class OvModel:
             res = c({self._img_name: rgb, self._mask_name: m})
             out = res[c.outputs[0]]
         except Exception as e:  # noqa: BLE001
+            if is_oom(e):
+                raise OutOfMemoryError(f"נגמר הזיכרון בהרצת המודל: {e}") from e
             raise InferenceError(f"הרצת המודל נכשלה: {e}") from e
         return postprocess(np.asarray(out), hw)
 
