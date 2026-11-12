@@ -55,7 +55,10 @@ def synthetic(w, h, seed_img):
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
         return np.stack([(np.sin(xx / 37) + 1) * 127, (np.cos(yy / 53) + 1) * 127,
                          ((xx + yy) % 255)], axis=2).astype(np.uint8)
-    big = cv2.resize(base, (w, h), interpolation=cv2.INTER_CUBIC)
+    bh, bw = base.shape[:2]                      # center-crop to the target aspect, then scale: no stretching
+    cw, ch = (bw, int(round(bw * h / w))) if bw * h <= bh * w else (int(round(bh * w / h)), bh)
+    y0, x0 = (bh - ch) // 2, (bw - cw) // 2
+    big = cv2.resize(base[y0:y0 + ch, x0:x0 + cw], (w, h), interpolation=cv2.INTER_CUBIC)
     noise = np.random.default_rng(0).integers(-12, 12, big.shape, dtype=np.int16)
     return np.clip(big.astype(np.int16) + noise, 0, 255).astype(np.uint8)
 
