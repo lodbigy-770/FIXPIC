@@ -34,6 +34,8 @@ class Manifest:
             d = json.loads(mj.read_text(encoding="utf-8"))
             if d.get("schema") != SCHEMA:
                 raise ValueError(f"schema לא נתמך: {d.get('schema')!r}")
+            if not isinstance(d.get("name"), str) or not d["name"]:
+                raise ValueError("name חסר או לא תקין")
             inp = d.get("input", {})
             info = ModelInfo(name=d["name"], multiple=int(inp.get("multiple", 8)),
                              min_size=int(inp.get("min_size", 64)), max_size=int(inp.get("max_size", 4096)))
