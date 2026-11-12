@@ -55,7 +55,7 @@
 
 ## 4. מגבלות חומרה
 
-- ללא GPU: כל החישוב ב-ONNX Runtime CPU Execution Provider.
+- ללא GPU: כל החישוב על ה-CPU, ב-OpenVINO (ראשי) או ב-ONNX Runtime CPU Execution Provider (fallback). ראו ADR-011.
 - זמן ההרצה צפוי להיות תלוי בגודל הקלט ובמספר הליבות. **[לא נמדד]** – ימדד ב-Milestone 1.
 - הסביבה שבה נערך התכנון (סנדבוקס, 1 ליבה, ~3GB RAM) **אינה** מייצגת את סביבת היעד; מדידות ביצועים רשמיות ייעשו על חומרת יעד.
 
@@ -102,7 +102,7 @@
 | LFS: קבצי pointer במקום קבצים אמיתיים | מודל לא נטען | אימות גודל ו-SHA256 בעת הקליטה |
 | גודל המתקין (המודל במאות MB) | הפצה | תיעוד גודל; בחינת Quantization בעתיד |
 
-תלויות: Python 3.14 (הוכרע 2026-11-12), PySide6 (Qt), ONNX Runtime (CPU), OpenCV (headless), NumPy, Git LFS (בהתאם לצורך).
+תלויות: Python 3.14 (הוכרע 2026-11-12), PySide6 (Qt), OpenVINO (CPU), ONNX Runtime (CPU, fallback), OpenCV (headless), NumPy, Git LFS (בהתאם לצורך).
 
 ## 8. משימות פתוחות
 

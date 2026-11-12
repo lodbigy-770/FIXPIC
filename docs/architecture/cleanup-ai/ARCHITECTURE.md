@@ -166,7 +166,7 @@ class InpaintModel(Protocol):
 - **החלטה:** ONNX Runtime CPU EP.
 - **סיבה:** פורמט המודל הנבחר הוא ONNX; Runtime בוגר, Offline, ללא GPU.
 - **חלופות:** OpenVINO (נבחן ב-M1.5 כהאצה ל-Intel); PyTorch (כבד, לא נדרש).
-- **סטטוס:** מאושר.
+- **סטטוס:** מאושר. **עודכן 2026-11-12:** ONNX Runtime נשאר fallback ו-OpenVINO CPU הוא ה-backend הראשי (ראו ADR-011).
 
 ### ADR-002 – Stack: Python (עודכן 2026-11-10)
 - **החלטה:** Python 3.14 (הוכרע על ידי המשתמש 2026-11-12; קודם נכתב 3.12) לכל המערכת: UI, תזמור ועיבוד. החישוב הכבד רץ בקוד נייטיב: ONNX Runtime (Inference) ו-OpenCV/NumPy (עיבוד תמונה).
@@ -224,12 +224,21 @@ class InpaintModel(Protocol):
 - **סיבה:** דרישת המשתמש לא להניח, והחלפת מודל קלה.
 - **סטטוס:** מאושר.
 
+### ADR-011 – OpenVINO CPU כ-backend ראשי, ONNX Runtime CPU כ-fallback (2026-11-12)
+- **החלטה:** Inference דרך ה-API הנייטיב של OpenVINO על ה-CPU, ב-3 threads (LATENCY, דיוק f32), מאחורי `InpaintModel`. ONNX Runtime CPU נשאר כ-fallback כשה-import או ה-compile של OpenVINO נכשלים. ללא GPU, כולל ה-iGPU של Intel (נבדק ונפסל; הוכרע ע"י המשתמש).
+- **סיבה:** M1.5, i5-6500T: ב-3 threads OpenVINO 0.83/1.68/3.12 שניות לקלט 256/384/512, מול ORT ב-4 threads 0.84/1.97/3.90, ומשאיר ליבה ל-UI. הפרש בתוצאה מול ORT עד 0.001 בסקאלה 0–255. ראו `DEVELOPMENT_LOG.md` (2026-11-12).
+- **מחיר:** compile של כ-5.5 שניות לכל צורת קלט (צורה סטטית); גלגל `openvino` 81MB נוסף (ORT 14.6MB, שניהם נארזים בגלל ה-fallback); כ-0.4GB זיכרון נוסף (שיא 1.51GB במדידה); נמדד על מעבד Intel אחד בלבד.
+- **זיכרון:** המדידה על מחשב 8GB; מחשב היעד בדרך כלל 16GB (PLAN §3), ולכן הזיכרון הנוסף אינו מגבלה.
+- **תנאים מחייבים:** ה-Pipeline מחזיר ROI לגדלים קבועים (256/384/512) ולא לצורות שרירותיות; Warm-up/compile ברקע (הגודל הרגיל, 384, קודם); בדיקת פריטיות מול ORT (הפרש מקסימלי עד 3 בסקאלה 0–255); זיהוי כשל וחזרה ל-ORT בלי הודעת קריסה.
+- **פתוח:** צורה דינמית ומטמון compile (`CACHE_DIR`) טרם נמדדו; התנהגות על מעבדים שאינם Intel טרם נבדקה.
+- **סטטוס:** מאושר זמנית. המשתמש ענה על ההצעה בהערת זיכרון בלבד (8GB כרגע, 16GB בדרך כלל), בלי כן/לא מפורש; לאשר או לדחות במפורש.
+
 ## 13. ספריות ומבנה קוד מוצע (הצעה, טרם מומש)
 
 | תחום | ספרייה | הערה |
 |------|--------|------|
 | ממשק | PySide6 | LGPL; ראו ADR-007 |
-| הרצת מודל | onnxruntime (CPU) | בלי חבילות GPU |
+| הרצת מודל | openvino (CPU, ראשי), onnxruntime (CPU, fallback) | בלי GPU; ראו ADR-011 |
 | עיבוד תמונה | opencv-python-headless, numpy | |
 | קלט/פלט תמונה | cv2.imdecode/imencode, np.fromfile/tofile; Pillow ל-EXIF/ICC אם יידרש | נתיבים בעברית |
 | Threading | QThread / QRunnable | ראו ADR-007 |
