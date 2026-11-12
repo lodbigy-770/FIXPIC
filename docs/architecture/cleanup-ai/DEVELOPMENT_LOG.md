@@ -424,3 +424,32 @@ ROI גדול מקלט המודל: להקטין (Resize זול) ולהריץ ב-5
 **`kernel.errors.txt`:** המשתמש אישר מחיקה. הקובץ היה במעקב git (קריאה שגויה שלי בערך קודם סברה שהוא כבר ב-`.gitignore`). הוסר מהריפו, ונוסף ל-`.gitignore`, כדי שהרצת `--devices GPU` לא תיצור אותו שוב בריפו.
 
 **הבא:** אישור מפורש ל-ADR-011; `--dynamic` ומטמון compile; UI Spike; GIL וזמן עלייה; אריזה על 3.14.
+
+---
+
+## 2026-11-12 – M2.1 (שיחה B): InpaintModel, OrtModel, Pipeline
+
+**שלב:** Milestone 2, חלק ראשון. **M2 עדיין פתוח.**
+
+**מה נבנה** (`src/fixpic/`, `pytest.ini`, `tests/`):
+- `errors.py`: שגיאות מוגדרות (ModelLoad, Inference, EmptyMask, InvalidInput, Cancelled).
+- `models/base.py`: `InpaintModel` (Protocol), `ModelInfo`, `ModelConfig` (ברירת מחדל 3 threads), `CancelToken`.
+- `models/ort_model.py`: backend של ONNX Runtime CPU. שמות Tensors מזוהים לפי מספר ערוצים (ADR-005). `check_model_file`: קיום, זיהוי LFS pointer, hash.
+- `pipeline/prepost.py`: חלקי 255, ריפוד symmetric לכפולה של 8, חיתוך, clip ו-truncation (כמו MODEL_CARD §4).
+- `pipeline/roi.py`: ROI לריבוע קבוע S. הקשר נכנס ב-S: קנה מידה מקורי; אחרת הקטנה אחידה ב-INTER_AREA, וריפוד reflect לתמונה ו-0 למסכה.
+- `pipeline/pipeline.py`: אימות קלט, הרחבת מסכה (ADR-008, ברירת מחדל זמנית 5px), ROI, הרצה, מיזוג בינארי לעותק. הקלט לעולם לא משתנה.
+
+**החלטות תכנון:** מיזוג הוא על המסכה *האפקטיבית* (אחרי הרחבה), והיא מוחזרת בתוצאה; מחוץ לה הפיקסלים זהים לבייט (נבדק). כל קריאה למודל בצורה קבועה S×S (נבדק), כנדרש ב-ADR-011.
+
+**ממצא בבדיקות:** ברזולוציה מוקטנת, ההגדלה חזרה (INTER_CUBIC) מערבבת בגבול המסכה את פלט המודל עם הסביבה. בבדיקה נבדק רק פנים המסכה. בתמונה אמיתית נדרש Feathering או הרחבה נוספת: לבדוק איכות ב-M2.2/M3.
+
+**לא נבדק:** Big LaMa האמיתי (LFS pointer; הרשת חוסמת את ההורדה). `tests/test_real_model.py` מדלג כאן ורץ אצל המשתמש.
+
+**פירוק מוצע לשאר M2:**
+- M2.2: backend OpenVINO (ראשי) + בחירה/fallback אוטומטי ל-ORT + בדיקת פריטיות (עד 3 ברמות), Warm-up לפי bucket.
+- M2.3: Model Manager (`model.json`, hash) + זיהוי כשל בטעינה.
+- M2.4: מסכות מרובות/רחוקות (אשכולות), Tiling לתמונות גדולות, Feathering.
+- M2.5: ניהול זיכרון, התאוששות מ-OOM, דיווח התקדמות.
+- M2.6: Job Scheduler (FIFO עד 3, Worker יחיד) + CLI לבדיקה + בדיקות 1/12/24MP.
+
+**הבא:** M2.2, ולהריץ אצל המשתמש `python -m pytest` עם המודל האמיתי.
