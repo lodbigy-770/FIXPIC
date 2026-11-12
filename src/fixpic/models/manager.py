@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath, PureWindowsPath
 
 from ..errors import ModelLoadError
 from .auto import AutoModel
@@ -41,9 +41,16 @@ class Manifest:
                              min_size=int(inp.get("min_size", 64)), max_size=int(inp.get("max_size", 4096)))
             if info.multiple <= 0 or info.min_size > info.max_size:
                 raise ValueError("ערכי input לא תקינים")
-            file = Path(d["file"])
-            if file.is_absolute() or ".." in file.parts:
+            raw = d["file"]
+            if not isinstance(raw, str) or not raw:
+                raise ValueError("שדה file חייב להיות מחרוזת לא ריקה")
+            # בדיקה בשני הסגנונות (POSIX ו-Windows) כדי שהתוצאה לא תלויה במערכת ההפעלה:
+            # ב-Windows הנתיב "/abs.onnx" אינו is_absolute() אך יש לו root ומחוץ לתיקיית המודל.
+            pp, pw = PurePosixPath(raw), PureWindowsPath(raw)
+            if (pp.is_absolute() or pw.is_absolute() or pw.root or pw.drive
+                    or ".." in pp.parts or ".." in pw.parts):
                 raise ValueError("שדה file חייב להיות נתיב יחסי בתוך תיקיית המודל")
+            file = Path(raw)
             sha = d.get("sha256")
             if sha is not None and (len(sha) != 64 or any(c not in "0123456789abcdefABCDEF" for c in sha)):
                 raise ValueError("sha256 לא תקין")

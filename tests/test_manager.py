@@ -29,7 +29,7 @@ def test_list_skips_broken_and_reads_info(tmp_path):
     assert [m.name for m in ms] == ["good"] and ms[0].info.multiple == 8 and ms[0].license == "Apache-2.0"
 
 
-@pytest.mark.parametrize("over", [{"schema": 2}, {"file": "../x.onnx"}, {"file": "/abs.onnx"},
+@pytest.mark.parametrize("over", [{"schema": 2}, {"file": "../x.onnx"}, {"file": "/abs.onnx"}, {"file": "C:\\abs.onnx"}, {"file": "..\\x.onnx"}, {"file": ""},
                                   {"sha256": "zz"}, {"input": {"multiple": 0}}, {"name": None}])
 def test_invalid_manifest(tmp_path, over):
     make(tmp_path, "m", **over)
