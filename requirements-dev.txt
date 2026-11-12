@@ -1,0 +1,8 @@
+# תלויות המנוע (src/fixpic) והבדיקות. התקנה: pip install -r requirements-dev.txt
+numpy
+opencv-python-headless
+onnxruntime>=1.30
+openvino        # backend ראשי (ADR-011); בלעדיו המנוע עובד על ORT
+# בדיקות בלבד:
+onnx            # בונה מודל סינתטי בחוזה של LaMa
+pytest
