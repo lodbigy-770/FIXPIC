@@ -74,7 +74,7 @@
 **מטרות:** מנוע עצמאי (ספרייה ללא UI).
 
 **משימות**
-- [x] `InpaintModel` + מימוש ONNX (M2.1; OpenVINO כ-backend ראשי עוד לא נכתב, M2.2).
+- [x] `InpaintModel` + מימוש ONNX (M2.1); backend OpenVINO ראשי עם fallback אוטומטי ל-ORT ו-Warm-up (M2.2).
 - [ ] Model Manager (טעינה, מטא-דאטה, בדיקת hash).
 - [x] Pipeline: ROI, Pad/Resize, Pre/Post, מיזוג (M2.1; בלי Feathering ובלי Tiling).
 - [ ] Tiling עם חפיפה לתמונות/מסכות גדולות.

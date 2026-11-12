@@ -453,3 +453,20 @@ ROI גדול מקלט המודל: להקטין (Resize זול) ולהריץ ב-5
 - M2.6: Job Scheduler (FIFO עד 3, Worker יחיד) + CLI לבדיקה + בדיקות 1/12/24MP.
 
 **הבא:** M2.2, ולהריץ אצל המשתמש `python -m pytest` עם המודל האמיתי.
+
+---
+
+## 2026-11-12 – M2.2 (שיחה B): backend OpenVINO, fallback אוטומטי, Warm-up
+
+**שלב:** Milestone 2, חלק שני. **M2 עדיין פתוח.**
+
+**מה נבנה:**
+- `models/ov_model.py` (`OvModel`): OpenVINO CPU, f32, LATENCY, `INFERENCE_NUM_THREADS` מ-`ModelConfig` (ברירת מחדל 3), compile לכל צורה קבועה עם מטמון בזיכרון (תחת נעילה), `warmup(sizes)`. שמות Tensors לפי מספר ערוצים (ADR-005).
+- `models/auto.py` (`AutoModel`): OpenVINO ראשי; כשל ב-import, בטעינה, ב-compile או בהרצה גורם למעבר קבוע ל-`OrtModel` בלי חריגה, עם `backend` ו-`fallback_reason`. מודל חסר/LFS/hash אינו גורם ל-fallback אלא לשגיאה ישירה. ביטול (`CancelledError`) לא נבלע.
+- `Pipeline.warmup()`: compile לכל ה-buckets, הגודל הרגיל (384) קודם.
+
+**בדיקות** (`tests/test_backends.py`, מודל ONNX סינתטי בחוזה של LaMa, כי המודל האמיתי אינו נגיש): פריטיות OV מול ORT דרך ה-Pipeline (הפרש ≤3, תנאי ADR-011); מטמון הצורות ו-Warm-up (256/384/512); בחירת OpenVINO כברירת מחדל; fallback כש-OpenVINO חסר, כש-compile נכשל וכשההרצה נכשלת (הפלט עדיין זהה למקור מחוץ למסכה). נוסף `test_real_model_ov_vs_ort_parity` שרץ רק עם המודל האמיתי.
+
+**לא נבדק:** ביצועים וזמני compile על Big LaMa ועל ה-i5-6500T (הסביבה כאן אחרת); צורה דינמית ומטמון `CACHE_DIR` (עדיין פתוח ב-M1.5, שיחה A). Warm-up רץ סינכרונית בקריאה; הרצה ברקע תבוא עם ה-Scheduler (M2.6). התלות `openvino` ו-`onnx` (לבדיקות) טרם נרשמו בקובץ requirements של המנוע (אין עדיין כזה).
+
+**הבא:** M2.3 (Model Manager ו-`model.json`), ולהריץ אצל המשתמש `python -m pytest` עם המודל האמיתי.

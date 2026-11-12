@@ -36,6 +36,13 @@ class Pipeline:
             if s % model.info.multiple or not model.info.min_size <= s <= model.info.max_size:
                 raise InvalidInputError(f"גודל bucket לא תקף למודל: {s}")
 
+    def warmup(self, cancel: CancelToken | None = None) -> None:
+        """compile מראש לכל ה-buckets (ברקע); הגודל הרגיל קודם. no-op ל-backend בלי warmup."""
+        fn = getattr(self.model, "warmup", None)
+        if fn:
+            order = [self.cfg.default_size] + [s for s in self.cfg.sizes if s != self.cfg.default_size]
+            fn(order, cancel)
+
     def run(self, image: np.ndarray, mask: np.ndarray, size: int | None = None,
             cancel: CancelToken | None = None) -> InpaintResult:
         size = size or self.cfg.default_size
