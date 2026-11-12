@@ -1,3 +1,4 @@
 __pycache__/
 *.pyc
-
+# GPU compiler dump from openvino_spike.py --devices GPU
+kernel.errors.txt
