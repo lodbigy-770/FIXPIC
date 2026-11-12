@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "name": "big-lama",
+  "version": "onnx-smile-forge",
+  "license": "Apache-2.0",
+  "file": "inpainter.onnx",
+  "sha256": "ef85edd865769c03c753b5faa066be713a46a9c80c8f77954c67c0bb3a4ba2ff",
+  "size_bytes": 208851664,
+  "input": {"multiple": 8, "min_size": 64, "max_size": 4096}
+}
