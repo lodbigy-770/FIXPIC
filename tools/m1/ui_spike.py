@@ -48,6 +48,14 @@ def rss_mb():
         return None
 
 
+def crop_resize(img, w, h, interp):
+    """Center-crop to the target aspect, then scale to w x h (no stretching). Used for image AND mask."""
+    ih, iw = img.shape[:2]
+    cw, ch = (iw, int(round(iw * h / w))) if iw * h <= ih * w else (int(round(ih * w / h)), ih)
+    y0, x0 = (ih - ch) // 2, (iw - cw) // 2
+    return cv2.resize(img[y0:y0 + ch, x0:x0 + cw], (w, h), interpolation=interp)
+
+
 def synthetic(w, h, seed_img):
     """Detailed RGB test image of w x h: the sample photo, tiled and resized, plus fine noise."""
     base = cv2.imdecode(np.fromfile(str(seed_img), dtype=np.uint8), cv2.IMREAD_COLOR) if seed_img else None
@@ -55,10 +63,7 @@ def synthetic(w, h, seed_img):
         yy, xx = np.mgrid[0:h, 0:w].astype(np.float32)
         return np.stack([(np.sin(xx / 37) + 1) * 127, (np.cos(yy / 53) + 1) * 127,
                          ((xx + yy) % 255)], axis=2).astype(np.uint8)
-    bh, bw = base.shape[:2]                      # center-crop to the target aspect, then scale: no stretching
-    cw, ch = (bw, int(round(bw * h / w))) if bw * h <= bh * w else (int(round(bh * w / h)), bh)
-    y0, x0 = (bh - ch) // 2, (bw - cw) // 2
-    big = cv2.resize(base[y0:y0 + ch, x0:x0 + cw], (w, h), interpolation=cv2.INTER_CUBIC)
+    big = crop_resize(base, w, h, cv2.INTER_CUBIC)
     noise = np.random.default_rng(0).integers(-12, 12, big.shape, dtype=np.int16)
     return np.clip(big.astype(np.int16) + noise, 0, 255).astype(np.uint8)
 
@@ -200,9 +205,11 @@ def main():
     ap.add_argument("--height", type=int, default=4000)
     ap.add_argument("--window", default="1600x900")
     ap.add_argument("--mask", action="store_true", help="draw a mask overlay pyramid on top")
+    ap.add_argument("--mask-file", help="mask image (white = masked), e.g. samples\\person_mask.png; implies --mask")
     ap.add_argument("--interactive", action="store_true")
     ap.add_argument("--out", default="ui_spike.json")
     a = ap.parse_args()
+    a.mask = a.mask or bool(a.mask_file)
 
     app = QApplication(sys.argv[:1])
     if a.image:
@@ -211,7 +218,21 @@ def main():
         bgr = synthetic(a.width, a.height, HERE.parent.parent / "samples" / "person.png")
     rgb = np.ascontiguousarray(cv2.cvtColor(bgr, cv2.COLOR_BGR2RGB))
     mask = None
-    if a.mask:
+    mask_file = a.mask_file
+    if a.mask and not mask_file and not a.image:       # default synthetic image = person.png -> its own mask
+        cand = HERE.parent.parent / "samples" / "person_mask.png"
+        mask_file = str(cand) if cand.exists() else None
+    if mask_file:
+        m = cv2.imdecode(np.fromfile(mask_file, dtype=np.uint8), cv2.IMREAD_GRAYSCALE)
+        if not a.image:                               # same crop/scale as the synthetic image
+            m = crop_resize(m, rgb.shape[1], rgb.shape[0], cv2.INTER_LINEAR)
+        elif m.shape[:2] != rgb.shape[:2]:
+            m = cv2.resize(m, (rgb.shape[1], rgb.shape[0]), interpolation=cv2.INTER_LINEAR)
+        mask = np.zeros((*rgb.shape[:2], 4), np.uint8)
+        mask[m > 127] = (0, 0, 160, 160)              # BGRA premultiplied-ish red, ~63% alpha
+        print(f"mask from {mask_file}")
+    elif a.mask:
+        print("mask: built-in demo shapes (pass --mask-file to use your own mask)")
         mask = np.zeros((*rgb.shape[:2], 4), np.uint8)
         cv2.circle(mask, (rgb.shape[1] // 2, rgb.shape[0] // 2), rgb.shape[0] // 5, (0, 0, 160, 160), -1)
         cv2.rectangle(mask, (rgb.shape[1] // 8, rgb.shape[0] // 8), (rgb.shape[1] // 3, rgb.shape[0] // 3), (160, 0, 0, 160), -1)
