@@ -76,8 +76,8 @@
 **משימות**
 - [x] `InpaintModel` + מימוש ONNX (M2.1); backend OpenVINO ראשי עם fallback אוטומטי ל-ORT ו-Warm-up (M2.2).
 - [x] Model Manager (טעינה, מטא-דאטה, בדיקת hash) (M2.3).
-- [x] Pipeline: ROI, Pad/Resize, Pre/Post, מיזוג (M2.1; בלי Feathering ובלי Tiling).
-- [ ] Tiling עם חפיפה לתמונות/מסכות גדולות.
+- [x] Pipeline: ROI, Pad/Resize, Pre/Post, מיזוג (M2.1); Feathering פנימי ב-M2.4.
+- [x] Tiling עם חפיפה לתמונות/מסכות גדולות, וקיבוץ מסכות מרובות/רחוקות (M2.4; ספי החלטה זמניים).
 - [ ] ניהול זיכרון: שימוש חוזר בבאפרים, תקרה, התאוששות מ-OOM.
 - [ ] ביטול (`CancellationToken`) ודיווח התקדמות.
 - [ ] Job Scheduler: תור FIFO (עד 3), Worker יחיד, Warm-up של ה-Session (ARCHITECTURE §4א).

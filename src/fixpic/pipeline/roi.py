@@ -46,8 +46,12 @@ def mask_bbox(mask: np.ndarray) -> tuple[int, int, int, int]:
 
 
 def plan_roi(mask: np.ndarray, size: int, margin_ratio: float = 0.25, min_margin: int = 16) -> RoiPlan:
-    img_h, img_w = mask.shape[:2]
-    bx0, by0, bx1, by1 = mask_bbox(mask)
+    return plan_roi_bbox(mask_bbox(mask), mask.shape[:2], size, margin_ratio, min_margin)
+
+
+def plan_roi_bbox(box, img_hw, size: int, margin_ratio: float = 0.25, min_margin: int = 16) -> RoiPlan:
+    img_h, img_w = img_hw
+    bx0, by0, bx1, by1 = box
     bw, bh = bx1 - bx0, by1 - by0
     margin = max(min_margin, math.ceil(margin_ratio * max(bw, bh)))
     needed = max(bw, bh) + 2 * margin
@@ -60,3 +64,22 @@ def plan_roi(mask: np.ndarray, size: int, margin_ratio: float = 0.25, min_margin
     in_w = max(1, min(size, round(ww * scale)))
     in_h = max(1, min(size, round(wh * scale)))
     return RoiPlan(x0, y0, x0 + ww, y0 + wh, scale, size, in_w, in_h)
+
+
+def tile_plan(x0: int, y0: int, x1: int, y1: int, img_hw, size: int) -> RoiPlan:
+    """חלון S×S בקנה מידה מקורי (מוצמד לתמונה) סביב ליבת אריח."""
+    img_h, img_w = img_hw
+    ww, wh = min(size, img_w), min(size, img_h)
+    wx = int(np.clip((x0 + x1) // 2 - ww // 2, 0, img_w - ww))
+    wy = int(np.clip((y0 + y1) // 2 - wh // 2, 0, img_h - wh))
+    return RoiPlan(wx, wy, wx + ww, wy + wh, 1.0, size, ww, wh)
+
+
+def tile_cores(box, size: int, overlap: int):
+    """ליבות אריחים שמכסות את ה-box; כל ליבה + overlap מכל צד נכנסת בחלון S×S."""
+    x0, y0, x1, y1 = box
+    step = max(1, size - 2 * overlap)
+    nx, ny = -(-(x1 - x0) // step), -(-(y1 - y0) // step)
+    xs = np.linspace(x0, x1, nx + 1).round().astype(int)
+    ys = np.linspace(y0, y1, ny + 1).round().astype(int)
+    return [(int(xs[i]), int(ys[j]), int(xs[i + 1]), int(ys[j + 1])) for j in range(ny) for i in range(nx)]

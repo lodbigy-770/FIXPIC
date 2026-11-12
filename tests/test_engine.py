@@ -53,15 +53,16 @@ def test_outside_identical_inside_filled_fixed_shape(hw, size):
     if res.roi.downscaled:   # על הגבול ההגדלה חזרה מערבבת עם הסביבה; בודקים את פנים המסכה
         inner = cv2.erode(res.effective_mask, np.ones((int(6 / res.roi.scale) + 3,) * 2, np.uint8)).astype(bool)
         assert inner.any() and np.abs(res.image[inner].astype(int) - FILL).max() <= 1
-    else:
-        assert (res.image[eff] == FILL).all()                # בתוך המסכה: פלט המודל
+    else:   # Feathering משאיר את רצועת הקצה (3px) מעורבבת; הפנים הוא פלט המודל
+        inner = cv2.erode(res.effective_mask, np.ones((9, 9), np.uint8)).astype(bool)
+        assert inner.any() and (res.image[inner] == FILL).all()
     assert all(s == ((size, size, 3), (size, size)) for s in fm.shapes)   # רק צורות קבועות
 
 
 def test_large_mask_downscales_and_still_exact_outside():
     img = rnd(2000, 3000)
     mask = box(2000, 3000, 200, 1700, 300, 2500)
-    res = Pipeline(FakeModel()).run(img, mask, 512)
+    res = Pipeline(FakeModel(), PipelineConfig(large_strategy="downscale")).run(img, mask, 512)
     assert res.roi.downscaled and res.roi.scale < 1
     eff = res.effective_mask.astype(bool)
     assert np.array_equal(res.image[~eff], img[~eff])
@@ -132,3 +133,10 @@ def test_ort_model_load_errors(tmp_path):
         OrtModel().load(ModelConfig(bad))
     with pytest.raises(ModelLoadError, match="hash"):
         OrtModel().load(ModelConfig(bad, sha256="0" * 64))
+
+
+def test_no_feather_is_exact_inside_mask():
+    img = rnd(300, 400)
+    res = Pipeline(FakeModel(), PipelineConfig(feather_px=0)).run(img, box(300, 400, 100, 140, 150, 230), 384)
+    eff = res.effective_mask.astype(bool)
+    assert (res.image[eff] == FILL).all() and np.array_equal(res.image[~eff], img[~eff])
