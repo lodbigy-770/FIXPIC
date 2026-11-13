@@ -13,7 +13,7 @@
 | שלב 0 – קליטת מודל ומחקר (קדם-תנאי ל-M1) | בוצע בעיקרו | 5 | 2 | 0 | נשארו: Revision ב-HF ותיעוד מלא ב-README של המודל (דורש גישה ל-Hugging Face) |
 | Milestone 1 – Model Integration | בוצע | 6 | 0 | 0 |  |
 | Milestone 1.5 (שלב ביניים) – Latency Spike והחלטת Runtime/Stack | בוצע | 8 | 0 | 0 | נסגר; אימות אריזה על Python 3.14 הועבר ל-M5 |
-| Milestone 2 – Core Inpainting Engine | בעבודה | 8 | 0 | 2 | בעבודה (שיחה B): M2.1–M2.7 בוצעו; נשארו M2.8–M2.9 |
+| Milestone 2 – Core Inpainting Engine | בעבודה | 9 | 0 | 1 | בעבודה (שיחה B): M2.1–M2.8 בוצעו; נשאר M2.9 |
 | Milestone 3 – Editing Interface | טרם התחיל | 0 | 0 | 9 |  |
 | Milestone 4 – Advanced Editing | טרם התחיל | 0 | 0 | 5 |  |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
@@ -89,7 +89,7 @@
 **תלות:** M1 (ו-M1.5).
 **מטרות:** מנוע עצמאי (ספרייה ללא UI).
 
-**סטטוס (2026-11-12): בעבודה (שיחה B).** בוצעו M2.1–M2.7 (115 בדיקות עוברות עם מודל סינתטי; `tests/test_real_model.py` רץ אצל המשתמש). נשארו M2.8–M2.9, פירוט בכל משימה למטה.
+**סטטוס (2026-11-12): בעבודה (שיחה B).** בוצעו M2.1–M2.8 (135 בדיקות עוברות עם מודל סינתטי; `tests/test_real_model.py` רץ אצל המשתמש). נשאר M2.9, פירוט בכל משימה למטה.
 
 **משימות**
 - [x] `InpaintModel` + מימוש ONNX (M2.1); backend OpenVINO ראשי עם fallback אוטומטי ל-ORT ו-Warm-up (M2.2).
@@ -100,7 +100,7 @@
 - [x] ביטול (`CancelToken`, M2.1) ודיווח התקדמות (`progress=`, M2.5).
 - [x] **M2.6** Job Scheduler (`engine/scheduler.py`): תור FIFO (עד 3 ממתינות), Worker יחיד, Warm-up ברקע bucket-אחר-bucket (עבודה בתור קודמת ל-bucket הבא), ביטול עבודה ממתינה/רצה ו-`cancel_all` ל-Undo (ARCHITECTURE §4א). המודל נקרא פעם אחת (`read_model` ב-`load`, `clone` לכל צורה).
 - [x] **M2.7** CLI לבדיקה (`python -m fixpic`, עובר דרך ה-Scheduler) ובדיקות 1MP / 12MP / 24MP, מסכות קטנות/דקות/גדולות/מרובות/ריקה, מודל פגום, ביטול באמצע (`tests/test_m27.py`). **על מודל סינתטי בלבד**; הרצה על Big LaMa האמיתי נשארת אצל המשתמש.
-- [ ] **M2.8** הרחבת מסכה אוטומטית (ADR-008) ו-"רזולוציה מקורית תחילה" (ARCHITECTURE §4ב).
+- [x] **M2.8** הרחבת מסכה אוטומטית יחסית לגודל המברשת (ADR-008; `pipeline/dilate.py`, `brush_px` מה-UI או הערכה מהמסכה) ו"רזולוציה מקורית תחילה" (ARCHITECTURE §4ב: צמצום הקשר עד 10% לפני הקטנה). **הערכים זמניים; איכות לא נמדדה** (נדרש Big LaMa אמיתי).
 - [ ] **M2.9** טיפול בשגיאות לפי ARCHITECTURE סעיף 10, ובדיקת ה-DoD של M2 כולו.
 
 **תוצרים:** ספריית Engine + בדיקות יחידה + CLI לבדיקה.

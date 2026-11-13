@@ -92,7 +92,8 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--models-dir", type=Path, default=DEFAULT_MODELS)
     p.add_argument("--memory-limit-mb", type=int, help="תקרת זיכרון להערכה מראש (כולל המודל)")
     p.add_argument("--mask-threshold", type=int, default=0)
-    p.add_argument("--dilate", type=int, help="הרחבת מסכה בפיקסלים (0 = כבוי)")
+    p.add_argument("--dilate", type=int, help="הרחבת מסכה קבועה בפיקסלים (0 = כבוי); ברירת מחדל: אוטומטית לפי המברשת")
+    p.add_argument("--brush-px", type=float, help="קוטר המברשת בפיקסלי התמונה, להרחבה האוטומטית (ברירת מחדל: הערכה מהמסכה)")
     p.add_argument("--feather", type=int, help="Feathering בפיקסלים (0 = כבוי)")
     p.add_argument("--progress", action="store_true", help="הדפסת התקדמות (ברירת מחדל: רק בטרמינל)")
     p.add_argument("--json", action="store_true", help="סיכום כ-JSON ב-stdout")
@@ -151,7 +152,7 @@ def run(a: argparse.Namespace) -> dict:
     sched = JobScheduler(pipeline).start(warmup=False)
     try:
         t1 = time.perf_counter()
-        job = sched.submit(image, mask, a.size, on_progress=on_progress)
+        job = sched.submit(image, mask, a.size, on_progress=on_progress, brush_px=a.brush_px)
         _wait(job)
         res = job.result(0)          # CancelledError / שגיאת העבודה
         t_run = time.perf_counter() - t1
@@ -162,7 +163,8 @@ def run(a: argparse.Namespace) -> dict:
             "fallback_reason": getattr(model, "fallback_reason", None), "size": a.size,
             "size_used": res.size_used, "groups": res.groups, "model_calls": res.model_calls,
             "oom_retries": res.oom_retries, "image_hw": list(image.shape[:2]),
-            "mask_pixels": int(res.effective_mask.sum()),
+            "mask_pixels": int(res.effective_mask.sum()), "dilate_px": res.dilate_px,
+            "brush_px": round(res.brush_px, 1),
             "load_s": round(t_load, 2), "run_s": round(t_run, 2)}
 
 

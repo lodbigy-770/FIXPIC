@@ -45,16 +45,24 @@ def mask_bbox(mask: np.ndarray) -> tuple[int, int, int, int]:
     return int(xs.min()), int(ys.min()), int(xs.max()) + 1, int(ys.max()) + 1
 
 
-def plan_roi(mask: np.ndarray, size: int, margin_ratio: float = 0.25, min_margin: int = 16) -> RoiPlan:
-    return plan_roi_bbox(mask_bbox(mask), mask.shape[:2], size, margin_ratio, min_margin)
+def plan_roi(mask: np.ndarray, size: int, margin_ratio: float = 0.25, min_margin: int = 16,
+             native_margin_ratio: float | None = None) -> RoiPlan:
+    return plan_roi_bbox(mask_bbox(mask), mask.shape[:2], size, margin_ratio, min_margin, native_margin_ratio)
 
 
-def plan_roi_bbox(box, img_hw, size: int, margin_ratio: float = 0.25, min_margin: int = 16) -> RoiPlan:
+def plan_roi_bbox(box, img_hw, size: int, margin_ratio: float = 0.25, min_margin: int = 16,
+                  native_margin_ratio: float | None = None) -> RoiPlan:
+    """native_margin_ratio (§4ב): אם ההקשר המלא אינו נכנס ב-S אך הקשר מצומצם (עד יחס זה, לא פחות מ-min_margin) נכנס,
+    החלון נשאר S×S בקנה מידה מקורי במקום הקטנה. None = כבוי (התנהגות M2.1–M2.7)."""
     img_h, img_w = img_hw
     bx0, by0, bx1, by1 = box
     bw, bh = bx1 - bx0, by1 - by0
-    margin = max(min_margin, math.ceil(margin_ratio * max(bw, bh)))
-    needed = max(bw, bh) + 2 * margin
+    side = max(bw, bh)
+    margin = max(min_margin, math.ceil(margin_ratio * side))
+    needed = side + 2 * margin
+    if needed > size and native_margin_ratio is not None:
+        if side + 2 * max(min_margin, math.ceil(native_margin_ratio * side)) <= size:
+            needed = size
     win = max(needed, size)                 # צלע החלון בפיקסלי המקור
     scale = size / win                      # 1.0 כשההקשר נכנס ב-S
     ww, wh = min(win, img_w), min(win, img_h)

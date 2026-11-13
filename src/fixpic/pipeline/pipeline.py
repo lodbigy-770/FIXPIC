@@ -11,6 +11,7 @@ import numpy as np
 
 from ..errors import EmptyMaskError, InvalidInputError, OutOfMemoryError, is_oom
 from ..models.base import CancelToken, InpaintModel
+from .dilate import dilate_radius, estimate_brush_px
 from .feather import feather_alpha
 from .grouping import Group, group_mask
 from .roi import RoiPlan, plan_roi_bbox, tile_cores, tile_plan
@@ -23,9 +24,17 @@ STRIP = 128   # שורות בכל פעימת מיזוג: מונע מערכי flo
 class PipelineConfig:
     sizes: tuple[int, ...] = (256, 384, 512)   # buckets (ADR-011)
     default_size: int = 384
-    mask_dilate_px: int = 5      # ADR-008; ערך זמני עד בדיקות איכות. 0 = כבוי
+    # ADR-008. None = אוטומטי: dilate_ratio × קוטר המברשת (brush_px, או מוערך מהמסכה), חסום בין dilate_min ל-dilate_max.
+    # מספר = הרחבה קבועה בפיקסלים (0 = כבוי). כל הערכים זמניים עד בדיקת איכות על Big LaMa האמיתי.
+    mask_dilate_px: int | None = None
+    dilate_ratio: float = 0.125
+    dilate_min: int = 3
+    dilate_max: int = 20
     margin_ratio: float = 0.25   # הקשר סביב המסכה; ערך זמני
     min_margin: int = 16
+    # §4ב (רזולוציה מקורית תחילה): לפני הקטנה, ההקשר מצטמצם עד יחס זה מהצלע הגדולה של המסכה (ולא פחות מ-min_margin)
+    # כדי שהחלון יישאר בקנה מידה מקורי. שווה ל-margin_ratio = כבוי. ערך זמני, איכות לא נמדדה.
+    native_margin_ratio: float = 0.10
     feather_px: int = 3          # Feathering פנימי; ערך זמני. 0 = מיזוג בינארי
     # אזור שלא נכנס ב-bucket: "downscale" (הקטנה), "tile" (אריחים), "auto" (הקטנה עד min_scale, אחרת אריחים)
     large_strategy: str = "auto"
@@ -66,6 +75,8 @@ class InpaintResult:
     model_calls: int = 0
     size_used: int = 0           # ה-bucket שבו הושלם הקבוצה האחרונה (קטן מהמבוקש אחרי OOM)
     oom_retries: int = 0
+    dilate_px: int = 0           # רדיוס ההרחבה שבוצעה בפועל
+    brush_px: float = 0.0        # קוטר המברשת ששימש לחישובה (0 = הרחבה קבועה, לא נדרש)
 
 
 class Pipeline:
@@ -74,6 +85,11 @@ class Pipeline:
         self.cfg = cfg or PipelineConfig()
         if self.cfg.large_strategy not in ("auto", "tile", "downscale"):
             raise InvalidInputError(f"large_strategy לא תקף: {self.cfg.large_strategy}")
+        c = self.cfg
+        if (c.dilate_ratio < 0 or c.dilate_min < 0 or c.dilate_max < c.dilate_min
+                or (c.mask_dilate_px is not None and c.mask_dilate_px < 0)
+                or not 0 <= c.native_margin_ratio <= c.margin_ratio):
+            raise InvalidInputError("פרמטרי הרחבה/הקשר לא תקינים")
         for s in self.cfg.sizes:
             if s % model.info.multiple or not model.info.min_size <= s <= model.info.max_size:
                 raise InvalidInputError(f"גודל bucket לא תקף למודל: {s}")
@@ -90,7 +106,9 @@ class Pipeline:
 
     # ------------------------------------------------------------------ run
     def run(self, image: np.ndarray, mask: np.ndarray, size: int | None = None,
-            cancel: CancelToken | None = None, progress: ProgressFn | None = None) -> InpaintResult:
+            cancel: CancelToken | None = None, progress: ProgressFn | None = None,
+            brush_px: float | None = None) -> InpaintResult:
+        """brush_px: קוטר המברשת בפיקסלי התמונה (מה-UI), לחישוב ההרחבה האוטומטית; None = הערכה מהמסכה."""
         c = self.cfg
         size = size or c.default_size
         if size not in c.sizes:
@@ -108,7 +126,9 @@ class Pipeline:
         m = (mask > 0).astype(np.uint8)
         if not m.any():
             raise EmptyMaskError("לא סומן אזור")
-        r = c.mask_dilate_px
+        if c.mask_dilate_px is None and brush_px is None:
+            brush_px = estimate_brush_px(m)
+        r = dilate_radius(c.mask_dilate_px, brush_px or 0.0, c.dilate_ratio, c.dilate_min, c.dilate_max)
         if r > 0:
             k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
             m = cv2.dilate(m, k)
@@ -127,7 +147,8 @@ class Pipeline:
             cancel.raise_if_cancelled()
             used = self._run_group_with_retry(image, result, m, g, size, cancel, rois, st, hw)
         st.emit("done")
-        return InpaintResult(result, m, rois[0], rois, len(groups), len(rois), used, st.retries)
+        return InpaintResult(result, m, rois[0], rois, len(groups), len(rois), used, st.retries, r,
+                             float(brush_px or 0.0))
 
     def _count(self, g: Group, size: int, hw) -> int:
         """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
@@ -163,7 +184,7 @@ class Pipeline:
     def _strategy(self, g: Group, size: int, hw):
         """(תוכנית ה-ROI, ליבות אריחים או None)."""
         c = self.cfg
-        p = plan_roi_bbox(g.box, hw, size, c.margin_ratio, c.min_margin)
+        p = plan_roi_bbox(g.box, hw, size, c.margin_ratio, c.min_margin, c.native_margin_ratio)
         if p.downscaled and c.large_strategy != "downscale":
             cores = tile_cores(g.box, size, c.tile_overlap)
             if len(cores) <= c.max_tiles and (c.large_strategy == "tile" or p.scale < c.min_scale):
