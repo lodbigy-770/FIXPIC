@@ -24,7 +24,12 @@ class AutoModel:
         self.fallback_reason: str | None = None
 
     def load(self, cfg: ModelConfig) -> None:
-        check_model_file(cfg)              # מודל חסר/LFS/hash: שגיאה ישירה, ללא fallback
+        try:
+            check_model_file(cfg)          # מודל חסר/LFS/hash: שגיאה ישירה, ללא fallback
+        except ModelLoadError as e:
+            log.error("טעינת המודל נחסמה: %s", e)      # ARCHITECTURE §10: תיעוד ביומן
+            self._active, self.backend = None, ""      # אין מודל פעיל: Inpaint חסום עד טעינה תקינה
+            raise
         self._cfg = cfg
         try:
             if self._primary is None:
@@ -39,7 +44,13 @@ class AutoModel:
         self.fallback_reason = reason
         if self._primary is not None:
             self._primary.unload()
-        self._fallback.load(self._cfg)
+        try:
+            self._fallback.load(self._cfg)
+        except ModelLoadError as e:
+            # גם ה-fallback נכשל: אין backend פעיל (לא משאירים את ה-primary שפורק כ"פעיל")
+            log.error("גם ה-fallback ל-ONNX Runtime נכשל: %s", e)
+            self._active, self.backend = None, ""
+            raise
         self._active, self.backend = self._fallback, "onnxruntime"
 
     def warmup(self, sizes, cancel: CancelToken | None = None) -> None:

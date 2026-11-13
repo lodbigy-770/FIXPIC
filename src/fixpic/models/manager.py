@@ -81,6 +81,13 @@ class ModelManager:
 
     def load(self, name: str, threads: int = 3, model=None) -> AutoModel:
         """טוען מודל מוכן להרצה. אימות גודל ו-hash לפני יצירת Session; כשל = ModelLoadError."""
+        try:
+            return self._load(name, threads, model)
+        except ModelLoadError as e:
+            log.error("טעינת המודל %r נכשלה: %s", name, e)   # ARCHITECTURE §10: תיעוד ביומן
+            raise
+
+    def _load(self, name: str, threads: int, model) -> AutoModel:
         mf = self.manifest(name)
         if mf.size_bytes is not None and mf.path.is_file() and mf.path.stat().st_size != mf.size_bytes:
             with open(mf.path, "rb") as f:

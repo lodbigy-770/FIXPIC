@@ -9,7 +9,7 @@ from typing import Callable
 import cv2
 import numpy as np
 
-from ..errors import EmptyMaskError, InvalidInputError, OutOfMemoryError, is_oom
+from ..errors import EmptyMaskError, FixPicError, InferenceError, InvalidInputError, OutOfMemoryError, is_oom
 from ..models.base import CancelToken, InpaintModel
 from .dilate import dilate_radius, estimate_brush_px
 from .feather import feather_alpha
@@ -108,14 +108,30 @@ class Pipeline:
     def run(self, image: np.ndarray, mask: np.ndarray, size: int | None = None,
             cancel: CancelToken | None = None, progress: ProgressFn | None = None,
             brush_px: float | None = None) -> InpaintResult:
-        """brush_px: קוטר המברשת בפיקסלי התמונה (מה-UI), לחישוב ההרחבה האוטומטית; None = הערכה מהמסכה."""
+        """brush_px: קוטר המברשת בפיקסלי התמונה (מה-UI), לחישוב ההרחבה האוטומטית; None = הערכה מהמסכה.
+
+        גבול שכבת ה-Engine (ARCHITECTURE §10): רק `FixPicError` יוצא החוצה. חריגה לא צפויה מומרת
+        ל-`InferenceError` (או ל-`OutOfMemoryError` אם זו חריגת זיכרון), והקלט לעולם אינו משתנה."""
+        try:
+            return self._run(image, mask, size, cancel, progress, brush_px)
+        except FixPicError:
+            raise
+        except Exception as e:  # noqa: BLE001 - ממיר חריגות לא צפויות לשגיאה מוגדרת
+            if is_oom(e):
+                raise OutOfMemoryError(f"נגמר הזיכרון: {e}") from e
+            log.exception("חריגה לא צפויה ב-Pipeline")
+            raise InferenceError(f"שגיאה לא צפויה: {e}") from e
+
+    def _run(self, image, mask, size, cancel, progress, brush_px) -> InpaintResult:
         c = self.cfg
         size = size or c.default_size
         if size not in c.sizes:
             raise InvalidInputError(f"גודל קלט {size} אינו באחד ה-buckets {c.sizes}")
-        if image.dtype != np.uint8 or image.ndim != 3 or image.shape[2] != 3:
+        if not isinstance(image, np.ndarray) or image.dtype != np.uint8 or image.ndim != 3 or image.shape[2] != 3:
             raise InvalidInputError("נדרשת תמונה uint8 בצורה [H,W,3] (RGB)")
-        if mask.ndim != 2 or mask.shape != image.shape[:2]:
+        if image.shape[0] == 0 or image.shape[1] == 0:
+            raise InvalidInputError("התמונה ריקה (גובה או רוחב 0)")
+        if not isinstance(mask, np.ndarray) or mask.ndim != 2 or mask.shape != image.shape[:2]:
             raise InvalidInputError("המסכה חייבת להיות [H,W] באותו גודל כמו התמונה")
         cancel = cancel or CancelToken()
         if c.memory_limit_mb is not None:

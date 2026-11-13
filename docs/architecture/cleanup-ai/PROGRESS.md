@@ -1,6 +1,6 @@
 # PROGRESS – מצב הפרויקט והמשך עבודה
 
-> עודכן: 2026-11-12. מסמך קצר להעברת הקשר לשיחה הבאה. הפירוט המלא ב-`DEVELOPMENT_LOG.md`, השלבים וספירת המשימות (לוח מצב) ב-`ROADMAP.md`.
+> עודכן: 2026-11-13. מסמך קצר להעברת הקשר לשיחה הבאה. הפירוט המלא ב-`DEVELOPMENT_LOG.md`, השלבים וספירת המשימות (לוח מצב) ב-`ROADMAP.md`.
 
 ## מצב נוכחי
 
@@ -10,7 +10,7 @@
 | שלב 0 – קליטת מודל ואימות | **בוצע ואושר** ע"י פלט ההרצה של המשתמש (קוד יציאה 0). הטווח 64–4096 עדיין לא אומת |
 | M1 – הרצת Big LaMa על CPU | **בוצע (2026-11-11).** 3 דוגמאות אמיתיות ו-3 סינתטיות עברו, הריפוד נבדק, הפלט מחוץ למסכה זהה למקור. איכות: אדם טוב, טקסט טוב מאוד, שריטה טובה. ממצא: 6.6–9.7 שניות ל-0.43MP על 4 ליבות, בלי תלות בגודל המסכה |
 | M1.5 – Latency Spike | **בוצע ונסגר (2026-11-12), למעט אימות אריזה על 3.14 שהועבר ל-M5.** OpenVINO CPU ב-3 threads (ADR-011 מאושר) 0.81/1.85/3.27 שניות ל-256/384/512 מול ORT; iGPU נפסל; צורה דינמית: compile יחיד 5.1 שניות, Latency דומה (256 איטי ב-16%); מטמון compile חוסך כ-3 שניות לצורה במחיר כ-210MB, והוחלט לא להפעיל כברירת מחדל; ה-GIL משוחרר בזמן `run`, אין צורך ברכיב נייטיב, זמן import כ-1.5–2 שניות; UI Spike: פירמידת הקטנות מספיקה ל-24MP, ללא Tiles. פירוט ב-`DEVELOPMENT_LOG.md` |
-| M2 – Core Inpainting Engine | **M2.1–M2.8 בוצעו (2026-11-12/13):** (M2.8: הרחבת מסכה יחסית למברשת ו"רזולוציה מקורית תחילה"; ערכים זמניים) (M2.7: CLI `python -m fixpic` ו-`tests/test_m27.py`: 1/12/24MP, סוגי מסכה, מודל פגום, ביטול) (M2.6: `JobScheduler` ב-`engine/scheduler.py`: FIFO עד 3, Worker יחיד, Warm-up ברקע, ביטול ו-`cancel_all`) (M2.4: קיבוץ מסכות, Tiling, Feathering; M2.5: תקרת זיכרון, התאוששות מ-OOM, דיווח התקדמות) (M2.3: `ModelManager` ו-`models/big-lama/model.json` עם sha256 מה-LFS pointer) `InpaintModel`, `OrtModel`, `OvModel` (OpenVINO ראשי, compile לכל bucket), `AutoModel` (fallback אוטומטי ל-ORT בכשל טעינה/compile/הרצה), `Pipeline.warmup`, ו-Pipeline עם ROI ל-buckets. 135 בדיקות עוברות עם מודל ONNX סינתטי (כולל תיקון אימות file ב-Windows, M2.5.1) (פריטיות OV/ORT ≤3). **לא נבדק מול Big LaMa האמיתי** (LFS pointer בסביבת Claude): `tests/test_real_model.py` רץ אצל המשתמש. נשאר: M2.9 (פירוק ב-DEVELOPMENT_LOG) |
+| M2 – Core Inpainting Engine | **בוצע (2026-11-13), על מודל סינתטי: M2.1–M2.9.** (M2.9: `Pipeline.run` כגבול Engine – רק `FixPicError` יוצא; כשל גם ב-fallback משאיר מצב מוגדר; כשל טעינה/hash נרשם ביומן; `tests/test_m29.py`, 25 בדיקות) (M2.8: הרחבת מסכה יחסית למברשת ו"רזולוציה מקורית תחילה"; ערכים זמניים) (M2.7: CLI `python -m fixpic` ו-`tests/test_m27.py`) (M2.6: `JobScheduler`) (M2.4/M2.5: קיבוץ מסכות, Tiling, Feathering, תקרת זיכרון, OOM, התקדמות) (M2.3: `ModelManager`) `InpaintModel`, `OrtModel`, `OvModel`, `AutoModel`, `Pipeline`. 160 בדיקות עוברות, 3 מדולגות. **לא נבדק מול Big LaMa האמיתי** (LFS pointer בסביבת Claude): `tests/test_real_model.py` רץ אצל המשתמש; ערכי M2.4/M2.8 הזמניים ממתינים להשוואת איכות. הבא: M3 |
 | M3–M5 | טרם התחיל |
 
 ## הגבלות סביבה (חשוב)
@@ -51,12 +51,12 @@
 - **שיחה A – שאר M1.5 (הושלם ונסגר 2026-11-12; אין עוד עבודה של A כרגע).** תחום: `tools/m1/`, סעיף M1.5 ב-`ROADMAP.md`, §6 ב-`MODEL_CARD.md`. נשאר: (1) ~~אישור מפורש ל-ADR-011~~ ניתן (2026-11-12);  (2) עלות compile: להריץ `--dynamic` ולמדוד מטמון (`CACHE_DIR`); (3) UI Spike של Zoom/Pan על 24MP; (4) GIL וזמן עלייה; (5) אריזה על 3.14.
 - **שיחה B – M2.** תחום: קוד המנוע (ספרייה חדשה ללא UI), בדיקות, סעיף M2 ב-`ROADMAP.md`. נקודות מחייבות מ-M1.5: **ברירת מחדל 3 threads** (פרמטר מוגדר; עלות 3–8% ב-ORT מול 4, ומשאיר ליבה ל-UI); מצבי הקלט (256/384/512) כפרמטר של ה-Pipeline; ה-Pipeline מחזיר ROI **לגדלים קבועים (buckets)** ולא לצורות שרירותיות, כי OpenVINO דורש compile לכל צורה; Backend מאחורי `InpaintModel`: **OpenVINO ראשי ו-ORT fallback לפי ADR-011** (זיהוי כשל וחזרה אוטומטית) (ה-API של שניהם נמדד: `run` על `rgb`/`mask`, פלט `inpainted`); ROI גדול מוקטן ל-512 לכל היותר ב-INTER_AREA (~2ms). לבדוק ב-M2 את השפעת ההקטנה על האיכות.
 
-## פרומפט B (M2)
+## פרומפט B (M2 – הושלם; נשמר כתבנית)
 
 ```
 אני ממשיך פרויקט להסרת אלמנטים מתמונה, ריפו: https://github.com/lodbigy-770/FIXPIC
 (הטוקן אצלי; אספק אותו בשיחה.)
 אופן עבודה: כמו תמיד (שכפול/pull, קריאת PROGRESS.md וסעיף השלב ב-ROADMAP.md, ARCHITECTURE.md לפי הצורך, שלב אחד, עדכון PROGRESS/ROADMAP/DEVELOPMENT_LOG, קומיט ופוש עם git pull --rebase לפני, מחבר Claude <noreply@anthropic.com>, חיפוש רק עם grep ו-sed, סיכום בקצרה).
 הקשר: אני שיחה B. שלבים 0, M1 ו-M1.5 (מדידות) בוצעו; תקציב Latency ו-Python 3.14 הוכרעו (ראו PROGRESS.md). שיחה A משלימה את M1.5 במקביל ולא אגע בתחומה (tools/m1).
-משימה: M2 – Core Inpainting Engine. M2.1–M2.8 בוצעו (ראו סעיף M2 ב-ROADMAP.md); להמשיך ב-M2.9 (טיפול בשגיאות ובדיקת DoD), לפי הפירוק ב-ROADMAP.
+משימה: M2 הושלם (M2.1–M2.9, על מודל סינתטי). אם נדרש: להריץ אצלי `python -m pytest` ו-`tests/test_real_model.py` על Big LaMa ולהדביק פלט; אחרת לעבור ל-M3.
 ```
