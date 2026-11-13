@@ -89,6 +89,7 @@
 - ציור מסכה: Layer נפרד מעל התמונה, לא משנה את התמונה עד הרצה.
 - תמונות עם ערוץ Alpha: ה-Alpha נשמר בנפרד וממוזג חזרה (המודל מקבל RGB).
 - ICC/EXIF: נשמרים בשמירה כשהפורמט תומך בכך.
+- **מימוש (M3.1, `fixpic/imgio`):** תמונה פנימית RGB uint8; Alpha אטום לגמרי נזרק; ב-JPEG ה-Alpha מונח על רקע לבן (`SaveResult.alpha_flattened`); EXIF Orientation מיושם בטעינה ומאופס ב-`exif` המוחזר; ICC נשמר רק כשהוא של RGB; GIF/WebP מונפש נטען כפריים ראשון; תקרה 150MP; שמירה אטומית (קידוד בזיכרון, קובץ זמני, `os.replace`). קריאה/כתיבה דרך Pillow ובייטים ולא דרך `cv2.imread`.
 - **נתיבים בעברית:** קריאה וכתיבה דרך `np.fromfile` + `cv2.imdecode` ו-`cv2.imencode` + `tofile`, ולא `cv2.imread`/`cv2.imwrite` עם נתיב. הסיבה: ידוע ש-`cv2.imread` ב-Windows נכשל בנתיבים עם תווים שאינם ASCII. **לאמת בבדיקה** עם תיקיות ושמות קבצים בעברית, וגם עם שם משתמש Windows בעברית.
 
 ## 6. תקשורת עם ONNX Runtime
@@ -254,7 +255,7 @@ src/fixpic/
   pipeline/         Pre/Post, מיזוג, פעולות מסכה
   models/           Model Manager, מימוש ONNX
   history/          Undo/Redo (Patches)
-  io/               טעינה/שמירה (נתיבי Unicode)
+  imgio/            טעינה/שמירה (נתיבי Unicode); לא נקרא io כדי לא להצל על ה-stdlib (מומש ב-M3.1)
   strings/          he.json (מחרוזות עברית)
 tests/
 tools/poc/          ה-PoC הקיים; נקודת התחלה למנוע

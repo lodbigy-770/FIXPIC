@@ -1,6 +1,7 @@
 # תלויות המנוע (src/fixpic) והבדיקות. התקנה: pip install -r requirements-dev.txt
 numpy
 opencv-python-headless
+pillow          # טעינה/שמירה, EXIF/ICC (fixpic.imgio)
 onnxruntime>=1.30
 openvino        # backend ראשי (ADR-011); בלעדיו המנוע עובד על ORT
 # בדיקות בלבד:

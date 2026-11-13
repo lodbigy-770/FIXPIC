@@ -21,6 +21,11 @@ class InvalidInputError(FixPicError):
     """תמונה/מסכה בפורמט, טיפוס או גודל לא תקינים."""
 
 
+class ImageIOError(FixPicError):
+    """כשל מערכת קבצים בקריאה/כתיבה של תמונה (קובץ חסר, הרשאה, דיסק מלא, התיקייה לא קיימת). תוכן פגום או פורמט
+    לא נתמך הם `InvalidInputError`; ההפרדה נותנת ל-UI הודעה מתאימה לכל מקרה."""
+
+
 class CancelledError(FixPicError):
     """הפעולה בוטלה על ידי המשתמש; התמונה לא משתנה."""
 
