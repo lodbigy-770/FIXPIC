@@ -18,7 +18,7 @@ NOTES = {
     "שלב 0": "נשארו: Revision ב-HF ותיעוד מלא ב-README של המודל (דורש גישה ל-Hugging Face)",
     "Milestone 1.5": "נסגר; אימות אריזה על Python 3.14 הועבר ל-M5",
     "Milestone 2": "M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש",
-    "Milestone 3": "M3.1 (ניהול תמונות, ללא UI) בוצע; הבא M3.2 (Session/History)",
+    "Milestone 3": "M3.1 (ניהול תמונות) ו-M3.2 (Session/History) בוצעו, ללא UI; הבא M3.3 (שלד ממשק)",
 }
 
 

@@ -14,7 +14,7 @@
 | Milestone 1 – Model Integration | בוצע | 6 | 0 | 0 |  |
 | Milestone 1.5 (שלב ביניים) – Latency Spike והחלטת Runtime/Stack | בוצע | 8 | 0 | 0 | נסגר; אימות אריזה על Python 3.14 הועבר ל-M5 |
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
-| Milestone 3 – Editing Interface | בעבודה | 0 | 2 | 7 | M3.1 (ניהול תמונות, ללא UI) בוצע; הבא M3.2 (Session/History) |
+| Milestone 3 – Editing Interface | בעבודה | 0 | 4 | 5 | M3.1 (ניהול תמונות) ו-M3.2 (Session/History) בוצעו, ללא UI; הבא M3.3 (שלד ממשק) |
 | Milestone 4 – Advanced Editing | טרם התחיל | 0 | 0 | 5 |  |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
 <!-- STATUS:END -->
@@ -116,7 +116,7 @@
 
 **פירוק לשלבי ביצוע** (שלב אחד בכל פעם; הסימון בפועל נעשה במשימות שמתחת):
 - **M3.1 – ניהול תמונות (ללא UI): בוצע (2026-11-13).** `fixpic/imgio`: טעינה/שמירה PNG/JPG/WebP, נתיבי Unicode, Alpha, EXIF/ICC, שמירה אטומית, `image_from_array` להדבקה.
-- **M3.2 – שירותי אפליקציה (ללא UI):** `Session` (תמונה עובדת, Commit אטומי מתוצאת Job), `MaskLayer` (ציור/מחיקה על מסכה בגודל התמונה), `History` (Patch Undo/Redo, מגבלת צעדים וזיכרון, Undo בזמן Processing = `cancel_all`), ומדיניות Alpha בהסרה.
+- **M3.2 – שירותי אפליקציה (ללא UI): בוצע (2026-11-13).** `fixpic/session` (`Session`: תמונה עובדת, Commit אטומי מתוצאת Job לפי מסכה, `submit_stroke`/`finish`, Undo/Redo; `MaskLayer`: ציור/מחיקה על מסכה בגודל התמונה; `alpha.py`: מדיניות Alpha) ו-`fixpic/history` (`History`, `Patch`: מגבלת צעדים וזיכרון). Undo בזמן Processing = ביטול כל ה-Jobs. `tests/test_m32.py`, 65 בדיקות.
 - **M3.3 – שלד ממשק:** `strings/he.json` וטעינתו, `QApplication` ב-RTL, חלון ראשי, Canvas (`QGraphicsView`) עם Zoom/Pan על פירמידת הקטנות (לפי M1.5), פתיחה/גרירה/הדבקה, שמירה/ייצוא ברקע עם התקדמות.
 - **M3.4 – מברשת ולולאת Inpaint:** מברשת (גודל משתנה) ומחיקת מסכה, שכבת מסכה, שחרור = Job דרך ה-Scheduler עם `brush_px`, Commit, מחוון עיבוד אחרי 200ms, ביטול, הצגת שגיאות.
 - **M3.5 – Undo/Redo ובדיקת לפני/אחרי בממשק:** חיבור ל-History, קיצורי מקלדת, השוואה בהחזקה וב-Toggle.
@@ -128,8 +128,8 @@
 - [ ] השוואה לפני/אחרי: גם בהחזקה וגם כ-Toggle.
 - [ ] ממשק בעברית (RTL) עם מחרוזות בקובץ נפרד (`strings/he.json`); קיצורי מקלדת.
 - [~] בדיקת נתיבים: טעינה ושמירה בתיקיות ובשמות קבצים בעברית. **נבדק ב-M3.1 ברמת הקבצים על Linux** (תיקיות ושמות בעברית, רווחים, אימוג'י, ניקוד); נשאר Windows (כולל שם משתמש בעברית) ודרך הממשק (M3.6).
-- [ ] מחיקה מהמסכה.
-- [ ] Undo/Redo (Patch-based).
+- [~] מחיקה מהמסכה. **שירות `MaskLayer.erase` בוצע ב-M3.2**; נשאר הממשק (מצב מחיקה במברשת, M3.4).
+- [~] Undo/Redo (Patch-based). **השירות בוצע ב-M3.2** (`Session.undo/redo`, `History`, 20 צעדים נבדקו); נשאר חיבור לממשק וקיצורי מקלדת (M3.5).
 - [ ] תצוגת לפני/אחרי.
 - [ ] ריצה ברקע עם Progress וביטול.
 
