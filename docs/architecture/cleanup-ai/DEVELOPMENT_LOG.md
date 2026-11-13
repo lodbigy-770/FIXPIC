@@ -795,3 +795,13 @@ ROI גדול מקלט המודל: להקטין (Resize זול) ולהריץ ב-5
 **שינויים מחוץ ל-`src`/`tests`:** `tools/docs/roadmap_status.py` (שורת ההערה של M2 בטבלת הלוח).
 
 **הבא:** M3 – Editing Interface (קריאת הסעיף ב-ROADMAP לפני התכנון). לפני כן, מומלץ אצל המשתמש: `python -m pytest` ו-`tests/test_real_model.py` על Big LaMa, והשוואת איכות צד-לצד לערכים הזמניים.
+
+---
+
+## 2026-11-13 – אימות M2 אצל המשתמש
+
+`python -m pytest` אצל המשתמש (Windows, Python 3.14.3, pytest 9.1.1): **163 עוברות, 0 מדולגות, 64 שניות**, כולל 3 הבדיקות של `tests/test_real_model.py` (Big LaMa אמיתי). לכן המנוע (M2.1–M2.9) אומת על המודל האמיתי ועל Windows/3.14 ברמת הבדיקות האוטומטיות.
+
+הערה: `python tests/test_real_model.py` ישירות נכשל ב-`No module named 'fixpic'` כי אין עדיין `pyproject.toml`; יש להריץ דרך `python -m pytest` או עם `PYTHONPATH=src` (מתועד ב-M2.7). לשקול `pyproject.toml` ב-M5.
+
+**עדיין פתוח:** השוואת איכות צד-לצד וזמני 12/24MP על Big LaMa לערכים הזמניים של M2.4/M2.8.
