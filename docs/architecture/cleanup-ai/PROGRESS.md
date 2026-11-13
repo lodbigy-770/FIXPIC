@@ -23,6 +23,8 @@
 
 ## החלטות שכבר התקבלו
 
+- **`pyproject.toml` (2026-11-13):** src layout, `requires-python >=3.12`, תלויות: numpy, opencv-python-headless, pillow, onnxruntime>=1.30, openvino; extra `dev` (pytest, onnx); פקודה `fixpic`. התקנה לפיתוח: `pip install -e .[dev]` (מבטל את הצורך ב-`PYTHONPATH=src`). `requirements-dev.txt` נשאר. ללא שדות license/readme (אין README; הרישיון יוכרע ב-M5). תלות ב-PySide6 תתווסף עם M3.3.
+
 - **ללא `CACHE_DIR` כברירת מחדל** (הוכרע 2026-11-12): המטמון חוסך כ-3 שניות לצורה במחיר כ-210MB דיסק, וה-compile רץ ברקע ב-Warm-up (M2.6). תצורה: static buckets כמו ב-M2 הקיים. אם זמן העלייה החם יתברר כבעיה: מטמון לצורה דינמית אחת. רמז ל-M2: לקרוא את המודל פעם אחת (`read_model` כ-1.2 שניות) ולא לכל צורה.
 - שפת ממשק: עברית בלבד (RTL). כלי עצמאי לשולחן העבודה, Python ו-PySide6.
 - שימוש אישי ולא מסחרי.

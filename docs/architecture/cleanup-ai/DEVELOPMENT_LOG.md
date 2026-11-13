@@ -939,3 +939,13 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 **לא נבדק:** כל הממשק (אין UI בשלב זה); איכות ויזואלית של Feathering על Big LaMa לערכים שונים (נדרשת תמונה עם קצה מסכה על רקע מדורג); Windows/3.14 לבדיקות החדשות (הבדיקות הקיימות עברו שם ב-M2.9, אלה חדשות). לאסו לא בוצע (לא נכלל בבקשה).
 
 **הבא:** לאחר M3.3 ו-M3.4: חיבור הכלים ל-UI (כפתורי הרחבה/כיווץ, סליידר Feathering, בחירה/מחיקת רכיב בלחיצה) ו-Undo של עריכת מסכה; אחר כך לאסו.
+
+---
+
+## 2026-11-13 – pyproject.toml
+
+נוסף `pyproject.toml` (setuptools, src layout): חבילה `fixpic` 0.1.0.dev0, `requires-python >=3.12` (נבדק על 3.12 ב-Linux ו-3.14 ב-Windows; לא נטען 3.10/3.11 כי לא נבדק), תלויות ריצה לפי ה-imports בפועל (numpy, opencv-python-headless, pillow, onnxruntime>=1.30, openvino), extra `dev` (pytest, onnx) ופקודה `fixpic` (= `python -m fixpic`). נבדק ב-venv נקי: `pip install -e .` עבר, `import fixpic` עובד מכל תיקייה, ו-365 הבדיקות עוברות. נוסף `*.egg-info/` ל-`.gitignore`.
+
+**החלטות:** לא הוספתי `readme` (אין README בריפו) ולא `license` (ההחלטה ב-M5). `pytest.ini` ו-`requirements-dev.txt` לא שונו. PySide6 לא נכלל עד ש-M3.3 יקבע גרסה; אם שיחת M3.3 מוסיפה `pyproject.toml` משלה, יש לאחד את הקבצים ולא לדרוס.
+
+**לא נבדק:** התקנה ב-Windows/3.14; בנייה (`python -m build`) והתקנה לא-editable; אריזה (M5).
