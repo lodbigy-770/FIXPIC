@@ -14,6 +14,8 @@ import cv2
 import numpy as np
 
 from ..errors import InvalidInputError
+from . import mask_ops
+from .mask_ops import Component
 
 Rect = tuple[int, int, int, int]   # x0, y0, x1, y1 (x1/y1 בלעדיים)
 
@@ -96,6 +98,62 @@ class MaskLayer:
         """איחוד (OR) מסכה שלמה בגודל השכבה לתוכה (שחזור מסכה אחרי כשל, או מסכה שנוצרה חיצונית)."""
         self._check_mask(mask)
         np.bitwise_or(self._m, np.where(mask > 0, 255, 0).astype(np.uint8), out=self._m)
+        self._touch()
+
+    # ------------------------------------------------- עריכת מסכה קיימת (M4)
+    def grow(self, px: int) -> Rect | None:
+        """מרחיב את המסכה ב-`px` פיקסלים. מחזיר את המלבן ששונה (לציור מחדש) או None אם לא השתנה דבר."""
+        return self._morph(px, grow=True)
+
+    def shrink(self, px: int) -> Rect | None:
+        """מכווץ את המסכה ב-`px` פיקסלים (רכיבים דקים מ-2·px נעלמים). מסכה שהתרוקנה מאפסת גם את `brush_px`."""
+        return self._morph(px, grow=False)
+
+    def _morph(self, px: int, *, grow: bool) -> Rect | None:
+        out, rect = mask_ops.morph(self._m, px, grow=grow)
+        if rect is None:
+            return None
+        self._m = out
+        if not out.any():
+            self._brush_px = None
+        self._touch()
+        return rect
+
+    def components(self, *, min_area: int = 1, connectivity: int = 8) -> list[Component]:
+        """הרכיבים המחוברים של המסכה (מיקום, שטח); לא משנה את השכבה."""
+        return mask_ops.components(self._m, min_area=min_area, connectivity=connectivity)
+
+    def component_at(self, x: float, y: float, *, connectivity: int = 8) -> np.ndarray | None:
+        """מסכת הרכיב שמתחת לנקודה (עותק; 0/255), או None. לבחירה בלחיצה."""
+        return mask_ops.component_at(self._m, x, y, connectivity=connectivity)
+
+    def remove_component_at(self, x: float, y: float, *, connectivity: int = 8) -> Rect | None:
+        """מוחק את הרכיב שמתחת לנקודה. מחזיר את מלבנו, או None אם הנקודה לא על רכיב."""
+        comp = mask_ops.component_at(self._m, x, y, connectivity=connectivity)
+        if comp is None:
+            return None
+        rect = mask_ops.bbox_of(comp)
+        self._m[comp > 0] = 0
+        if not self._m.any():
+            self._brush_px = None
+        self._touch()
+        return rect
+
+    def remove_small(self, min_area: int, *, connectivity: int = 8) -> int:
+        """מוחק רכיבים קטנים מ-`min_area` פיקסלים. מחזיר כמה נמחקו."""
+        out, n = mask_ops.remove_small(self._m, min_area, connectivity=connectivity)
+        if n:
+            self._m = out
+            if not out.any():
+                self._brush_px = None
+            self._touch()
+        return n
+
+    def restore(self, mask: np.ndarray) -> None:
+        """מחליף את תוכן השכבה במסכה (בגודל השכבה), לשחזור מצב שנשמר ב-`snapshot` (Undo של עריכת מסכה ב-UI).
+        `brush_px` אינו משוחזר: ה-UI שומר אותו בעצמו אם צריך."""
+        self._check_mask(mask)
+        self._m = np.where(mask > 0, 255, 0).astype(np.uint8)
         self._touch()
 
     def clear(self) -> None:

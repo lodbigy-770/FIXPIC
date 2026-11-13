@@ -142,7 +142,7 @@ class Session:
         return res
 
     # ------------------------------------------------------- משיכה -> Job -> Commit
-    def submit_stroke(self, *, size: int | None = None, brush_px: float | None = None,
+    def submit_stroke(self, *, size: int | None = None, brush_px: float | None = None, feather_px: int | None = None,
                       on_progress: Callable[[Job, Progress], None] | None = None,
                       on_done: Callable[[Job], None] | None = None) -> Job:
         """שחרור מברשת: מגיש את מסכת השכבה כ-Job על התמונה העובדת ומרוקן את השכבה (המשיכה הבאה מתחילה נקייה).
@@ -154,7 +154,7 @@ class Session:
             raise EmptyMaskError("לא סומן אזור")
         mask = self.mask.snapshot()
         brush = brush_px if brush_px is not None else self.mask.brush_px
-        job = self.scheduler.submit(self._rgb, mask, size, on_progress, on_done, brush)
+        job = self.scheduler.submit(self._rgb, mask, size, on_progress, on_done, brush, feather_px)
         self._pending[job] = _Pending(mask, self._epoch)
         self.mask.clear()
         return job

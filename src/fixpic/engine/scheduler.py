@@ -54,11 +54,12 @@ class Job:
 
     def __init__(self, scheduler: "JobScheduler", job_id: int, image: np.ndarray, mask: np.ndarray,
                  size: int | None, on_progress, on_done,
-                 brush_px: float | None = None) -> None:
+                 brush_px: float | None = None, feather_px: int | None = None) -> None:
         self._sched = scheduler
         self.id = job_id
         self.size = size
         self.brush_px = brush_px
+        self.feather_px = feather_px      # None = לפי ה-cfg של ה-Pipeline
         self.token = CancelToken()
         self.state = JobState.QUEUED
         self._image, self._mask = image, mask      # משוחררים בסיום (24MP = כ-72MB לתמונה)
@@ -168,14 +169,15 @@ class JobScheduler:
     # -------------------------------------------------------------------- API
     def submit(self, image: np.ndarray, mask: np.ndarray, size: int | None = None,
                on_progress: Callable[[Job, Progress], None] | None = None,
-               on_done: Callable[[Job], None] | None = None, brush_px: float | None = None) -> Job:
+               on_done: Callable[[Job], None] | None = None, brush_px: float | None = None,
+               feather_px: int | None = None) -> Job:
         """brush_px: קוטר המברשת בפיקסלי התמונה (להרחבת מסכה אוטומטית; None = הערכה מהמסכה). מוסיף עבודה לסוף התור. QueueFullError אם יש כבר max_pending ממתינות; SchedulerClosedError אם לא רץ."""
         with self._cond:
             if self._thread is None or self._stop:
                 raise SchedulerClosedError("ה-Scheduler לא רץ")
             if len(self._queue) >= self.max_pending:
                 raise QueueFullError(f"התור מלא ({self.max_pending} ממתינות)")
-            job = Job(self, next(self._ids), image, mask, size, on_progress, on_done, brush_px)
+            job = Job(self, next(self._ids), image, mask, size, on_progress, on_done, brush_px, feather_px)
             self._queue.append(job)
             self._cond.notify_all()
             return job
@@ -249,7 +251,7 @@ class JobScheduler:
     def _execute(self, job: Job) -> None:
         try:
             res = self.pipeline.run(job._image, job._mask, job.size, cancel=job.token,
-                                    progress=job._emit_progress, brush_px=job.brush_px)
+                                    progress=job._emit_progress, brush_px=job.brush_px, feather_px=job.feather_px)
         except CancelledError:
             job._finish(JobState.CANCELLED)
         except FixPicError as e:

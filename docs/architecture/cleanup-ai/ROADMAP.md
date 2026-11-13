@@ -15,7 +15,7 @@
 | Milestone 1.5 (שלב ביניים) – Latency Spike והחלטת Runtime/Stack | בוצע | 8 | 0 | 0 | נסגר; אימות אריזה על Python 3.14 הועבר ל-M5 |
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
 | Milestone 3 – Editing Interface | בעבודה | 0 | 4 | 5 | M3.1 (ניהול תמונות) ו-M3.2 (Session/History) בוצעו, ללא UI; הבא M3.3 (שלד ממשק) |
-| Milestone 4 – Advanced Editing | טרם התחיל | 0 | 0 | 5 |  |
+| Milestone 4 – Advanced Editing | בעבודה | 0 | 3 | 2 |  |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
 <!-- STATUS:END -->
 
@@ -145,9 +145,9 @@
 
 **משימות**
 - [ ] לאסו.
-- [ ] הרחבת/כיווץ מסכה.
-- [ ] Feathering מתכוונן.
-- [ ] עיבוד מספר אזורים (Connected Components).
+- [~] הרחבת/כיווץ מסכה. **שירות בוצע (2026-11-13, בשיחה מקבילה ל-M3.3):** `MaskLayer.grow/shrink` ו-`session/mask_ops.py`; נשאר הממשק וחיבור ל-Undo של עריכת מסכה (`snapshot`/`restore` קיימים).
+- [~] Feathering מתכוונן. **שירות בוצע:** `feather_px` לפי עבודה (`Pipeline.run`, `Scheduler.submit`, `Session.submit_stroke`; 0–64, `None` = לפי ה-cfg); נשאר הממשק (סליידר) וקביעת ברירת מחדל סופית.
+- [~] עיבוד מספר אזורים (Connected Components). **שירות בוצע:** `MaskLayer.components/component_at/remove_component_at/remove_small`; העיבוד עצמו של מספר אזורים כבר קיים ב-M2.4. נשאר הממשק (בחירה/מחיקה בלחיצה).
 - [ ] תכנון ממשק לבחירת אזור אוטומטית (ללא מימוש מודל Segmentation בשלב זה).
 
 **בדיקות:** מסכות מורכבות, אזורים סמוכים, שוליים.

@@ -77,6 +77,7 @@ class InpaintResult:
     oom_retries: int = 0
     dilate_px: int = 0           # רדיוס ההרחבה שבוצעה בפועל
     brush_px: float = 0.0        # קוטר המברשת ששימש לחישובה (0 = הרחבה קבועה, לא נדרש)
+    feather_px: int = 0          # רוחב ה-Feathering שבו נעשה שימוש (כולל עקיפה לפי עבודה)
 
 
 class Pipeline:
@@ -107,13 +108,14 @@ class Pipeline:
     # ------------------------------------------------------------------ run
     def run(self, image: np.ndarray, mask: np.ndarray, size: int | None = None,
             cancel: CancelToken | None = None, progress: ProgressFn | None = None,
-            brush_px: float | None = None) -> InpaintResult:
+            brush_px: float | None = None, feather_px: int | None = None) -> InpaintResult:
         """brush_px: קוטר המברשת בפיקסלי התמונה (מה-UI), לחישוב ההרחבה האוטומטית; None = הערכה מהמסכה.
+        feather_px: עקיפה של `cfg.feather_px` לריצה זו (0 = מיזוג בינארי, עד `MAX_FEATHER`); None = לפי ה-cfg.
 
         גבול שכבת ה-Engine (ARCHITECTURE §10): רק `FixPicError` יוצא החוצה. חריגה לא צפויה מומרת
         ל-`InferenceError` (או ל-`OutOfMemoryError` אם זו חריגת זיכרון), והקלט לעולם אינו משתנה."""
         try:
-            return self._run(image, mask, size, cancel, progress, brush_px)
+            return self._run(image, mask, size, cancel, progress, brush_px, feather_px)
         except FixPicError:
             raise
         except Exception as e:  # noqa: BLE001 - ממיר חריגות לא צפויות לשגיאה מוגדרת
@@ -122,8 +124,9 @@ class Pipeline:
             log.exception("חריגה לא צפויה ב-Pipeline")
             raise InferenceError(f"שגיאה לא צפויה: {e}") from e
 
-    def _run(self, image, mask, size, cancel, progress, brush_px) -> InpaintResult:
+    def _run(self, image, mask, size, cancel, progress, brush_px, feather_px=None) -> InpaintResult:
         c = self.cfg
+        feather = check_feather(c.feather_px if feather_px is None else feather_px)
         size = size or c.default_size
         if size not in c.sizes:
             raise InvalidInputError(f"גודל קלט {size} אינו באחד ה-buckets {c.sizes}")
@@ -161,10 +164,10 @@ class Pipeline:
         used = size
         for g in groups:
             cancel.raise_if_cancelled()
-            used = self._run_group_with_retry(image, result, m, g, size, cancel, rois, st, hw)
+            used = self._run_group_with_retry(image, result, m, g, size, cancel, rois, st, hw, feather)
         st.emit("done")
         return InpaintResult(result, m, rois[0], rois, len(groups), len(rois), used, st.retries, r,
-                             float(brush_px or 0.0))
+                             float(brush_px or 0.0), feather)
 
     def _count(self, g: Group, size: int, hw) -> int:
         """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
@@ -174,12 +177,12 @@ class Pipeline:
         bx, by = g.box[0], g.box[1]
         return sum(1 for x0, y0, x1, y1 in cores if g.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
 
-    def _run_group_with_retry(self, image, result, m, g: Group, size, cancel, rois, st, hw) -> int:
+    def _run_group_with_retry(self, image, result, m, g: Group, size, cancel, rois, st, hw, feather) -> int:
         sizes = sorted((s for s in self.cfg.sizes if s <= size), reverse=True)
         n_before = len(rois)
         for i, s in enumerate(sizes):
             try:
-                self._run_group(result, m, g, s, cancel, rois, st)
+                self._run_group(result, m, g, s, cancel, rois, st, feather)
                 return s
             except (OutOfMemoryError, MemoryError) as e:
                 if not is_oom(e):
@@ -207,11 +210,11 @@ class Pipeline:
                 return p, cores
         return p, None
 
-    def _run_group(self, result, m, g: Group, size, cancel, rois, st) -> None:
+    def _run_group(self, result, m, g: Group, size, cancel, rois, st, feather) -> None:
         hw = result.shape[:2]
         p, cores = self._strategy(g, size, hw)
         if cores is None:
-            self._infer(result, m, g, p, g.box, cancel, rois)
+            self._infer(result, m, g, p, g.box, cancel, rois, feather)
             st.step()
             return
         gm = Group(g.box, g.mask.copy())            # "נותר למילוי": ריק אחרי כל אריח
@@ -221,12 +224,12 @@ class Pipeline:
             x0, y0, x1, y1 = core
             if not gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any():
                 continue
-            self._infer(result, m, gm, tile_plan(x0, y0, x1, y1, hw, size), core, cancel, rois)
+            self._infer(result, m, gm, tile_plan(x0, y0, x1, y1, hw, size), core, cancel, rois, feather)
             gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx] = 0
             st.step()
 
     # ---------------------------------------------------------------- infer
-    def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois) -> None:
+    def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois, feather) -> None:
         """מריץ חלון אחד. g.mask: מה שנותר למילוי (המודל רואה אותו); נכתבים רק פיקסלים של g.mask בתוך commit_box."""
         size = p.size
         win_mask = np.zeros((p.height, p.width), np.uint8)
@@ -262,7 +265,7 @@ class Pipeline:
         if cx1 <= cx0 or cy1 <= cy0:
             return
         region = (p.x0 + cx0, p.y0 + cy0, p.x0 + cx1, p.y0 + cy1)
-        alpha = self._alpha(m, region)
+        alpha = self._alpha(m, region, feather)
         for r0 in range(cy0, cy1, STRIP):
             r1 = min(cy1, r0 + STRIP)
             sel = win_mask[r0:r1, cx0:cx1] > 0
@@ -274,8 +277,7 @@ class Pipeline:
             blended = np.rint(base + (out[r0:r1, cx0:cx1].astype(np.float32) - base) * a).astype(np.uint8)
             dst[sel] = blended[sel]
 
-    def _alpha(self, m, region) -> np.ndarray:
-        f = self.cfg.feather_px
+    def _alpha(self, m, region, f: int) -> np.ndarray:
         x0, y0, x1, y1 = region
         if f <= 0:
             return m[y0:y1, x0:x1].astype(np.float32)
@@ -301,6 +303,15 @@ class _State:
                 self.fn(Progress(self.done, max(self.total, self.done), stage))
             except Exception:  # noqa: BLE001
                 log.exception("callback של התקדמות נכשל")
+
+
+MAX_FEATHER = 64   # תקרת הגיוניות לרוחב Feathering (פיקסלי תמונה); מעבר לכך אין תועלת והחישוב מיותר
+
+
+def check_feather(f) -> int:
+    if isinstance(f, bool) or not isinstance(f, (int, np.integer)) or not 0 <= f <= MAX_FEATHER:
+        raise InvalidInputError(f"feather_px חייב להיות מספר שלם בין 0 ל-{MAX_FEATHER}")
+    return int(f)
 
 
 def _paste(dst: np.ndarray, src: np.ndarray, src_box, p: RoiPlan) -> None:
