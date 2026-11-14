@@ -145,8 +145,8 @@
 
 **משימות**
 - [~] לאסו. **שירות בוצע (2026-11-14, ללא UI):** `mask_ops.polygon_region` ו-`MaskLayer.fill_polygon(points, erase=)` (מילוי/מחיקה של מצולע חופשי, כלל winding שונה מאפס); נשאר הממשק (ציור המסלול, מצב לאסו/מחיקה בלאסו); Undo של עריכת מסכה: שירות `MaskHistory` בוצע (ראו הפריט הבא), נשאר חיבור ל-UI.
-- [~] הרחבת/כיווץ מסכה. **שירות בוצע (2026-11-13, בשיחה מקבילה ל-M3.3):** `MaskLayer.grow/shrink` ו-`session/mask_ops.py`; נשאר הממשק; Undo של עריכת מסכה: שירות `MaskHistory` בוצע (2026-11-14), נשאר חיבור ל-UI.
-- [~] Undo/Redo לעריכות מסכה (ללא UI). **שירות בוצע (2026-11-14):** `session/mask_history.py` (`MaskHistory`: `do(op)`, `begin/end` למשיכה שלמה, `undo/redo`, מגבלות צעדים וזיכרון, זיהוי היסטוריה מיושנת) ו-`MaskLayer.apply_diff`; נשאר חיבור ל-UI וקביעת הסדר מול `Session.undo` (Ctrl+Z).
+- [~] הרחבת/כיווץ מסכה. **שירות בוצע (2026-11-13, בשיחה מקבילה ל-M3.3):** `MaskLayer.grow/shrink` ו-`session/mask_ops.py`; **לוח בממשק בוצע (2026-11-14):** `ui/mask_panel.py` (כפתורים וגודל, בדוק), נשאר ציור התוצאה על ה-Canvas (M3.4).
+- [~] Undo/Redo לעריכות מסכה (ללא UI). **שירות בוצע (2026-11-14):** `session/mask_history.py` (`MaskHistory`: `do(op)`, `begin/end` למשיכה שלמה, `undo/redo`, מגבלות צעדים וזיכרון, זיהוי היסטוריה מיושנת) ו-`MaskLayer.apply_diff`; **חובר ללוח כלי המסכה (2026-11-14, כפתורי ביטול/שחזור של המסכה)**; נשאר קיצור מקלדת וקביעת הסדר מול `Session.undo` (Ctrl+Z).
 - [~] Feathering מתכוונן. **שירות בוצע:** `feather_px` לפי עבודה (`Pipeline.run`, `Scheduler.submit`, `Session.submit_stroke`; 0–64, `None` = לפי ה-cfg); נשאר הממשק (סליידר) וקביעת ברירת מחדל סופית.
 - [~] עיבוד מספר אזורים (Connected Components). **שירות בוצע:** `MaskLayer.components/component_at/remove_component_at/remove_small`; העיבוד עצמו של מספר אזורים כבר קיים ב-M2.4. נשאר הממשק (בחירה/מחיקה בלחיצה).
 - [ ] תכנון ממשק לבחירת אזור אוטומטית (ללא מימוש מודל Segmentation בשלב זה).

@@ -42,6 +42,16 @@
   "msg.busy": "פעולה אחרת מתבצעת כרגע. נסו שוב בסיומה.",
   "msg.alpha_flattened": "הפורמט שנבחר אינו תומך בשקיפות: השקיפות הונחה על רקע לבן.",
 
+  "dock.mask": "כלי מסכה",
+  "mask.amount": "גודל שינוי:",
+  "mask.grow": "הרחבה",
+  "mask.shrink": "כיווץ",
+  "mask.min_area": "שטח מינימלי:",
+  "mask.remove_small": "מחיקת כתמים קטנים",
+  "mask.clear": "ניקוי המסכה",
+  "mask.undo": "ביטול (מסכה)",
+  "mask.redo": "שחזור (מסכה)",
+
   "error.title": "שגיאה",
   "error.load": "לא ניתן לפתוח את הקובץ:\n{detail}",
   "error.save": "לא ניתן לשמור את הקובץ:\n{detail}",

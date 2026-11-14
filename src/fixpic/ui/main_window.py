@@ -16,7 +16,7 @@ from typing import Callable
 
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
-from PySide6.QtWidgets import (QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QToolBar)
+from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QToolBar)
 
 from ..errors import FixPicError, InvalidInputError
 from ..imgio import LoadedImage, SaveResult, image_from_array, load_image, save_image
@@ -24,6 +24,7 @@ from ..session import Session
 from ..strings import t
 from .canvas import Canvas
 from .convert import qimage_to_array
+from .mask_panel import MaskToolsPanel
 from .workers import BackgroundRunner
 
 log = logging.getLogger("fixpic.ui")
@@ -46,6 +47,7 @@ class MainWindow(QMainWindow):
         self.resize(1100, 760)
         self._build_actions()
         self._build_status()
+        self._build_mask_dock()
         self.canvas.scaleChanged.connect(self._update_status)
         self._refresh()
 
@@ -83,6 +85,16 @@ class MainWindow(QMainWindow):
             tb.addAction(a)
         self.addToolBar(tb)
 
+    def _build_mask_dock(self) -> None:
+        """לוח כלי המסכה (M4). הלוח משנה את `Session.mask`; ציור שכבת המסכה על ה-Canvas הוא של M3.4."""
+        self.mask_panel = MaskToolsPanel(self)
+        self.mask_dock = QDockWidget(t("dock.mask"), self)
+        self.mask_dock.setWidget(self.mask_panel)
+        self.mask_dock.setFeatures(QDockWidget.DockWidgetMovable)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.mask_dock)
+        self.mask_panel.maskChanged.connect(lambda _rect: self.canvas.update())
+        self.mask_panel.failed.connect(lambda detail: self._error("error.unexpected", detail=detail))
+
     def _build_status(self) -> None:
         sb = self.statusBar()
         self.lbl_size, self.lbl_zoom = QLabel(), QLabel()
@@ -112,6 +124,7 @@ class MainWindow(QMainWindow):
         self.act_save.setEnabled(has and not self.busy)
         self.act_save_as.setEnabled(has and not self.busy)
         self.act_open.setEnabled(not self.busy)
+        self.mask_panel.set_enabled_for_work(not self.busy)
         self.act_paste.setEnabled(not self.busy)
         for a in (self.act_fit, self.act_actual, self.act_zoom_in, self.act_zoom_out):
             a.setEnabled(has)
@@ -209,6 +222,7 @@ class MainWindow(QMainWindow):
             return
         self.session, self.display_name, self.save_path = session, name, None
         self.canvas.set_image(session.rgb, session.alpha)
+        self.mask_panel.bind(session.mask)
         self.canvas.setFocus()
         self._set_busy(False)
 

@@ -75,7 +75,7 @@ class TestStrings:
         keys = strings.all_keys()
         used: set[str] = set()
         for f in (SRC / "ui").glob("*.py"):
-            used |= set(re.findall(r'"((?:menu|toolbar|action|hint|status|dialog|filter|msg|error|title|app)\.[a-z_]+)"',
+            used |= set(re.findall(r'"((?:menu|toolbar|action|hint|status|dialog|filter|msg|error|title|app|dock|mask)\.[a-z_]+)"',
                                    f.read_text(encoding="utf-8")))
         assert used - keys == set(), "מפתחות בשימוש שחסרים ב-he.json"
         assert keys - used == set(), "מחרוזות מתות ב-he.json"

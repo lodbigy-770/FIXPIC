@@ -1020,3 +1020,18 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 
 **פתוח למי שמחבר ל-UI:** סדר Ctrl+Z בין `MaskHistory` ל-`Session.undo` (הצעה: קודם עריכות מסכה שטרם נשלחו, ואז Commit-ים); קריאה ל-`MaskHistory.clear()` או הסתמכות על `stale` אחרי `submit_stroke`.
 
+
+## 2026-11-14 – M4: לוח כלי מסכה בממשק, שיחה מקבילה ל-M3.4
+
+**מה בוצע**
+- **`ui/mask_panel.py` – `MaskToolsPanel(QWidget)`:** לוח עם הרחבה/כיווץ (גודל בפיקסלים, 1–200, ברירת מחדל 3), מחיקת כתמים קטנים (שטח מינימלי, ברירת מחדל 50), ניקוי המסכה, ו-Undo/Redo של עריכות מסכה. `bind(layer)` מחבר `MaskLayer` ויוצר לו `MaskHistory` משלו; `bind(None)` מנתק. כל פעולה היא צעד אחד ב-`MaskHistory.do`; פעולה שלא שינתה דבר אינה נרשמת ואינה משדרת. אות `maskChanged(rect)` נושא את המלבן ששונה (לציור מחדש), `failed(str)` נושא שגיאות `FixPicError`. `remove_component_at(x, y)` מוכנה לקריאה מה-Canvas (לחיצה על רכיב).
+- **חיבור ל-`MainWindow`:** `QDockWidget` בצד ימין (`_build_mask_dock`), `bind(session.mask)` ב-`_install`, והשבתה כש-`busy` (ב-`_refresh`). `maskChanged` מפעיל כרגע רק `canvas.update()`.
+- מחרוזות עברית חדשות (`dock.mask`, `mask.*`); `tests/test_m33.py` (בדיקת עקביות המחרוזות) הורחבה בקידומות `dock` ו-`mask`.
+
+**ממצא שנתפס בבדיקות:** `MaskLayer.bbox` היא מתודה ולא תכונה; בגרסה הראשונה `clear` ו-`remove_small` החזירו את המתודה במקום מלבן. תוקן (`bbox()`), והבדיקות מאמתות שהערך המשודר הוא מלבן של 4 מספרים.
+
+**בדיקות:** `tests/test_m4_mask_panel.py`, 14 בדיקות (Qt offscreen): לוח לא מחובר, מסכה ריקה, הרחבה/כיווץ עם Undo/Redo ושוויון מלא למצב המקורי, ערכי ה-spinbox, no-op, כתמים קטנים, מחיקת רכיב, ניקוי כצעד אחד, השבתה בזמן עבודה, היסטוריה מיושנת אחרי שינוי חיצוני, החלפת שכבה, ומחרוזות; וחיבור לחלון (dock, `bind` ל-`session.mask`, `busy`). סה"כ **482 עוברות, 3 מדולגות** (Linux, Python 3.12).
+
+**לא נבדק:** הלוח בעין על Windows/i5-6500T; אין עדיין ציור של שכבת המסכה על ה-Canvas, ולכן השינוי אינו נראה למשתמש עד M3.4; Ctrl+Z (הסדר מול `Session.undo` נשאר פתוח, כפי שנרשם בערך של `MaskHistory`); הלוח מחובר ל-`Session.mask` אך שליחת Job (M3.4) תהפוך את ההיסטוריה ל"מיושנת" ויש לקרוא אז ל-`mask_panel.refresh()`.
+
+**נשאר ל-M3.4/M4:** ציור שכבת המסכה ב-Canvas וחיבור `maskChanged` אליו, לחיצה על רכיב (`remove_component_at`), ממשק לאסו, סליידר Feathering, קיצורי מקלדת.
