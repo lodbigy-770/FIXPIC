@@ -8,7 +8,9 @@
   חייבים להיות בתוכו). `polygon` אינו נתמך (`SelectionError`). בלי נקודה חיובית = `SelectionError`; תוצאה ריקה
   (שלילית כיסתה הכול) = None.
 - המסכה מוחזרת ברזולוציה מלאה: חלון הניתוח מוגדל ב-INTER_LINEAR וסף 127, כך שהמלבן והחלון בגודל התמונה המלאה.
-- `tolerance` 0..255 לכל ערוץ; ברירת מחדל `DEFAULT_TOLERANCE` (זמני, **לא כוונן על תמונות אמיתיות**).
+- `tolerance` 0..255 לכל ערוץ; ברירת מחדל `DEFAULT_TOLERANCE` = 20, **כוונן על `samples/`** (`tools/m4/wand_samples.py`, DEVELOPMENT_LOG):
+  בטוח על משטחים חלקים (שמיים, קיר עץ), ועל משטחים עם מרקם (דשא, צל, בד) נדרשות 30–40 – זה תפקיד הגרירה בממשק.
+  **ידוע:** הצבע מושווה לפיקסל הזרע הבודד, ולכן על מרקם התוצאה תלויה בפיקסל המדויק שנלחץ (ראו הלוג).
 """
 from __future__ import annotations
 
@@ -22,7 +24,7 @@ from ..models.base import CancelToken
 from .types import Context, Point, Prompts, Proposal, SelectionError
 
 MAX_ANALYSIS_PX = 1_500_000
-DEFAULT_TOLERANCE = 20          # ערך זמני
+DEFAULT_TOLERANCE = 20          # כוונן על תמונות אמיתיות (2026-11-14); טווח ממליץ לסליידר 0..50
 _FLAGS = 8 | cv2.FLOODFILL_FIXED_RANGE | cv2.FLOODFILL_MASK_ONLY | (255 << 8)
 
 
