@@ -100,6 +100,29 @@ class MaskLayer:
         np.bitwise_or(self._m, np.where(mask > 0, 255, 0).astype(np.uint8), out=self._m)
         self._touch()
 
+    def fill_polygon(self, points: Sequence[tuple[float, float]], *, erase: bool = False) -> Rect | None:
+        """לאסו: ממלא (או, עם `erase=True`, מוחק) את המצולע הסגור שנוצר מהנקודות (נסגר אוטומטית; ראו
+        `mask_ops.polygon_region` לכלל המילוי). קואורדינטות בפיקסלי התמונה ויכולות לחרוג ממנה (נחתכות).
+        מחזיר את המלבן שנגע בו, או None אם לא השתנה דבר (מחוץ לתמונה, שטח אפס, או כבר מלא/ריק): אין צורך אז
+        לשמור `snapshot` ל-Undo. פחות מ-3 נקודות = `InvalidInputError`.
+        `brush_px` אינו משתנה (אין קוטר מברשת בלאסו; ההרחבה האוטומטית תעריך אותו מהמסכה, ראו `dilate.py`);
+        מחיקה שמרוקנת את השכבה מאפסת אותו, כמו ב-`remove_component_at`."""
+        res = mask_ops.polygon_region(points, self._m.shape)
+        if res is None:
+            return None
+        region, rect = res
+        x0, y0, x1, y1 = rect
+        view = self._m[y0:y1, x0:x1]
+        sel = region > 0
+        val = 0 if erase else 255
+        if not (view[sel] != val).any():
+            return None
+        view[sel] = val
+        if erase and not self._m.any():
+            self._brush_px = None
+        self._touch()
+        return rect
+
     # ------------------------------------------------- עריכת מסכה קיימת (M4)
     def grow(self, px: int) -> Rect | None:
         """מרחיב את המסכה ב-`px` פיקסלים. מחזיר את המלבן ששונה (לציור מחדש) או None אם לא השתנה דבר."""

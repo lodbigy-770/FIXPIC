@@ -20,6 +20,9 @@ Rect = tuple[int, int, int, int]   # x0, y0, x1, y1 (x1/y1 בלעדיים)
 
 MAX_MORPH_PX = 2000   # תקרת הגיוניות לרדיוס הרחבה/כיווץ
 MAX_COMPONENTS = 100_000
+MAX_POLY_POINTS = 30_000   # תקרת נקודות ללאסו (מספר ה-winding בשורה חסום במספר הצלעות, וחייב להיכנס ל-int16)
+MAX_POLY_COORD = 1_000_000
+_POLY_CHUNK_ROWS = 1 << 21   # חיתוך החישוב: לכל היותר כ-2M חציות בזיכרון בבת אחת
 
 
 @dataclass(frozen=True)
@@ -123,3 +126,81 @@ def remove_small(mask: np.ndarray, min_area: int, *, connectivity: int = 8) -> t
     keep[1:] = (stats[1:, 4] >= min_area)
     removed = int((stats[1:, 4] < min_area).sum()) if n > 1 else 0
     return keep[labels] * 255, removed
+
+
+# ------------------------------------------------------------------ לאסו (מצולע חופשי)
+def _check_polygon(points) -> np.ndarray:
+    try:
+        a = np.asarray(points, dtype=np.float64)
+    except (TypeError, ValueError) as e:
+        raise InvalidInputError("נקודות לאסו לא תקינות") from e
+    if a.ndim != 2 or a.shape[1] != 2:
+        raise InvalidInputError("נקודות לאסו חייבות להיות רשימה של (x, y)")
+    if len(a) < 3:
+        raise InvalidInputError("לאסו דורש לפחות 3 נקודות")
+    if len(a) > MAX_POLY_POINTS:
+        raise InvalidInputError(f"יותר מדי נקודות בלאסו ({len(a)}); יש לפשט את המסלול לפני החישוב")
+    if not np.isfinite(a).all() or np.abs(a).max() > MAX_POLY_COORD:
+        raise InvalidInputError("קואורדינטת לאסו לא סופית או גדולה מדי")
+    return np.rint(a).astype(np.int64)
+
+
+def polygon_region(points, shape: tuple[int, int]) -> tuple[np.ndarray, Rect] | None:
+    """ממלא את המצולע הסגור שנוצר מהנקודות (המסלול נסגר אוטומטית מהנקודה האחרונה לראשונה), לכלי הלאסו.
+
+    מחזיר (חלון 0/255, מלבנו בתמונה) כשהחלון הוא חיתוך המצולע עם תמונה בגודל `shape` (h, w), או None אם אין
+    כלל מה למלא (כולו מחוץ לתמונה, או ששטחו אפס כי הנקודות על קו אחד). העבודה והזיכרון לפי החלון ולא לפי התמונה.
+
+    כלל המילוי: winding שונה מאפס, כלומר איחוד כל הלולאות גם כשהמסלול חוצה את עצמו או מקיף פעמיים (בניגוד
+    ל-`cv2.fillPoly`, שמשאיר חור באזור שהמסלול הקיף פעמיים). קואורדינטות עגולות לפיקסל (מרכז פיקסל = מספר שלם,
+    כמו ב-`MaskLayer.paint`); הפיקסלים שעל הקו עצמו נכללים, כך שמלבן (10,10)–(50,40) ממלא את 10..50 ו-10..40 כולל.
+    הפנים מחושבים בחשבון שלם ואינם תלויים בחיתוך; קו השפה (1px) צויר ע"י cv2, וכשהמצולע חורג מהתמונה פיקסל שפה
+    בודד על קו אלכסוני עשוי להשתנות לעומת מצולע שלם שנחתך אחר כך.
+    """
+    h, w = int(shape[0]), int(shape[1])
+    if h < 1 or w < 1:
+        raise InvalidInputError("גודל תמונה לא תקין")
+    pts = _check_polygon(points)
+    x, y = pts[:, 0], pts[:, 1]
+    cx0, cy0 = max(0, int(x.min())), max(0, int(y.min()))
+    cx1, cy1 = min(w, int(x.max()) + 1), min(h, int(y.max()) + 1)
+    if cx0 >= cx1 or cy0 >= cy1:
+        return None
+    cw, ch = cx1 - cx0, cy1 - cy0
+
+    # צלעות סגורות; אופקיות לא משפיעות על ה-winding. כל צלע תורמת לשורות [ylo, yhi) (חצי פתוח: אין ספירה כפולה בקודקוד)
+    ax, ay, bx, by = x, y, np.roll(x, -1), np.roll(y, -1)
+    r0, r1 = np.maximum(np.minimum(ay, by), cy0), np.minimum(np.maximum(ay, by), cy1)
+    ok = (ay != by) & (r1 > r0)
+    ax, ay, bx, by, r0, r1 = ax[ok], ay[ok], bx[ok], by[ok], r0[ok], r1[ok]
+    sign = np.where(by > ay, 1, -1).astype(np.int16)
+    cnt = r1 - r0
+
+    delta = np.zeros(ch * (cw + 1), np.int16)   # עמודה אחרונה = "מימין לחלון": לא משפיעה
+    i, n = 0, len(cnt)
+    while i < n:
+        j = i + 1
+        tot = int(cnt[i])
+        while j < n and tot + int(cnt[j]) <= _POLY_CHUNK_ROWS:
+            tot += int(cnt[j])
+            j += 1
+        c = cnt[i:j]
+        idx = np.repeat(np.arange(i, j), c)
+        rows = r0[idx] + (np.arange(tot) - np.repeat(np.cumsum(c) - c, c))
+        # נקודת החיתוך עם השורה, בחשבון שלם בדיוק: ceil(ax + (row-ay)*(bx-ax)/(by-ay)); הפיקסלים מ-ceil ואילך "בפנים"
+        dy = by[idx] - ay[idx]
+        num = ax[idx] * dy + (rows - ay[idx]) * (bx[idx] - ax[idx])
+        sgn = np.where(dy < 0, -1, 1)
+        col = -((-num * sgn) // (dy * sgn))
+        col = np.clip(col - cx0, 0, cw)
+        np.add.at(delta, (rows - cy0) * (cw + 1) + col, sign[idx])
+        i = j
+
+    wind = np.cumsum(delta.reshape(ch, cw + 1), axis=1, dtype=np.int16)[:, :cw]
+    inside = wind != 0
+    if not inside.any():
+        return None
+    out = inside.astype(np.uint8) * 255
+    outline = (pts - np.array([cx0, cy0], np.int64)).astype(np.int32).reshape(-1, 1, 2)
+    cv2.polylines(out, [outline], True, 255, 1, cv2.LINE_8)
+    return out, (cx0, cy0, cx1, cy1)
