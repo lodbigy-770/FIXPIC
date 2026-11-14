@@ -203,6 +203,7 @@ class InpaintModel(Protocol):
 - **רישוי:** PySide6 ברישיון LGPL. נדרשת הפצה בקישור דינמי ושמירת הודעות הרישיון; לאמת משפטית. PyQt6 נפסל (GPL או רישיון מסחרי בתשלום).
 - **אריזה:** PyInstaller במצב `onedir` (לא `onefile`, כדי להקטין זמן עלייה וחשד אנטי-וירוס), או Nuitka; מתקין Inno Setup; Python, ONNX Runtime והמודל נארזים בפנים; חתימה דיגיטלית. פרטים סופיים ב-M5.
 - **RTL:** `QApplication.setLayoutDirection(Qt.RightToLeft)`; בדיקת יישור וסדר טאבים ידנית.
+- **מימוש (M3.3, `fixpic/ui`):** `Canvas` = `QWidget` מותאם (לא `QGraphicsView`, לפי ה-UI Spike) עם פירמידת הקטנות ורק המלבן הנראה מצויר; גרירה בכפתור שמאלי מזיזה (`left_drag_pans`, ב-M3.4 ייכבה והזזה תהיה כפתור אמצעי או Space), גלגלת = זום סביב הסמן, 2%-3200%, התמונה לא יוצאת מהחלון. פתיחה ושמירה ב-`BackgroundRunner` (QThreadPool; ה-callbacks חוזרים ל-thread של ה-UI; הפונקציה ברקע מקבלת רק מערכים קריאה-בלבד, כי `Session` חד-thread); פעולה אחת ברקע בכל זמן. **Ctrl+S אינו דורס את קובץ המקור:** שומר לנתיב האחרון של "שמירה בשם", ואם אין כזה פותח אותו. שמירה מסמנת "נשמר" לפי `history.current_id` שנלכד בתחילתה (שינוי בזמן שמירה משאיר את התמונה "שונה"). תמונה עם Alpha מוצגת על רקע אפור-בהיר. מחרוזות רק מ-`strings.t`, ובדיקה מוודאת שאין מפתח חסר או מת.
 - **ביצועי UI:** תצוגת תמונה של 24MP ב-Zoom/Pan חלק צריכה פירמידת הקטנות או Tiles לתצוגה. **לבדוק ב-M1.5.**
 - **Threading:** `run` של ONNX Runtime ב-Python משחרר ככל הנראה את ה-GIL, ולכן ה-UI נשאר רספונסיבי עם `QThread`. **לא אומת, לבדוק ב-M1.5.**
 - **סטטוס:** מאושר כברירת מחדל, בכפוף למדידות M1.5. (מחליף את הגרסה הקודמת של ADR-007, WPF.)
@@ -252,7 +253,8 @@ class InpaintModel(Protocol):
 ```
 src/fixpic/
   app.py            נקודת כניסה
-  ui/               חלון ראשי, Canvas, סרגל כלים (RTL)
+  ui/               חלון ראשי, Canvas, סרגל כלים (RTL); שלד מומש ב-M3.3
+  strings/          he.json ו-t(); מומש ב-M3.3
   engine/           InpaintEngine, Job Scheduler, ROI/Tiling
   pipeline/         Pre/Post, מיזוג, פעולות מסכה
   models/           Model Manager, מימוש ONNX

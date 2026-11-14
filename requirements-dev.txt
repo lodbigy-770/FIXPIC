@@ -2,6 +2,7 @@
 numpy
 opencv-python-headless
 pillow          # טעינה/שמירה, EXIF/ICC (fixpic.imgio)
+PySide6         # ממשק (fixpic.ui); בבדיקות: QT_QPA_PLATFORM=offscreen
 onnxruntime>=1.30
 openvino        # backend ראשי (ADR-011); בלעדיו המנוע עובד על ORT
 # בדיקות בלבד:

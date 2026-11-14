@@ -14,7 +14,7 @@
 | Milestone 1 – Model Integration | בוצע | 6 | 0 | 0 |  |
 | Milestone 1.5 (שלב ביניים) – Latency Spike והחלטת Runtime/Stack | בוצע | 8 | 0 | 0 | נסגר; אימות אריזה על Python 3.14 הועבר ל-M5 |
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
-| Milestone 3 – Editing Interface | בעבודה | 0 | 4 | 5 | M3.1 (ניהול תמונות) ו-M3.2 (Session/History) בוצעו, ללא UI; הבא M3.3 (שלד ממשק) |
+| Milestone 3 – Editing Interface | בעבודה | 1 | 3 | 5 | M3.1-M3.3 בוצעו (קבצים, Session/History, שלד ממשק); הבא M3.4 (מברשת ו-Inpaint בממשק) |
 | Milestone 4 – Advanced Editing | בעבודה | 0 | 3 | 2 |  |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
 <!-- STATUS:END -->
@@ -117,13 +117,13 @@
 **פירוק לשלבי ביצוע** (שלב אחד בכל פעם; הסימון בפועל נעשה במשימות שמתחת):
 - **M3.1 – ניהול תמונות (ללא UI): בוצע (2026-11-13).** `fixpic/imgio`: טעינה/שמירה PNG/JPG/WebP, נתיבי Unicode, Alpha, EXIF/ICC, שמירה אטומית, `image_from_array` להדבקה.
 - **M3.2 – שירותי אפליקציה (ללא UI): בוצע (2026-11-13).** `fixpic/session` (`Session`: תמונה עובדת, Commit אטומי מתוצאת Job לפי מסכה, `submit_stroke`/`finish`, Undo/Redo; `MaskLayer`: ציור/מחיקה על מסכה בגודל התמונה; `alpha.py`: מדיניות Alpha) ו-`fixpic/history` (`History`, `Patch`: מגבלת צעדים וזיכרון). Undo בזמן Processing = ביטול כל ה-Jobs. `tests/test_m32.py`, 65 בדיקות.
-- **M3.3 – שלד ממשק:** `strings/he.json` וטעינתו, `QApplication` ב-RTL, חלון ראשי, Canvas (`QGraphicsView`) עם Zoom/Pan על פירמידת הקטנות (לפי M1.5), פתיחה/גרירה/הדבקה, שמירה/ייצוא ברקע עם התקדמות.
+- **M3.3 – שלד ממשק: בוצע (2026-11-14).** `fixpic/strings` (`he.json`, `t()`), `fixpic/ui` (`create_app` ב-RTL, `MainWindow`, `Canvas` עם Zoom/Pan על פירמידת הקטנות, `BackgroundRunner`), `python -m fixpic.app`; פתיחה/גרירה/הדבקה, שמירה/ייצוא ברקע עם מחוון. **Canvas הוא `QWidget` מותאם ולא `QGraphicsView`** (כפי שנבדק ב-UI Spike של M1.5). `tests/test_m33.py`, 39 בדיקות.
 - **M3.4 – מברשת ולולאת Inpaint:** מברשת (גודל משתנה) ומחיקת מסכה, שכבת מסכה, שחרור = Job דרך ה-Scheduler עם `brush_px`, Commit, מחוון עיבוד אחרי 200ms, ביטול, הצגת שגיאות.
 - **M3.5 – Undo/Redo ובדיקת לפני/אחרי בממשק:** חיבור ל-History, קיצורי מקלדת, השוואה בהחזקה וב-Toggle.
 - **M3.6 – סגירה:** 20 צעדי Undo/Redo, תגובתיות UI בזמן הרצה, נתיבים בעברית דרך הממשק (כולל Windows), בדיקת P0 מול `PARITY-SPEC.md` והשוואה צד-לצד על סט ייחוס.
 
 **משימות**
-- [~] טעינה בגרירה / פתיחה / הדבקה מהלוח; שמירה/ייצוא PNG/JPG/WebP ברזולוציה מלאה. **שכבת הקבצים בוצעה ב-M3.1** (טעינה, שמירה אטומית, פענוח מבייטים, מערך->תמונה); נשאר הממשק: גרירה, דיאלוג פתיחה/שמירה, הדבקה מהלוח (M3.3).
+- [x] טעינה בגרירה / פתיחה / הדבקה מהלוח; שמירה/ייצוא PNG/JPG/WebP ברזולוציה מלאה. שכבת הקבצים ב-M3.1, הממשק (גרירה, דיאלוגים, הדבקה, שמירה ברקע) ב-M3.3.
 - [ ] מברשת (גודל משתנה) שמפעילה Inpaint בשחרור כל משיכה (לולאת החוויה, `PARITY-SPEC.md` §3), Zoom/Pan.
 - [ ] השוואה לפני/אחרי: גם בהחזקה וגם כ-Toggle.
 - [ ] ממשק בעברית (RTL) עם מחרוזות בקובץ נפרד (`strings/he.json`); קיצורי מקלדת.

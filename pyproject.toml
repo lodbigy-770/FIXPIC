@@ -13,6 +13,7 @@ dependencies = [
     "pillow",                       # fixpic.imgio: טעינה/שמירה, EXIF/ICC
     "onnxruntime>=1.30",            # backend גיבוי (ADR-011)
     "openvino",                     # backend ראשי (ADR-011); בלעדיו המנוע עובד על ORT
+    "PySide6",                      # ממשק (fixpic.ui); בבדיקות: QT_QPA_PLATFORM=offscreen
 ]
 
 [project.optional-dependencies]
@@ -24,5 +25,11 @@ dev = [
 [project.scripts]
 fixpic = "fixpic.cli:main"
 
+[project.gui-scripts]
+fixpic-app = "fixpic.ui.app:main"
+
 [tool.setuptools.packages.find]
 where = ["src"]
+
+[tool.setuptools.package-data]
+"fixpic.strings" = ["*.json"]

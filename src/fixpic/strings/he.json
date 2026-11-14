@@ -1,0 +1,51 @@
+{
+  "app.name": "FixPic",
+  "title.untitled": "ללא שם",
+  "title.modified": "*",
+
+  "menu.file": "&קובץ",
+  "menu.view": "&תצוגה",
+  "toolbar.main": "סרגל כלים",
+
+  "action.open": "&פתיחה…",
+  "action.save": "&שמירה",
+  "action.save_as": "שמירה &בשם…",
+  "action.paste": "הדבקה מהלוח",
+  "action.quit": "י&ציאה",
+  "action.fit": "התאמה לחלון",
+  "action.actual_size": "גודל מלא (100%)",
+  "action.zoom_in": "הגדלה",
+  "action.zoom_out": "הקטנה",
+
+  "hint.empty": "גררו תמונה לכאן, או פתחו קובץ (Ctrl+O), או הדביקו מהלוח (Ctrl+V)",
+
+  "status.ready": "מוכן",
+  "status.loading": "טוען…",
+  "status.saving": "שומר…",
+  "status.saved": "נשמר: {name}",
+  "status.loaded": "נטענה תמונה: {name}",
+  "status.size": "{w}×{h} פיקסלים",
+  "status.zoom": "{percent}%",
+
+  "dialog.open_title": "פתיחת תמונה",
+  "dialog.save_title": "שמירת תמונה",
+  "filter.images": "תמונות (*.png *.jpg *.jpeg *.webp *.bmp *.tif *.tiff *.gif)",
+  "filter.png": "PNG (*.png)",
+  "filter.jpg": "JPEG (*.jpg *.jpeg)",
+  "filter.webp": "WebP (*.webp)",
+
+  "msg.discard_title": "שינויים שלא נשמרו",
+  "msg.discard_text": "בתמונה יש שינויים שלא נשמרו. מה לעשות?",
+  "msg.save": "שמירה",
+  "msg.discard": "התעלמות מהשינויים",
+  "msg.cancel": "ביטול",
+  "msg.busy": "פעולה אחרת מתבצעת כרגע. נסו שוב בסיומה.",
+  "msg.alpha_flattened": "הפורמט שנבחר אינו תומך בשקיפות: השקיפות הונחה על רקע לבן.",
+
+  "error.title": "שגיאה",
+  "error.load": "לא ניתן לפתוח את הקובץ:\n{detail}",
+  "error.save": "לא ניתן לשמור את הקובץ:\n{detail}",
+  "error.clipboard_empty": "אין תמונה בלוח.",
+  "error.not_image_drop": "הקובץ שנגרר אינו קובץ תמונה מקומי.",
+  "error.unexpected": "אירעה שגיאה לא צפויה:\n{detail}"
+}

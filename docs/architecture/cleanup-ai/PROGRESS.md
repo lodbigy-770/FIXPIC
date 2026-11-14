@@ -1,6 +1,6 @@
 # PROGRESS – מצב הפרויקט והמשך עבודה
 
-> עודכן: 2026-11-13 (M3.2). מסמך קצר להעברת הקשר לשיחה הבאה. הפירוט המלא ב-`DEVELOPMENT_LOG.md`, השלבים וספירת המשימות (לוח מצב) ב-`ROADMAP.md`.
+> עודכן: 2026-11-14 (M3.3). מסמך קצר להעברת הקשר לשיחה הבאה. הפירוט המלא ב-`DEVELOPMENT_LOG.md`, השלבים וספירת המשימות (לוח מצב) ב-`ROADMAP.md`.
 
 ## מצב נוכחי
 
@@ -11,7 +11,7 @@
 | M1 – הרצת Big LaMa על CPU | **בוצע (2026-11-11).** 3 דוגמאות אמיתיות ו-3 סינתטיות עברו, הריפוד נבדק, הפלט מחוץ למסכה זהה למקור. איכות: אדם טוב, טקסט טוב מאוד, שריטה טובה. ממצא: 6.6–9.7 שניות ל-0.43MP על 4 ליבות, בלי תלות בגודל המסכה |
 | M1.5 – Latency Spike | **בוצע ונסגר (2026-11-12), למעט אימות אריזה על 3.14 שהועבר ל-M5.** OpenVINO CPU ב-3 threads (ADR-011 מאושר) 0.81/1.85/3.27 שניות ל-256/384/512 מול ORT; iGPU נפסל; צורה דינמית: compile יחיד 5.1 שניות, Latency דומה (256 איטי ב-16%); מטמון compile חוסך כ-3 שניות לצורה במחיר כ-210MB, והוחלט לא להפעיל כברירת מחדל; ה-GIL משוחרר בזמן `run`, אין צורך ברכיב נייטיב, זמן import כ-1.5–2 שניות; UI Spike: פירמידת הקטנות מספיקה ל-24MP, ללא Tiles. פירוט ב-`DEVELOPMENT_LOG.md` |
 | M2 – Core Inpainting Engine | **בוצע (2026-11-13), על מודל סינתטי: M2.1–M2.9.** (M2.9: `Pipeline.run` כגבול Engine – רק `FixPicError` יוצא; כשל גם ב-fallback משאיר מצב מוגדר; כשל טעינה/hash נרשם ביומן; `tests/test_m29.py`, 25 בדיקות) (M2.8: הרחבת מסכה יחסית למברשת ו"רזולוציה מקורית תחילה"; ערכים זמניים) (M2.7: CLI `python -m fixpic` ו-`tests/test_m27.py`) (M2.6: `JobScheduler`) (M2.4/M2.5: קיבוץ מסכות, Tiling, Feathering, תקרת זיכרון, OOM, התקדמות) (M2.3: `ModelManager`) `InpaintModel`, `OrtModel`, `OvModel`, `AutoModel`, `Pipeline`. **אומת אצל המשתמש (2026-11-13, Windows, Python 3.14.3): 163 בדיקות עוברות, כולל `tests/test_real_model.py` על Big LaMa האמיתי** (ריצה זו מסירה את "לא נבדק על Windows/3.14" לגבי הבדיקות; אריזה נשארת ל-M5). **בדיקת איכות ראשונה על Big LaMa (3 דוגמאות, `samples/m29_runs.txt`):** ברירות המחדל של M2.8 (הרחבה אוטומטית, 384, Feathering) נראות טובות; פירוט ב-`DEVELOPMENT_LOG.md`. **עדיין לא נמדדו:** זמן חם (כל הרצת CLI כוללת compile) וזמני 12/24MP; הערכים הזמניים נבדקו על 3 תמונות בלבד, ללא החלטה סופית. הבא: M3 |
-| M3 – Editing Interface | **בעבודה. בוצעו M3.1 ו-M3.2 (2026-11-13), ללא UI.** M3.2: `fixpic/session` (`Session`: Commit אטומי לפי מסכה, `submit_stroke`/`finish`, Undo/Redo, Undo בזמן עיבוד = ביטול Jobs; `MaskLayer`; מדיניות Alpha: מושלם מהסביבה) ו-`fixpic/history` (`History`, `Patch` ללא דחיסה); `tests/test_m32.py`, 65 בדיקות. M3.1: `fixpic/imgio` (טעינה/שמירה, נתיבי Unicode, Alpha, EXIF/ICC, שמירה אטומית; 75 בדיקות). M3 פורק ל-M3.1–M3.6 (ראו ROADMAP). **נמדד בסביבת הפיתוח (לא על i5-6500T), 24MP:** Commit כ-50ms למשיכה קטנה, כ-0.2 שנייה עם Alpha, עד כ-0.5 שנייה למסכה של 4MP; Undo/Redo 40-180ms. **לא נבדק:** קוד M3.1/M3.2 אצל המשתמש (Windows, Python 3.14), ו-Commit מול Job אמיתי על Big LaMa. 300 בדיקות עוברות, 3 מדולגות. הבא: M3.3 (שלד ממשק) |
+| M3 – Editing Interface | **בעבודה. בוצעו M3.1, M3.2 (2026-11-13) ו-M3.3 (2026-11-14).** M3.3: `fixpic/strings` (עברית), `fixpic/ui` (חלון ראשי ב-RTL, Canvas עם Zoom/Pan על פירמידה, פתיחה/גרירה/הדבקה, שמירה ברקע עם מחוון, אישור שינויים שלא נשמרו), הרצה: `python -m fixpic.app [קובץ]`; `tests/test_m33.py`, 39 בדיקות (Qt offscreen). M3.2: `fixpic/session` (`Session`: Commit אטומי לפי מסכה, `submit_stroke`/`finish`, Undo/Redo, Undo בזמן עיבוד = ביטול Jobs; `MaskLayer`; מדיניות Alpha: מושלם מהסביבה) ו-`fixpic/history` (`History`, `Patch` ללא דחיסה); `tests/test_m32.py`, 65 בדיקות. M3.1: `fixpic/imgio` (טעינה/שמירה, נתיבי Unicode, Alpha, EXIF/ICC, שמירה אטומית; 75 בדיקות). M3 פורק ל-M3.1–M3.6 (ראו ROADMAP). **נמדד בסביבת הפיתוח (לא על i5-6500T), 24MP:** Commit כ-50ms למשיכה קטנה, כ-0.2 שנייה עם Alpha, עד כ-0.5 שנייה למסכה של 4MP; Undo/Redo 40-180ms. **לא נבדק:** קוד M3.1/M3.2 אצל המשתמש (Windows, Python 3.14), ו-Commit מול Job אמיתי על Big LaMa. 404 בדיקות עוברות, 3 מדולגות (כולל 65 של שירותי המסכה של M4 מהשיחה המקבילה). **לא נבדק:** הממשק בעין על Windows/i5-6500T (נבדק offscreen וצילום מסך בלבד), ודיאלוגי הקבצים האמיתיים. הבא: M3.4 (מברשת ו-Inpaint בממשק) |
 | M4 – Advanced Editing | **התחיל: שירותי מסכה ללא UI בוצעו (2026-11-13, שיחה מקבילה ל-M3.3).** `session/mask_ops.py` ו-`MaskLayer.grow/shrink/components/component_at/remove_component_at/remove_small/restore`; `feather_px` לפי עבודה (Pipeline/Scheduler/Session). `tests/test_m4_mask_services.py`, 65 בדיקות; סה"כ 365 עוברות, 3 מדולגות (Linux, Python 3.12). **נשאר:** לאסו, ממשק לכל הכלים, חיבור ל-Undo של עריכת מסכה, תכנון בחירה אוטומטית |
 | M5 – Production | טרם התחיל |
 
@@ -55,12 +55,12 @@
 - **שיחה A – שאר M1.5 (הושלם ונסגר 2026-11-12; אין עוד עבודה של A כרגע).** תחום: `tools/m1/`, סעיף M1.5 ב-`ROADMAP.md`, §6 ב-`MODEL_CARD.md`. נשאר: (1) ~~אישור מפורש ל-ADR-011~~ ניתן (2026-11-12);  (2) עלות compile: להריץ `--dynamic` ולמדוד מטמון (`CACHE_DIR`); (3) UI Spike של Zoom/Pan על 24MP; (4) GIL וזמן עלייה; (5) אריזה על 3.14.
 - **שיחה B – M2.** תחום: קוד המנוע (ספרייה חדשה ללא UI), בדיקות, סעיף M2 ב-`ROADMAP.md`. נקודות מחייבות מ-M1.5: **ברירת מחדל 3 threads** (פרמטר מוגדר; עלות 3–8% ב-ORT מול 4, ומשאיר ליבה ל-UI); מצבי הקלט (256/384/512) כפרמטר של ה-Pipeline; ה-Pipeline מחזיר ROI **לגדלים קבועים (buckets)** ולא לצורות שרירותיות, כי OpenVINO דורש compile לכל צורה; Backend מאחורי `InpaintModel`: **OpenVINO ראשי ו-ORT fallback לפי ADR-011** (זיהוי כשל וחזרה אוטומטית) (ה-API של שניהם נמדד: `run` על `rgb`/`mask`, פלט `inpainted`); ROI גדול מוקטן ל-512 לכל היותר ב-INTER_AREA (~2ms). לבדוק ב-M2 את השפעת ההקטנה על האיכות.
 
-## פרומפט להמשך (תבנית; M3.2 הושלם, הבא M3.3)
+## פרומפט להמשך (תבנית; M3.3 הושלם, הבא M3.4)
 
 ```
 אני ממשיך פרויקט להסרת אלמנטים מתמונה, ריפו: https://github.com/lodbigy-770/FIXPIC
 (הטוקן אצלי; אספק אותו בשיחה.)
 אופן עבודה: כמו תמיד (שכפול/pull, קריאת PROGRESS.md וסעיף השלב ב-ROADMAP.md, ARCHITECTURE.md לפי הצורך, שלב אחד, עדכון PROGRESS/ROADMAP/DEVELOPMENT_LOG, קומיט ופוש עם git pull --rebase לפני, מחבר Claude <noreply@anthropic.com>, חיפוש רק עם grep ו-sed, סיכום בקצרה).
-הקשר: שלבים 0, M1, M1.5 ו-M2 (על מודל סינתטי) בוצעו, וכן M3.1-M3.2; תקציב Latency ו-Python 3.14 הוכרעו (ראו PROGRESS.md).
-משימה: M3.1 ו-M3.2 הושלמו (ניהול תמונות; Session, MaskLayer, History). לעבור ל-M3.3 (שלד ממשק).
+הקשר: שלבים 0, M1, M1.5 ו-M2 (על מודל סינתטי) בוצעו, וכן M3.1-M3.3; תקציב Latency ו-Python 3.14 הוכרעו (ראו PROGRESS.md).
+משימה: M3.1-M3.3 הושלמו (קבצים; Session/History; שלד ממשק). לעבור ל-M3.4 (מברשת ו-Inpaint בממשק).
 ```

@@ -132,8 +132,10 @@ class Session:
         """התמונה שונה מאז הטעינה/השמירה האחרונה (Undo חזרה למצב השמור = False)."""
         return self.history.current_id != self._saved_id
 
-    def mark_saved(self) -> None:
-        self._saved_id = self.history.current_id
+    def mark_saved(self, state_id: int | None = None) -> None:
+        """מסמן "נשמר". `state_id` = `history.current_id` שנלכד בתחילת שמירה ברקע (אם התמונה השתנתה בינתיים,
+        היא נשארת "שונה"); ללא ערך: המצב הנוכחי."""
+        self._saved_id = self.history.current_id if state_id is None else state_id
 
     def save(self, path: str | Path, **kw) -> SaveResult:
         """שמירה אטומית ברזולוציה מלאה עם ה-ICC/EXIF שנטענו (kw: fmt, quality, lossless). מסמנת "נשמר" בהצלחה."""
