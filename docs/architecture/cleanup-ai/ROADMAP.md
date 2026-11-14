@@ -149,7 +149,7 @@
 - [~] Undo/Redo לעריכות מסכה (ללא UI). **שירות בוצע (2026-11-14):** `session/mask_history.py` (`MaskHistory`: `do(op)`, `begin/end` למשיכה שלמה, `undo/redo`, מגבלות צעדים וזיכרון, זיהוי היסטוריה מיושנת) ו-`MaskLayer.apply_diff`; **חובר ללוח כלי המסכה (2026-11-14, כפתורי ביטול/שחזור של המסכה)**; נשאר קיצור מקלדת וקביעת הסדר מול `Session.undo` (Ctrl+Z).
 - [~] Feathering מתכוונן. **שירות בוצע:** `feather_px` לפי עבודה (`Pipeline.run`, `Scheduler.submit`, `Session.submit_stroke`; 0–64, `None` = לפי ה-cfg); נשאר הממשק (סליידר) וקביעת ברירת מחדל סופית.
 - [~] עיבוד מספר אזורים (Connected Components). **שירות בוצע:** `MaskLayer.components/component_at/remove_component_at/remove_small`; העיבוד עצמו של מספר אזורים כבר קיים ב-M2.4. נשאר הממשק (בחירה/מחיקה בלחיצה).
-- [x] תכנון ממשק לבחירת אזור אוטומטית (ללא מימוש מודל Segmentation בשלב זה). **בוצע (2026-11-14):** `AUTO-SELECT.md` (שלוש רמות, חוויית משתמש, ארכיטקטורת `select/`, תוכנית שלבים 1–6 ושער מודל). המימוש עצמו טרם נפתח כמשימה (ראו §7 שם).
+- [x] תכנון ממשק לבחירת אזור אוטומטית (ללא מימוש מודל Segmentation בשלב זה). **בוצע (2026-11-14):** `AUTO-SELECT.md` (שלוש רמות, חוויית משתמש, ארכיטקטורת `select/`, תוכנית שלבים 1–6 ושער מודל). **שלבים 1–2 של §7 בוצעו (2026-11-14, ללא UI וללא מודל):** `MaskLayer.add_window`; `fixpic/select/` (`Prompts`, `Proposal`, `Context`, `SelectionProvider`, `MagicWandProvider`, `SelectionService`). נשארו שלבים 3–6 (GrabCut, ממשק, Spike מודל).
 
 **בדיקות:** מסכות מורכבות, אזורים סמוכים, שוליים.
 **DoD:** כלי העריכה החדשים משולבים ב-Undo/Redo; אין רגרסיה ב-M3.

@@ -1066,3 +1066,24 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 
 **הבא:** שלב 2 ב-`AUTO-SELECT.md` §7: חבילת `select/` (types, Protocol, `SelectionService`, `MagicWandProvider`).
 
+
+## 2026-11-14 – M4: חבילת `select/` (AUTO-SELECT שלב 2), שיחה מקבילה ל-M3.4
+
+**מה בוצע** (ללא UI, ללא מודל)
+- **`select/types.py`:** `Point(x, y, positive)`, `Prompts(points, box, polygon, tolerance)` (שדה שלא נתמך = `SelectionError`, לא התעלמות שקטה), `Context(provider, shape, data, nbytes)` אטום ללקוח, `Proposal(window, rect, score, alternatives)` עם אימות עצמי (uint8 2D, חלון בגודל המלבן) ו-`Proposal.add_to(layer, erase=)` (עוטף `MaskLayer.add_window`), `SelectionError(FixPicError)`.
+- **`select/base.py`:** `SelectionProvider` (Protocol, `runtime_checkable`): `prepare(rgb, cancel)`, `propose(ctx, prompts, cancel)`, וה-flags `heavy` (מתחרה ב-Inpaint על ה-CPU) ו-`stale_ok` (Context של גרסה קודמת עדיין שימושי).
+- **`select/wand.py` – `MagicWandProvider`:** `prepare` יוצר עותק פרטי מוקטן (INTER_AREA, עד 1.5MP; תמונה קטנה יותר לא מוקטנת). `propose`: כל נקודה חיובית היא זרע של `floodFill` (טווח קבוע מול צבע הזרע, חיבוריות 8, `MASK_ONLY`), איחוד, פחות אזורי הנקודות השליליות; `box` חותך את אזור החיפוש (זרע חיובי מחוצה לו = שגיאה); המסכה מוגדלת לרזולוציה מלאה ב-INTER_LINEAR עם סף 127 והמלבן נחתך לתמונה. אין נקודה חיובית, נקודה מחוץ לתמונה/לא סופית, `tolerance` מחוץ ל-0..255 או `polygon` = `SelectionError`; תוצאה ריקה = None. `heavy=False`, `stale_ok=False` (Context תלוי בצבעים ולכן חייב להיות מדויק).
+- **`select/service.py` – `SelectionService`:** Worker יחיד (`start/shutdown`, context manager), `warm(rgb, key)` ו-`propose(rgb, key, prompts)` מחזירים `SelectionRequest` (`state`, `cancel`, `wait`, `result`, `proposal`, `error`, `stale`; מצבים QUEUED/RUNNING/DONE/EMPTY/FAILED/CANCELLED, דומה ל-`Job`). **`propose` חדש מבטל `propose` קודם (ממתין או רץ) וכל Context-רקע; `warm` חדש מבטל `warm` קודם.** בקשה שבוטלה אינה מחזירה הצעה גם אם החישוב הסתיים בפועל (כמו ב-Scheduler). cache של Contexts לפי `key`, LRU, עד 2. Provider עם `heavy=True` ממתין כש-`busy()` (הזרקה; למשל "יש Job פעיל") מחזיר True, ונשאר ניתן לביטול. Provider עם `stale_ok=True`: אין Context למפתח → משתמשים בחדש ביותר מאותו גודל תמונה (`request.stale=True`) ומכינים Context מדויק ברקע. חריגה לא צפויה מ-Provider נעטפת ב-`SelectionError` ונרשמת; ה-Worker לא מת גם כש-`on_done` זורק.
+
+**החלטות**
+- `key` נקבע ע"י המתקשר (למשל `(מזהה Session, history.current_id)`); ה-Service לא מכיר את `Session` כדי לא ליצור תלות של `select` ב-`session` (כיוון התלות הפוך: `select` מייבא רק `errors` ו-`models.base.CancelToken`).
+- `floodFill` דורש מערך כתיב גם עם `MASK_ONLY` (קריא-בלבד נדחה ע"י OpenCV): ה-Context לא נעול, ובדיקה מאמתת ש-`propose` אינו משנה אותו.
+- ה-Service אינו מפעיל `warm` בעצמו על Commit; זה חיבור ה-UI (שלב 4).
+
+**בדיקות:** `tests/test_m4_select.py`, 40 בדיקות: טיפוסים (אימות `Proposal`, אישור ל-`MaskLayer` כצעד Undo אחד), שרביט (מלבן מדויק, רקע עם חורים, איחוד, נקודה שלילית, תוצאה ריקה, גרדיאנט וסבילות, `box`, קלטים לא תקינים, בידוד מהמקור, ביטול, תמונה גדולה עם IoU מעל 0.97 ושגיאת קצה של עד כ-12 פיקסלים ב-×5.5, פינה, תמונה 1×1, 24MP), Service (cache, LRU, `invalidate`, הצעה ריקה, שגיאות, ביטול רץ וממתין, callbacks, `heavy` ו-`busy`, stale, מחזור חיים, אימות קלט), ומקצה לקצה שרביט → Service → `MaskLayer` → Undo. חמש הרצות רצופות ללא כשל. סה"כ **540 עוברות, 3 מדולגות** (Linux, Python 3.12).
+
+**נמדד (סביבת פיתוח, ליבה אחת, תמונה סינתטית עם רעש ±3, לא i5-6500T):** 24MP: `prepare` כ-37ms, `propose` כ-28ms לאזור של 6MP.
+
+**לא נבדק:** שרביט על תמונות אמיתיות (רעש JPEG, צל, מעברי צבע; ברירת המחדל `tolerance=20` זמנית ולא כוונה), Windows/Python 3.14, UI. מדיניות ה-stale נבדקה רק עם Provider מדומה, לא עם מודל.
+
+**הבא:** שלב 3 (`GrabCutProvider` על ROI מוקטן ומדידת איכות על `samples/`), ואז שלב 4 (UI) אחרי M3.4.
