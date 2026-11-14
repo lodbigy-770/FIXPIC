@@ -15,7 +15,7 @@
 | Milestone 1.5 (שלב ביניים) – Latency Spike והחלטת Runtime/Stack | בוצע | 8 | 0 | 0 | נסגר; אימות אריזה על Python 3.14 הועבר ל-M5 |
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
 | Milestone 3 – Editing Interface | בעבודה | 1 | 3 | 5 | M3.1-M3.3 בוצעו (קבצים, Session/History, שלד ממשק); הבא M3.4 (מברשת ו-Inpaint בממשק) |
-| Milestone 4 – Advanced Editing | בעבודה | 0 | 5 | 1 |  |
+| Milestone 4 – Advanced Editing | בוצע בעיקרו | 1 | 5 | 0 | שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית בוצעו; נשאר כל הממשק, ומימוש הבחירה האוטומטית (AUTO-SELECT.md §7) |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
 <!-- STATUS:END -->
 
@@ -149,7 +149,7 @@
 - [~] Undo/Redo לעריכות מסכה (ללא UI). **שירות בוצע (2026-11-14):** `session/mask_history.py` (`MaskHistory`: `do(op)`, `begin/end` למשיכה שלמה, `undo/redo`, מגבלות צעדים וזיכרון, זיהוי היסטוריה מיושנת) ו-`MaskLayer.apply_diff`; **חובר ללוח כלי המסכה (2026-11-14, כפתורי ביטול/שחזור של המסכה)**; נשאר קיצור מקלדת וקביעת הסדר מול `Session.undo` (Ctrl+Z).
 - [~] Feathering מתכוונן. **שירות בוצע:** `feather_px` לפי עבודה (`Pipeline.run`, `Scheduler.submit`, `Session.submit_stroke`; 0–64, `None` = לפי ה-cfg); נשאר הממשק (סליידר) וקביעת ברירת מחדל סופית.
 - [~] עיבוד מספר אזורים (Connected Components). **שירות בוצע:** `MaskLayer.components/component_at/remove_component_at/remove_small`; העיבוד עצמו של מספר אזורים כבר קיים ב-M2.4. נשאר הממשק (בחירה/מחיקה בלחיצה).
-- [ ] תכנון ממשק לבחירת אזור אוטומטית (ללא מימוש מודל Segmentation בשלב זה).
+- [x] תכנון ממשק לבחירת אזור אוטומטית (ללא מימוש מודל Segmentation בשלב זה). **בוצע (2026-11-14):** `AUTO-SELECT.md` (שלוש רמות, חוויית משתמש, ארכיטקטורת `select/`, תוכנית שלבים 1–6 ושער מודל). המימוש עצמו טרם נפתח כמשימה (ראו §7 שם).
 
 **בדיקות:** מסכות מורכבות, אזורים סמוכים, שוליים.
 **DoD:** כלי העריכה החדשים משולבים ב-Undo/Redo; אין רגרסיה ב-M3.
