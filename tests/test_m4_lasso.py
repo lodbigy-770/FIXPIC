@@ -234,3 +234,81 @@ class TestFillPolygon:
         comps = ml.components()
         assert len(comps) == 2
         assert ml.grow(3) is not None and ml.pixel_count > sum(c.area for c in comps)
+
+
+class TestAddWindow:
+    def win(self, h, w, val=255):
+        return np.full((h, w), val, np.uint8)
+
+    def test_add_union_and_rect(self):
+        ml = MaskLayer(100, 120)
+        ml.paint([(5, 80), (100, 80)], 6)
+        before = ml.snapshot()
+        v = ml.version
+        w = self.win(20, 30)
+        w[:, :10] = 0
+        assert ml.add_window((40, 10, 70, 30), w) == (40, 10, 70, 30) and ml.version == v + 1
+        a = ml.array
+        assert (a[10:30, 50:70] == 255).all() and (a[10:30, 40:50] == 0).all()
+        assert (a[before > 0] == 255).all()
+
+    def test_erase_only_selected_pixels(self):
+        ml = MaskLayer(50, 60)
+        ml.add(np.full((50, 60), 255, np.uint8))
+        w = np.zeros((10, 10), np.uint8)
+        w[2:5, 3:8] = 7                                 # כל ערך > 0 נחשב נבחר
+        assert ml.add_window((10, 10, 20, 20), w, erase=True) is not None
+        assert ml.pixel_count == 50 * 60 - 15 and (ml.array[12:15, 13:18] == 0).all()
+
+    def test_noop_cases_do_not_touch(self):
+        ml = MaskLayer(50, 60)
+        v = ml.version
+        assert ml.add_window((0, 0, 10, 10), self.win(10, 10, 0)) is None        # חלון ריק
+        assert ml.add_window((0, 0, 10, 10), self.win(10, 10), erase=True) is None   # כבר ריק
+        ml.add_window((0, 0, 10, 10), self.win(10, 10))
+        v = ml.version
+        assert ml.add_window((0, 0, 10, 10), self.win(10, 10)) is None and ml.version == v   # כבר מלא
+
+    @pytest.mark.parametrize("rect", [(-1, 0, 5, 5), (0, 0, 61, 5), (0, 0, 5, 51), (5, 5, 5, 9), (6, 0, 5, 5), "abc", None])
+    def test_invalid_rect_raises_and_does_not_change(self, rect):
+        ml = MaskLayer(50, 60)
+        with pytest.raises(InvalidInputError):
+            ml.add_window(rect, self.win(5, 5))
+        assert ml.empty and ml.version == 0
+
+    @pytest.mark.parametrize("win", [np.zeros((4, 5), np.uint8), np.zeros((5, 5, 1), np.uint8), [[255] * 5] * 5, None])
+    def test_invalid_window_raises(self, win):
+        ml = MaskLayer(50, 60)
+        with pytest.raises(InvalidInputError):
+            ml.add_window((0, 0, 5, 5), win)
+        assert ml.empty and ml.version == 0
+
+    def test_brush_px_rules(self):
+        ml = MaskLayer(50, 60)
+        ml.paint([(30, 30)], 8)
+        ml.add_window((0, 0, 10, 10), self.win(10, 10))
+        assert ml.brush_px == 8
+        ml.add_window((0, 0, 60, 50), self.win(50, 60), erase=True)
+        assert ml.empty and ml.brush_px is None
+
+    def test_fill_polygon_equals_add_window_of_region(self):
+        pts = star(60, 50, 40, 20, 6, 2)
+        a, b = MaskLayer(100, 120), MaskLayer(100, 120)
+        rect = a.fill_polygon(pts)
+        reg, r2 = mask_ops.polygon_region(pts, (100, 120))
+        assert b.add_window(r2, reg) == rect and np.array_equal(a.array, b.array)
+
+    def test_undo_roundtrip_with_history(self):
+        from fixpic.session import MaskHistory
+        ml = MaskLayer(100, 120)
+        h = MaskHistory(ml)
+        snap = ml.snapshot()
+        h.do(lambda m: m.add_window((10, 10, 40, 40), self.win(30, 30)))
+        assert h.undo() == (10, 10, 40, 40) and np.array_equal(ml.array, snap)
+        assert h.redo() is not None and ml.pixel_count == 900
+
+    def test_large_image_small_window_is_cheap(self):
+        ml = MaskLayer(4000, 6000)
+        t0 = time.perf_counter()
+        assert ml.add_window((100, 100, 300, 300), self.win(200, 200)) is not None
+        assert time.perf_counter() - t0 < 0.3 and ml.pixel_count == 40000

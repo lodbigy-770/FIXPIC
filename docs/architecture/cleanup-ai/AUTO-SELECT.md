@@ -80,7 +80,7 @@ select/
 - תקרת זיכרון ל-Contexts (שניים לכל היותר) ושחרור בסגירת תמונה.
 
 **שילוב עם ה-API הקיים (הצעד ההנדסי הראשון):**
-- חסר היום ב-`MaskLayer` פעולה שמקבלת **חלון + מלבן** ומאחדת/מוחקת אותו (`fill_polygon` עושה זאת פנימית אחרי ש-`polygon_region` מחזירה חלון). מציעים `MaskLayer.add_window(rect, window, *, erase=False) -> Rect | None` (אותה סמנטיקת None כמו `fill_polygon`) ו-`fill_polygon` נשענת עליה.
+- **קיים (שלב 1, 2026-11-14):** `MaskLayer.add_window(rect, window, *, erase=False) -> Rect | None` מקבלת **חלון + מלבן** ומאחדת/מוחקת אותו (None = לא השתנה דבר, כמו `fill_polygon`, שנשענת עליה כעת).
 - אישור הצעה: `mask_history.do(lambda m: m.add_window(p.rect, p.window))`. הסרה מהמסכה (Alt): `erase=True`.
 - `brush_px` לא מתעדכן (אין מברשת). **שאלה פתוחה חשובה:** מסכת אובייקט מדויקת **הדוקה לקצה**, בעוד LaMa צריך שהמסכה תכסה גם צל ושוליים (ה-"Pro tip" ב-`PARITY-SPEC.md`). ההערכה האוטומטית של `brush_px` (`dilate.py`) נבנתה למשיכות, וחסומה ב-`dilate_max=20`. ייתכן שנצטרך ברירת מחדל נפרדת להרחבה אחרי בחירה חכמה (למשל לפי גודל האובייקט) או פשוט לברירת מחדל עם סליידר; **מחליטים רק אחרי בדיקת איכות על Big LaMa האמיתי** (`samples/`), כמו שנעשה ב-M2.8.
 
@@ -95,7 +95,7 @@ select/
 
 | # | שלב | תלות | נבדק איפה |
 |---|------|-------|-----------|
-| 1 | `MaskLayer.add_window` + בדיקות (ללא `select/`) | — | סביבת הפיתוח |
+| 1 | `MaskLayer.add_window` + בדיקות (ללא `select/`) — **בוצע 2026-11-14** | — | סביבת הפיתוח |
 | 2 | `select/`: types, Protocol, `SelectionService` (ביטול, Worker), `MagicWandProvider` | 1 | סביבת הפיתוח |
 | 3 | `GrabCutProvider` על ROI מוקטן + מדידת איכות על `samples/` | 2 | הפיתוח + בדיקה ויזואלית אצל המשתמש |
 | 4 | חיבור ל-UI: שכבת-על להצעה, אישור/ביטול, כלים, מחרוזות, מחוון | M3.4, 2–3 | אצל המשתמש (Windows) |

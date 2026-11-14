@@ -111,9 +111,26 @@ class MaskLayer:
         if res is None:
             return None
         region, rect = res
-        x0, y0, x1, y1 = rect
+        return self.add_window(rect, region, erase=erase)
+
+    def add_window(self, rect: Rect, window: np.ndarray, *, erase: bool = False) -> Rect | None:
+        """מאחד (או, עם `erase=True`, מוחק) חלון מסכה בגודל `rect` לתוך השכבה: כל פיקסל שערכו > 0 בחלון נדלק/נכבה, והשאר לא
+        נוגע. הבסיס לכלי בחירה (לאסו, הצעות בחירה אוטומטית): מי שמחזיר חלון ומלבן, כמו `mask_ops.polygon_region`,
+        לא צריך לבנות מסכה בגודל התמונה. `rect` חייב להיות בתוך התמונה (x1/y1 בלעדיים) ו-`window` בגודלו
+        (`InvalidInputError` אחרת, והשכבה לא משתנה). מחזיר את `rect`, או None אם לא השתנה דבר (החלון ריק, או הפיקסלים
+        כבר במצב המבוקש): אז `version` לא עולה ואין צורך לשמור `snapshot` ל-Undo. `brush_px` אינו משתנה; מחיקה
+        שמרוקנת את השכבה מאפסת אותו."""
+        try:
+            x0, y0, x1, y1 = (int(v) for v in rect)
+        except (TypeError, ValueError) as e:
+            raise InvalidInputError("מלבן לא תקין") from e
+        h, w = self._m.shape
+        if not (0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h):
+            raise InvalidInputError("המלבן חייב להיות בתוך התמונה")
+        if not isinstance(window, np.ndarray) or window.shape != (y1 - y0, x1 - x0):
+            raise InvalidInputError("החלון חייב להיות [H,W] בגודל המלבן")
         view = self._m[y0:y1, x0:x1]
-        sel = region > 0
+        sel = window > 0
         val = 0 if erase else 255
         if not (view[sel] != val).any():
             return None
@@ -121,7 +138,7 @@ class MaskLayer:
         if erase and not self._m.any():
             self._brush_px = None
         self._touch()
-        return rect
+        return (x0, y0, x1, y1)
 
     # ------------------------------------------------- עריכת מסכה קיימת (M4)
     def grow(self, px: int) -> Rect | None:
