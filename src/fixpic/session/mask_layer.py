@@ -179,6 +179,17 @@ class MaskLayer:
         self._m = np.where(mask > 0, 255, 0).astype(np.uint8)
         self._touch()
 
+    def apply_diff(self, rect: Rect, diff: np.ndarray, brush_px: float | None) -> None:
+        """XOR של הפרש בינארי (0/255) על חלון `rect` של השכבה, ושחזור `brush_px`. הבסיס ל-`MaskHistory`: מסכה
+        בינארית, ולכן אותו הפרש מבטל וגם מבצע מחדש. `InvalidInputError` אם החלון/ההפרש לא תואמים את השכבה."""
+        x0, y0, x1, y1 = rect
+        h, w = self._m.shape
+        if not (0 <= x0 < x1 <= w and 0 <= y0 < y1 <= h) or diff.shape != (y1 - y0, x1 - x0) or diff.dtype != np.uint8:
+            raise InvalidInputError("הפרש מסכה לא תואם את השכבה")
+        np.bitwise_xor(self._m[y0:y1, x0:x1], diff, out=self._m[y0:y1, x0:x1])
+        self._brush_px = brush_px
+        self._touch()
+
     def clear(self) -> None:
         """מנקה הכול (גם את `brush_px`)."""
         if self._m.any():
