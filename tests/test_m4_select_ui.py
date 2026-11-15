@@ -599,7 +599,7 @@ class TestWindowEndToEnd:
         w.select_panel.set_tool("box")
         drag(cv, [(40, 40), (290, 215)])
         assert sw.proposal_done()
-        w.controller.imageChanged.emit()
+        w.controller.imageChanged.emit(None)
         assert not w.select_ctl.active and cv._proposal is None
 
     def test_new_image_resets_selection(self, sw):

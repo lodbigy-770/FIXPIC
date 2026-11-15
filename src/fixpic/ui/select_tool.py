@@ -82,7 +82,9 @@ class SmartSelectController(QObject):
 
     @property
     def processing(self) -> bool:
-        return self._req is not None and not self._req.finished
+        # עד ש-`_handle_done` (בתור האירועים) מטפל בתוצאה: `req.finished` נקבע ב-thread של ה-Worker מוקדם יותר, ובפער הזה
+        # ההצעה עדיין לא הוצבה (Enter לא עשה דבר, ובדיקות היו לא יציבות)
+        return self._req is not None
 
     @property
     def active(self) -> bool:

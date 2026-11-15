@@ -189,3 +189,38 @@ def test_hebrew_paths_open_stroke_save_ctrl_s_reload(ew, tmp_path):
     assert wait_until(lambda: ew.s is not None and not w.busy and not ew.s.modified)
     assert np.array_equal(ew.s.rgb, load_image(out).rgb)
     assert "תוצאה סופית" in w.windowTitle()
+
+
+# ------------------------------------------------------------------ תיקונים אחרי בדיקה ידנית (Windows)
+def test_alt_wheel_with_swapped_axes_pans_vertically(ew):
+    ew.install(h=1500, w=2000)
+    cv = ew.canvas
+    cv.scale, cv.offset, cv._fit_mode = 1.0, QPointF(0, 0), False
+    wheel(cv, dx=120, mods=Qt.AltModifier)                 # Windows: Alt מחליף את הצירים, הדלתה מגיעה ב-x
+    assert cv.offset.x() == 0 and cv.offset.y() != 0 and cv.scale == 1.0
+
+
+def test_hebrew_letter_shortcuts_registered(ew):
+    from PySide6.QtGui import QKeySequence
+    w = ew.w
+    for act, he in ((w.act_compare, "ב"), (w.act_tool_brush, "פ"), (w.act_tool_box, "ד"), (w.act_tool_lasso, "ך")):
+        assert QKeySequence(he) in act.shortcuts()
+
+
+def test_hebrew_hold_key_compares(ew):
+    from PySide6.QtCore import QEvent
+    from PySide6.QtGui import QKeyEvent
+    ew.install(h=200, w=300)
+    for typ in (QEvent.KeyPress, QEvent.KeyRelease):
+        QApplication.sendEvent(ew.canvas, QKeyEvent(typ, 0x05E0, Qt.NoModifier, "נ"))
+        assert ew.w._cmp_hold == (typ == QEvent.KeyPress)
+
+
+def test_accepting_a_selection_submits_it_to_inpaint(ew):
+    """אישור הצעת בחירה חכמה = הסרה (בדיקה ידנית ב-Windows: בחירה בלי הסרה בלבלה)."""
+    assert ew.ready()
+    s = ew.install(h=200, w=300)
+    s.mask.paint([(100.0, 100.0), (140.0, 100.0)], 30)
+    assert not s.mask.empty
+    ew.w._selection_accepted(None)
+    assert ew.idle() and s.history.undo_count == 1 and s.mask.empty

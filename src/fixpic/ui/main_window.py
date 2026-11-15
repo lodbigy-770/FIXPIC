@@ -52,6 +52,7 @@ _EXT_BY_FILTER = {"filter.png": ".png", "filter.jpg": ".jpg", "filter.webp": ".w
 _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
 _LOSSY = {".jpg", ".jpeg", ".webp"}
 DEFAULT_QUALITY = 92
+_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך"}     # קיצורי אות במקלדת עברית
 
 
 class MainWindow(QMainWindow):
@@ -90,7 +91,11 @@ class MainWindow(QMainWindow):
     def _action(self, key: str, slot: Callable, shortcut=None) -> QAction:
         a = QAction(t(key), self)
         if shortcut is not None:
-            a.setShortcut(QKeySequence(shortcut))
+            he = _HEBREW_KEY.get(shortcut) if isinstance(shortcut, str) else None
+            if he:      # אות לטינית + האות העברית שעל אותו מקש (פריסה עברית סטנדרטית)
+                a.setShortcuts([QKeySequence(shortcut), QKeySequence(he)])
+            else:
+                a.setShortcut(QKeySequence(shortcut))
         a.triggered.connect(lambda _checked=False: slot())
         self.addAction(a)
         return a
@@ -358,7 +363,7 @@ class MainWindow(QMainWindow):
         ctl.changed.connect(self._select_changed)
         ctl.message.connect(self.statusBar().showMessage)
         ctl.processingChanged.connect(self.lbl_sel.setVisible)
-        ctl.accepted.connect(lambda _rect: (self.mask_panel.refresh(), self.canvas.invalidate_overlay()))
+        ctl.accepted.connect(self._selection_accepted)
         self.controller.imageChanged.connect(ctl.on_image_changed)
 
     def _tool_changed(self, tool: str) -> None:
@@ -371,6 +376,13 @@ class MainWindow(QMainWindow):
         self.canvas.set_proposal(ctl.proposal)
         self.canvas.set_select_scribble(ctl.has_input)
         self._refresh()
+
+    def _selection_accepted(self, _rect) -> None:
+        """אישור הצעת בחירה = הסרה: המסכה שנוספה מוגשת ל-Inpaint בדיוק כמו אחרי שחרור מברשת (בדיקה ידנית ב-Windows:
+        בחירה בלי הסרה הייתה מבלבלת). בלי מנוע המסכה רק נשארת מצוירת."""
+        self.mask_panel.refresh()
+        self.canvas.invalidate_overlay()
+        self.controller.submit()
 
     def _select_accept(self) -> None:
         if self.session is not None and not self.busy:

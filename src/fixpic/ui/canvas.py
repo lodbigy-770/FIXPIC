@@ -51,6 +51,7 @@ SCRIBBLE_NEG_COLOR = (255, 140, 0)  # משיכה מתקנת שלילית (כתו
 OVERLAY_OPACITY = 140             # 0..255 במסכה מלאה
 MIN_GESTURE_PX = 4                # מלבן קטן מזה במסך נחשב ללחיצה ולא משודר
 GESTURE_STEP_PX = 2               # מרחק מינימלי במסך בין נקודות לאסו/משיכה
+HOLD_KEYS = (Qt.Key_B, 0x05E0)    # B ובמקלדת עברית נ
 PAN_STEP = 60                     # פיקסלי מסך להזזה בגלגלת (Shift/Alt)
 
 
@@ -507,7 +508,9 @@ class Canvas(QWidget):
         """גלגלת = זום סביב הסמן. Shift+גלגלת = הזזה אופקית, Alt+גלגלת = הזזה אנכית, וגלגלת אופקית (משטח מגע) מזיזה
         אופקית. צעד הזזה: 60 פיקסלי מסך לכל "שן" (120)."""
         d, mods = e.angleDelta(), e.modifiers()
-        if d.x():
+        if (mods & Qt.AltModifier) and d.x() and not d.y():
+            self.pan_by(QPointF(0, d.x() / 120 * PAN_STEP))        # Qt (Windows) מחליף צירים כש-Alt לחוץ
+        elif d.x():
             self.pan_by(QPointF(d.x() / 120 * PAN_STEP, 0))
         elif d.y() and (mods & Qt.ShiftModifier):
             self.pan_by(QPointF(d.y() / 120 * PAN_STEP, 0))
@@ -637,7 +640,7 @@ class Canvas(QWidget):
             self._space = True
             self._apply_cursor()
             self.update()
-        elif e.key() == Qt.Key_B and not e.modifiers() and not e.isAutoRepeat():
+        elif e.key() in HOLD_KEYS and not e.modifiers() and not e.isAutoRepeat():
             self._hold_key = True
             self.compareHoldChanged.emit(True)
         else:
@@ -648,7 +651,7 @@ class Canvas(QWidget):
             self._space = False
             self._apply_cursor()
             self.update()
-        elif e.key() == Qt.Key_B and not e.isAutoRepeat():
+        elif e.key() in HOLD_KEYS and not e.isAutoRepeat():
             if self._hold_key:
                 self._hold_key = False
                 self.compareHoldChanged.emit(False)
