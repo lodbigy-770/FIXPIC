@@ -216,7 +216,7 @@
 - [ ] חתימה דיגיטלית ובדיקת Defender/אנטי-וירוס על הקובץ הארוז.
 - [ ] עמידה ברישיון LGPL של PySide6 (קישור דינמי, הודעות רישיון).
 - [ ] בדיקת ניתוק רשת מלאה.
-- [ ] סקירת רישיונות לכל הרכיבים המוכללים.
+- [~] סקירת רישיונות לכל הרכיבים המוכללים. **בוצע חלקית (2026-11-16, Linux/3.12, venv נקי):** `tools/m5/license_audit.py` (סגור תלויות, סיווג, סימון GPL/LGPL בקובצי הרישיון, `--check`), `tests/test_m5_license_audit.py` (18 בדיקות) ו-`LICENSES-REVIEW.md`. ממצאים: אין Copyleft חזק; PySide6 הוא LGPL-3.0 וחבילותיו ללא קובץ רישיון; `PySide6` מושך גם WebEngine/Addons/Pdf בעוד שהקוד צריך רק Essentials; `openvino-telemetry` נטענת ב-`import openvino`. **נשאר:** החלטה על Essentials והחרגת הטלמטריה, הרצה על Windows/3.14 ועל ה-dist הארוז, `THIRD_PARTY_NOTICES`, ובירור רכיב ה-LGPL ב-OpenCV.
 - [ ] אריזה והפצה.
 
 **DoD:** התקנה והרצה על מחשב נקי בלי אינטרנט; קריטריוני ההצלחה ב-`PLAN.md` סעיף 6 מתקיימים.

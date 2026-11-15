@@ -1724,3 +1724,13 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 **בדיקות:** `tests/test_m3710.py` (5): מחרוזות, הודעה אחרי הסף ונמחקת בסיום, עבודה מהירה בלי הודעה, טקסט שלב בחלון יחיד/רב-שלבי ואיפוס, שילוב שלב והודעה. סך 992 עוברות, 3 מדולגות (Qt offscreen, Linux).
 
 **לא נבדק:** מראה בעין (אורך הטקסט בשורת המצב ב-RTL ובחלון צר), Windows, זמן אמיתי ב-Big LaMa. מוסיף לסקריפט הקבלה (`M3-ACCEPTANCE.md`) בדיקה ידנית.
+
+## M5 - סקירת רישיונות, חלק ראשון (2026-11-16)
+
+**נבחר** כשלב M5 שלא תלוי ב-Windows ולא נוגע בקבצי הממשק/ה-bench של השיחות המקבילות (M3.7.10/M3.7.11).
+
+**נבנה:** `tools/m5/license_audit.py` (קורא `dependencies` מ-`pyproject.toml`, סגור `Requires-Dist` לפי הסביבה המותקנת, רישיון מ-`License-Expression`/`License`/Classifiers, סיווג מתירני/Copyleft חלש/חזק/לא ידוע עם טיפול ב-OR/AND, סריקת קובצי רישיון לאזכורי GPL/LGPL, פלט md/json ו-`--check`), `tests/test_m5_license_audit.py` (18 בדיקות על מטא-דאטה מדומה) ו-`LICENSES-REVIEW.md` (טבלה וממצאים). נוצרה על venv נקי (Linux, 3.12.3): numpy 2.5.5, opencv-python-headless 5.0.0.93, pillow 13.0.0, onnxruntime 1.32.0, openvino 2026.4.1, PySide6 6.12.0; 15 חבילות בסגור.
+
+**ממצאים עיקריים (פירוט ב-`LICENSES-REVIEW.md`):** (1) אין תלות ב-Copyleft חזק; (2) PySide6 LGPL-3.0 בלי קובץ רישיון בחבילות; (3) `PySide6` (Meta) מתקין גם Addons/WebEngine/Pdf (תיקיית PySide6 כ-673MB, WebEngineCore כ-195MB) ואילו הקוד משתמש רק ב-QtCore/QtGui/QtWidgets, שכולם ב-Essentials; (4) `import openvino` טוען את `openvino_telemetry` (בלי ראיה לשליחה; הבדיקה הקיימת לא רשמה ניסיון רשת); (5) בקובצי הרישיון של OpenCV טקסט LGPL מלא (רכיב נארז, לא זוהה איזה).
+
+**מגבלות:** סביבת Linux/3.12 ולא Windows/3.14; מטא-דאטה בלבד ולא תוכן הבינארים הארוזים; האזכורים בקובצי רישיון הם רמז; לא ייעוץ משפטי. לא שונה `pyproject.toml` (ההמלצה על Essentials ממתינה להחלטה). לא הורצה חבילת הבדיקות המלאה, רק הקובץ החדש (18 עוברות) ו-`tests/test_m5_offline.py` לא שונה.
