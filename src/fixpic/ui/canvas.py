@@ -6,19 +6,26 @@
 חוזים:
 - מצב View: `scale` (פיקסלי מסך לפיקסל תמונה) ו-`offset` (נקודת תמונה -> מסך: `p * scale + offset`).
 - "מצב התאמה": כל עוד המשתמש לא הזיז או הגדיל, שינוי גודל החלון מתאים מחדש את התמונה.
-- ברירת מחדל: גרירה בכפתור שמאלי מזיזה (`left_drag_pans`); M3.4 יכבה זאת כדי שהכפתור השמאלי יצייר, ואז
-  הזזה = כפתור אמצעי או Space+גרירה.
+- ברירת מחדל: גרירה בכפתור שמאלי מזיזה (`left_drag_pans`). במצב ציור (`set_painting(True)`, M3.4) הכפתור השמאלי
+  מצייר, הימני מוחק, והזזה = כפתור אמצעי או Space+גרירה.
+- **משיכות (M3.4):** ה-Canvas אינו נוגע במסכה. הוא משדר `strokeStarted(נקודה, מחיקה)`, `strokeMoved(נקודה)`,
+  `strokeEnded()` בקואורדינטות תמונה של **מרכזי פיקסלים** (פיקסל i = מרכזו ב-i, כמו `MaskLayer.paint`), והצד
+  המחבר מצייר ב-`MaskLayer` ואז קורא ל-`update()`.
+- **שכבת המסכה** (`set_mask_layer`) ומשיכות בעיבוד (`set_pending_source`) מצוירות מעל התמונה ברזולוציית המסך בלבד:
+  חלון המסכה הנראה מוקטן (INTER_AREA; בהגדלה: NEAREST) ל-QImage במידות המסך עם טבלת צבעים. התוצאה נשמרת במטמון לפי
+  גרסת המסכה והתצוגה, כך שריחוף העכבר אינו מחשב אותה מחדש.
 - תמונה עם Alpha מוצגת על רקע אפור-בהיר (תצוגה בלבד; ה-Alpha עצמו נשמר ב-Session).
 - בניית פירמידה ב-thread של ה-UI: נמדד כ-0.05 שניות ל-24MP בספייק.
 """
 from __future__ import annotations
 
 import math
+from typing import Callable
 
 import cv2
 import numpy as np
 from PySide6.QtCore import QPointF, QRectF, Qt, Signal
-from PySide6.QtGui import QImage, QPainter
+from PySide6.QtGui import QColor, QImage, QPainter, QPen
 from PySide6.QtWidgets import QWidget
 
 from ..imgio import composite_on
@@ -28,6 +35,9 @@ MIN_SCALE, MAX_SCALE = 0.02, 32.0
 ZOOM_STEP = 1.25
 KEEP_VISIBLE = 48           # לפחות כך וכך פיקסלי מסך מהתמונה חייבים להישאר בתוך החלון
 TRANSPARENT_BG = (204, 204, 204)
+MASK_COLOR = (255, 40, 60)        # המסכה הנוכחית (אדום)
+PENDING_COLOR = (40, 120, 255)    # משיכות בעיבוד (כחול)
+OVERLAY_OPACITY = 140             # 0..255 במסכה מלאה
 
 
 class Pyramid:
@@ -51,8 +61,16 @@ class Pyramid:
         return min(int(math.floor(math.log2(1 / scale))), len(self.levels) - 1)
 
 
+def _color_table(rgb: tuple[int, int, int], opacity: int) -> list[int]:
+    """טבלת צבעים של 256 ערכים: ערך מסכה i -> צבע עם שקיפות i*opacity/255 (ARGB, לא premultiplied)."""
+    return [QColor(rgb[0], rgb[1], rgb[2], i * opacity // 255).rgba() for i in range(256)]
+
+
 class Canvas(QWidget):
     scaleChanged = Signal(float)
+    strokeStarted = Signal(QPointF, bool)     # נקודת תמונה (מרכז פיקסל), האם מחיקה
+    strokeMoved = Signal(QPointF)
+    strokeEnded = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -60,12 +78,117 @@ class Canvas(QWidget):
         self.scale = 1.0
         self.offset = QPointF(0, 0)
         self.left_drag_pans = True
+        self.painting = False                 # מצב ציור (M3.4)
+        self.erase_mode = False               # כפתור שמאלי מוחק (במקום לצייר)
+        self.brush_diameter = 20.0            # פיקסלי תמונה, לעיגול המברשת בלבד
+        self.mask_layer = None                # MaskLayer | None
+        self._pending_source: Callable[[], list[np.ndarray]] | None = None
         self._fit_mode = True
         self._drag: QPointF | None = None
         self._space = False
+        self._hover: QPointF | None = None
+        self._stroking: int | None = None     # הכפתור שפתח את המשיכה הפעילה
+        self._stroke_erase = False
+        self._ov_cache: dict | None = None    # {"key", "items": [(QImage, QRectF, array)]}
+        self._pend_cache: tuple | None = None # (refs, union)
+        self._tables = {MASK_COLOR: _color_table(MASK_COLOR, OVERLAY_OPACITY),
+                        PENDING_COLOR: _color_table(PENDING_COLOR, OVERLAY_OPACITY)}
         self.setMinimumSize(320, 240)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
+
+    # ------------------------------------------------------------ ציור ומסכה
+    def set_painting(self, on: bool) -> None:
+        """מצב ציור: הכפתור השמאלי מצייר (ולא מזיז). כיבוי באמצע משיכה מסיים אותה."""
+        if not on and self._stroking is not None:
+            self._end_stroke()
+        self.painting = on
+        self.left_drag_pans = not on
+        self._apply_cursor()
+        self.update()
+
+    def set_mask_layer(self, layer) -> None:
+        """`MaskLayer` שמצויר מעל התמונה (None = ללא)."""
+        self.mask_layer = layer
+        self._ov_cache = None
+        self.update()
+
+    def set_pending_source(self, fn: Callable[[], list[np.ndarray]] | None) -> None:
+        """פונקציה שמחזירה את מסכות המשיכות בעיבוד (`Session.pending_masks`), לציור בצבע נפרד."""
+        self._pending_source = fn
+        self._ov_cache = None
+        self.update()
+
+    def set_brush_diameter(self, d: float) -> None:
+        self.brush_diameter = max(1.0, float(d))
+        self.update()
+
+    def invalidate_overlay(self) -> None:
+        """מחשב מחדש את שכבות המסכה בציור הבא (אחרי שינוי שגרסת השכבה לא משקפת, למשל סיום עיבוד)."""
+        self._ov_cache = None
+        self.update()
+
+    def _apply_cursor(self) -> None:
+        if self._drag is not None:
+            self.setCursor(Qt.ClosedHandCursor)
+        elif self._space:
+            self.setCursor(Qt.OpenHandCursor)
+        elif self.painting and self.pyr is not None:
+            self.setCursor(Qt.BlankCursor)     # העיגול מצויר ב-paintEvent
+        else:
+            self.unsetCursor()
+
+    def _pending_union(self) -> np.ndarray | None:
+        masks = self._pending_source() if self._pending_source is not None else []
+        if not masks:
+            self._pend_cache = None
+            return None
+        c = self._pend_cache
+        if c is not None and len(c[0]) == len(masks) and all(a is b for a, b in zip(c[0], masks)):
+            return c[1]
+        union = masks[0] if len(masks) == 1 else np.bitwise_or.reduce(masks)
+        self._pend_cache = (list(masks), union)       # מחזיק הפניות: זהות המערכים לא נעשית ישנה
+        return union
+
+    def _overlay_items(self, vis: QRectF) -> list[tuple[QImage, QRectF, np.ndarray]]:
+        """תמונות-השכבה לציור (ממוטמן). כל פריט: (QImage ברזולוציית מסך, מלבן יעד במסך, המערך שמאחורי ה-QImage)."""
+        layer = self.mask_layer
+        pend = self._pending_union()
+        if (layer is None or layer.empty) and pend is None:
+            return []
+        key = (layer.version if layer is not None else -1, id(pend), self.scale, self.offset.x(), self.offset.y(),
+               self.width(), self.height())
+        if self._ov_cache is not None and self._ov_cache["key"] == key:
+            return self._ov_cache["items"]
+        items = []
+        for arr, color in ((pend, PENDING_COLOR),
+                           (None if layer is None or layer.empty else layer.array, MASK_COLOR)):
+            if arr is None:
+                continue
+            it = self._render_overlay(arr, color, vis)
+            if it is not None:
+                items.append(it)
+        self._ov_cache = {"key": key, "items": items, "refs": pend}
+        return items
+
+    def _render_overlay(self, mask: np.ndarray, color: tuple[int, int, int], vis: QRectF):
+        h, w = mask.shape
+        x0, y0 = max(0, math.floor(vis.left())), max(0, math.floor(vis.top()))
+        x1, y1 = min(w, math.ceil(vis.right())), min(h, math.ceil(vis.bottom()))
+        if x0 >= x1 or y0 >= y1:
+            return None
+        win = mask[y0:y1, x0:x1]
+        ow, oh = max(1, round((x1 - x0) * self.scale)), max(1, round((y1 - y0) * self.scale))
+        interp = cv2.INTER_AREA if self.scale < 1 else cv2.INTER_NEAREST
+        small = cv2.resize(win, (ow, oh), interpolation=interp)
+        stride = (ow + 3) & ~3                                   # QImage דורש שורות מיושרות ל-4 בתים
+        buf = np.zeros((oh, stride), np.uint8)
+        buf[:, :ow] = small
+        img = QImage(buf.data, ow, oh, stride, QImage.Format_Indexed8)
+        img.setColorTable(self._tables[color])
+        dst = QRectF(x0 * self.scale + self.offset.x(), y0 * self.scale + self.offset.y(),
+                     (x1 - x0) * self.scale, (y1 - y0) * self.scale)
+        return img, dst, buf
 
     # ---------------------------------------------------------------- תמונה
     @property
@@ -82,6 +205,8 @@ class Canvas(QWidget):
             self.pyr = Pyramid(shown)
             if not (keep_view and same):
                 self.fit()
+        self._ov_cache = None
+        self._apply_cursor()
         self.update()
 
     # ----------------------------------------------------------- מתמטיקת תצוגה
@@ -160,7 +285,26 @@ class Canvas(QWidget):
                          vis.width() * self.scale, vis.height() * self.scale)
             p.setRenderHint(QPainter.SmoothPixmapTransform, self.scale < 2)
             p.drawImage(dst, self.pyr.levels[lvl], src)
+            p.setRenderHint(QPainter.SmoothPixmapTransform, False)
+            for img, rect, _keep in self._overlay_items(vis):    # `_keep` מחזיק את הזיכרון שמאחורי ה-QImage
+                p.drawImage(rect, img)
+        self._paint_brush_cursor(p)
         p.end()
+
+    def _paint_brush_cursor(self, p: QPainter) -> None:
+        if not self.painting or self._hover is None or self._space or self._drag is not None:
+            return
+        r = max(1.5, self.brush_diameter * self.scale / 2)
+        c = self._hover
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(0, 0, 0, 200), 3))
+        p.drawEllipse(c, r, r)
+        p.setPen(QPen(QColor(255, 255, 255, 230), 1.5 if not self.erase_mode else 1.5, Qt.DashLine if self.erase_mode
+                      else Qt.SolidLine))
+        p.drawEllipse(c, r, r)
+        p.setPen(QPen(QColor(255, 255, 255, 230), 1))
+        p.drawPoint(c)
 
     # ----------------------------------------------------------------- קלט
     def wheelEvent(self, e) -> None:
@@ -172,38 +316,72 @@ class Canvas(QWidget):
     def _pan_button(self, e) -> bool:
         return (e.button() == Qt.MiddleButton or (e.button() == Qt.LeftButton and (self.left_drag_pans or self._space)))
 
+    def _stroke_point(self, e) -> QPointF:
+        """נקודת תמונה במרכזי פיקסלים (פיקסל i מכסה [i, i+1) במערכת התמונה, ולכן מרכזו ב-i+0.5)."""
+        p = self.view_to_image(e.position())
+        return QPointF(p.x() - 0.5, p.y() - 0.5)
+
     def mousePressEvent(self, e) -> None:
-        if self._pan_button(e) and self.pyr is not None:
+        if self.pyr is None:
+            super().mousePressEvent(e)
+        elif self._pan_button(e):
             self._drag = e.position()
-            self.setCursor(Qt.ClosedHandCursor)
+            self._apply_cursor()
+            e.accept()
+        elif self.painting and self._stroking is None and e.button() in (Qt.LeftButton, Qt.RightButton):
+            self._stroking = int(e.button().value)
+            erase = e.button() == Qt.RightButton or self.erase_mode
+            self._stroke_erase = erase
+            self.strokeStarted.emit(self._stroke_point(e), erase)
             e.accept()
         else:
             super().mousePressEvent(e)
 
     def mouseMoveEvent(self, e) -> None:
+        self._hover = e.position()
         if self._drag is not None:
             self.pan_by(e.position() - self._drag)
             self._drag = e.position()
             e.accept()
+        elif self._stroking is not None:
+            self.strokeMoved.emit(self._stroke_point(e))
+            self.update()
+            e.accept()
+        elif self.painting:
+            self.update()                # עיגול המברשת עוקב אחרי העכבר
 
     def mouseReleaseEvent(self, e) -> None:
-        if self._drag is not None:
+        if self._drag is not None and (e.button() == Qt.MiddleButton or e.button() == Qt.LeftButton):
             self._drag = None
-            self.unsetCursor()
+            self._apply_cursor()
             e.accept()
+        elif self._stroking is not None and int(e.button().value) == self._stroking:
+            self._end_stroke()
+            e.accept()
+
+    def _end_stroke(self) -> None:
+        self._stroking = None
+        self.strokeEnded.emit()
+        self.update()
+
+    def leaveEvent(self, e) -> None:
+        self._hover = None
+        self.update()
+        super().leaveEvent(e)
 
     def keyPressEvent(self, e) -> None:
         if e.key() == Qt.Key_Space and not e.isAutoRepeat():
             self._space = True
-            self.setCursor(Qt.OpenHandCursor)
+            self._apply_cursor()
+            self.update()
         else:
             super().keyPressEvent(e)
 
     def keyReleaseEvent(self, e) -> None:
         if e.key() == Qt.Key_Space and not e.isAutoRepeat():
             self._space = False
-            if self._drag is None:
-                self.unsetCursor()
+            self._apply_cursor()
+            self.update()
         else:
             super().keyReleaseEvent(e)
 

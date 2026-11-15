@@ -4,6 +4,7 @@
   "title.modified": "*",
 
   "menu.file": "&קובץ",
+  "menu.edit": "&עריכה",
   "menu.view": "&תצוגה",
   "toolbar.main": "סרגל כלים",
 
@@ -16,6 +17,10 @@
   "action.actual_size": "גודל מלא (100%)",
   "action.zoom_in": "הגדלה",
   "action.zoom_out": "הקטנה",
+  "action.cancel_jobs": "ביטול עיבוד",
+  "action.erase_mode": "מצב מחיקה",
+  "action.brush_bigger": "מברשת גדולה יותר",
+  "action.brush_smaller": "מברשת קטנה יותר",
 
   "hint.empty": "גררו תמונה לכאן, או פתחו קובץ (Ctrl+O), או הדביקו מהלוח (Ctrl+V)",
 
@@ -26,6 +31,14 @@
   "status.loaded": "נטענה תמונה: {name}",
   "status.size": "{w}×{h} פיקסלים",
   "status.zoom": "{percent}%",
+  "status.processing": "מעבד…",
+  "status.processing_n": "מעבד… ({count} משיכות)",
+  "status.engine_loading": "טוען את מנוע ההסרה…",
+  "status.engine_ready": "מנוע ההסרה מוכן",
+  "status.engine_wait": "מנוע ההסרה עדיין נטען. המשיכה תופעל כשיסתיים.",
+  "status.queue_full": "התור מלא. המשיכה תופעל כשיתפנה מקום.",
+  "status.job_cancelled": "העיבוד בוטל",
+  "status.no_change": "העיבוד לא שינה את התמונה",
 
   "dialog.open_title": "פתיחת תמונה",
   "dialog.save_title": "שמירת תמונה",
@@ -42,6 +55,9 @@
   "msg.busy": "פעולה אחרת מתבצעת כרגע. נסו שוב בסיומה.",
   "msg.alpha_flattened": "הפורמט שנבחר אינו תומך בשקיפות: השקיפות הונחה על רקע לבן.",
 
+  "dock.brush": "מברשת",
+  "brush.size": "גודל:",
+  "brush.erase": "מצב מחיקה (מוחק מהמסכה)",
   "dock.mask": "כלי מסכה",
   "mask.amount": "גודל שינוי:",
   "mask.grow": "הרחבה",
@@ -57,5 +73,8 @@
   "error.save": "לא ניתן לשמור את הקובץ:\n{detail}",
   "error.clipboard_empty": "אין תמונה בלוח.",
   "error.not_image_drop": "הקובץ שנגרר אינו קובץ תמונה מקומי.",
+  "error.engine": "לא ניתן לטעון את מנוע ההסרה:\n{detail}",
+  "error.inpaint": "ההסרה נכשלה:\n{detail}\nהמסכה נשארה במקומה; אפשר לנסות שוב.",
+  "error.no_engine": "מנוע ההסרה אינו זמין, ולכן אי אפשר להפעיל הסרה.",
   "error.unexpected": "אירעה שגיאה לא צפויה:\n{detail}"
 }

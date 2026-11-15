@@ -7,6 +7,11 @@
   מתנהגת כמו "שמירה בשם" (כך אי אפשר לדרוס צילום מקורי בטעות, ובמיוחד לא לדחוס JPEG מחדש).
 - שינויים שלא נשמרו: בפתיחת תמונה אחרת, בהדבקה ובסגירה, שואלים שמירה/התעלמות/ביטול.
 - חלונות דיאלוג מבודדים במתודות (`_error`, `_ask_discard`, `_pick_open`, `_pick_save`) כדי שבדיקות יחליפו אותן.
+- **לולאת העריכה (M3.4):** ה-Canvas במצב ציור כשיש תמונה ואין טעינה/שמירה ברקע. משיכות מגיעות ל-`EditController`
+  (`edit_loop.py`), שמצייר ב-`Session.mask`, מגיש Job בשחרור ומבצע Commit בסיומו; החלון רק מגיב לאותות שלו
+  (ציור מחדש, מחוון עיבוד אחרי 200ms, הודעות, דיאלוג שגיאה אחד בכל פעם).
+- **מנוע ההסרה** נטען ברקע רק אם ניתן `engine_factory` (`ui.app.main` נותן; בדיקות מזריקות מנוע מדומה). בלי מנוע
+  משיכות רק מציירות מסכה.
 """
 from __future__ import annotations
 
@@ -22,8 +27,10 @@ from ..errors import FixPicError, InvalidInputError
 from ..imgio import LoadedImage, SaveResult, image_from_array, load_image, save_image
 from ..session import Session
 from ..strings import t
+from .brush_panel import BrushPanel
 from .canvas import Canvas
 from .convert import qimage_to_array
+from .edit_loop import EditController, EngineState
 from .mask_panel import MaskToolsPanel
 from .workers import BackgroundRunner
 
@@ -34,22 +41,29 @@ _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
 
 
 class MainWindow(QMainWindow):
-    def __init__(self) -> None:
+    def __init__(self, engine_factory: Callable | None = None) -> None:
+        """`engine_factory`: פונקציה בלי ארגומנטים שמחזירה `JobScheduler` (שטרם הופעל); רצה ב-thread ברקע."""
         super().__init__()
         self.session: Session | None = None
         self.display_name: str = ""
         self.save_path: Path | None = None
         self.busy = False
+        self._error_open = False
         self._runner = BackgroundRunner(self)
         self.canvas = Canvas(self)
+        self.controller = EditController(self)
         self.setCentralWidget(self.canvas)
         self.setAcceptDrops(True)
         self.resize(1100, 760)
         self._build_actions()
         self._build_status()
+        self._build_brush_dock()
         self._build_mask_dock()
         self.canvas.scaleChanged.connect(self._update_status)
+        self._connect_editing()
         self._refresh()
+        if engine_factory is not None:
+            self._start_engine(engine_factory)
 
     # ------------------------------------------------------------------ בנייה
     def _action(self, key: str, slot: Callable, shortcut=None) -> QAction:
@@ -70,20 +84,36 @@ class MainWindow(QMainWindow):
         self.act_actual = self._action("action.actual_size", self.canvas.actual_size, "Ctrl+1")
         self.act_zoom_in = self._action("action.zoom_in", lambda: self._zoom(1.25), QKeySequence.ZoomIn)
         self.act_zoom_out = self._action("action.zoom_out", lambda: self._zoom(0.8), QKeySequence.ZoomOut)
+        self.act_cancel = self._action("action.cancel_jobs", self.controller.cancel, "Esc")
+        self.act_erase = self._action("action.erase_mode", lambda: self.brush_panel.set_erase(not self.brush_panel.erase),
+                                      "E")
+        self.act_brush_bigger = self._action("action.brush_bigger", lambda: self.brush_panel.scale_diameter(1.2), "]")
+        self.act_brush_smaller = self._action("action.brush_smaller", lambda: self.brush_panel.scale_diameter(1 / 1.2),
+                                              "[")
         mb = self.menuBar()
         m = mb.addMenu(t("menu.file"))
         for a in (self.act_open, self.act_save, self.act_save_as, self.act_paste):
             m.addAction(a)
         m.addSeparator()
         m.addAction(self.act_quit)
+        ed = mb.addMenu(t("menu.edit"))
+        for a in (self.act_cancel, self.act_erase, self.act_brush_bigger, self.act_brush_smaller):
+            ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
             v.addAction(a)
         tb = QToolBar(t("toolbar.main"), self)
         tb.setMovable(False)
-        for a in (self.act_open, self.act_save, self.act_paste, self.act_fit, self.act_actual):
+        for a in (self.act_open, self.act_save, self.act_paste, self.act_fit, self.act_actual, self.act_cancel):
             tb.addAction(a)
         self.addToolBar(tb)
+
+    def _build_brush_dock(self) -> None:
+        self.brush_panel = BrushPanel(self)
+        self.brush_dock = QDockWidget(t("dock.brush"), self)
+        self.brush_dock.setWidget(self.brush_panel)
+        self.brush_dock.setFeatures(QDockWidget.DockWidgetMovable)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.brush_dock)
 
     def _build_mask_dock(self) -> None:
         """לוח כלי המסכה (M4). הלוח משנה את `Session.mask`; ציור שכבת המסכה על ה-Canvas הוא של M3.4."""
@@ -103,6 +133,15 @@ class MainWindow(QMainWindow):
         self.progress.setFixedWidth(140)
         self.progress.setTextVisible(False)
         self.progress.hide()
+        self.lbl_proc = QLabel()
+        self.proc_progress = QProgressBar()        # עיבוד Inpaint; נפרד ממחוון הטעינה/שמירה
+        self.proc_progress.setRange(0, 0)
+        self.proc_progress.setFixedWidth(140)
+        self.proc_progress.setTextVisible(False)
+        self.lbl_proc.hide()
+        self.proc_progress.hide()
+        sb.addPermanentWidget(self.lbl_proc)
+        sb.addPermanentWidget(self.proc_progress)
         sb.addPermanentWidget(self.progress)
         sb.addPermanentWidget(self.lbl_size)
         sb.addPermanentWidget(self.lbl_zoom)
@@ -128,6 +167,14 @@ class MainWindow(QMainWindow):
         self.act_paste.setEnabled(not self.busy)
         for a in (self.act_fit, self.act_actual, self.act_zoom_in, self.act_zoom_out):
             a.setEnabled(has)
+        working = has and (self.session.busy or self.controller.waiting is not None)
+        self.act_cancel.setEnabled(working)
+        painting = has and not self.busy
+        if painting != self.canvas.painting:
+            self.canvas.set_painting(painting)
+        for a in (self.act_erase, self.act_brush_bigger, self.act_brush_smaller):
+            a.setEnabled(has)
+        self.brush_panel.setEnabled(has)
         mod = t("title.modified") if has and self.session.modified else ""
         name = self.display_name or t("title.untitled")
         self.setWindowTitle(f"{name}{mod} - {t('app.name')}" if has else t("app.name"))
@@ -145,6 +192,17 @@ class MainWindow(QMainWindow):
     # -------------------------------------------------------------- דיאלוגים
     def _error(self, key: str, **fmt) -> None:
         QMessageBox.warning(self, t("error.title"), t(key, **fmt))
+
+    def _error_once(self, key: str, **fmt) -> None:
+        """כמו `_error`, אך בזמן שדיאלוג שגיאה פתוח (המשך כשלי עיבוד ברצף) רק מעדכן את שורת המצב."""
+        if self._error_open:
+            self.statusBar().showMessage(t(key, **fmt).splitlines()[0])
+            return
+        self._error_open = True
+        try:
+            self._error(key, **fmt)
+        finally:
+            self._error_open = False
 
     def _ask_discard(self) -> str:
         """"save" / "discard" / "cancel"."""
@@ -169,6 +227,81 @@ class MainWindow(QMainWindow):
         else:
             log.error("שגיאה לא צפויה", exc_info=e)
             self._error("error.unexpected", detail=f"{type(e).__name__}: {e}")
+
+    # ------------------------------------------------------------- לולאת עריכה
+    def _connect_editing(self) -> None:
+        c, cv = self.controller, self.canvas
+        cv.strokeStarted.connect(lambda pt, erase: c.begin_stroke(pt, erase))
+        cv.strokeMoved.connect(c.extend_stroke)
+        cv.strokeEnded.connect(c.end_stroke)
+        self.brush_panel.diameterChanged.connect(self._brush_changed)
+        self.brush_panel.eraseChanged.connect(self._erase_changed)
+        c.changed.connect(self._edit_changed)
+        c.committed.connect(self._committed)
+        c.message.connect(self.statusBar().showMessage)
+        c.failed.connect(lambda detail: self._error_once("error.inpaint", detail=detail))
+        c.processingChanged.connect(self._processing_changed)
+        c.progress.connect(self._processing_progress)
+        self._brush_changed(self.brush_panel.diameter)
+
+    def _brush_changed(self, d: int) -> None:
+        self.controller.diameter = float(d)
+        self.canvas.set_brush_diameter(d)
+
+    def _erase_changed(self, on: bool) -> None:
+        self.controller.erase_mode = on
+        self.canvas.erase_mode = on
+        self.canvas.update()
+
+    def _edit_changed(self) -> None:
+        self.canvas.update()
+        self.mask_panel.refresh()
+        self._refresh()
+        if self.controller.indicator_on:
+            self._show_processing_text()
+
+    def _committed(self, _outcome) -> None:
+        s = self.session
+        if s is not None:
+            self.canvas.set_image(s.rgb, s.alpha, keep_view=True)
+        self._refresh()
+
+    def _show_processing_text(self) -> None:
+        n = len(self.session.pending_masks) if self.session is not None else 0
+        self.lbl_proc.setText(t("status.processing_n", count=n) if n > 1 else t("status.processing"))
+
+    def _processing_changed(self, on: bool) -> None:
+        self.lbl_proc.setVisible(on)
+        self.proc_progress.setVisible(on)
+        if on:
+            self.proc_progress.setRange(0, 0)
+            self._show_processing_text()
+        else:
+            self.lbl_proc.setText("")
+
+    def _processing_progress(self, done: int, total: int) -> None:
+        if self.controller.indicator_on and total > 1:
+            self.proc_progress.setRange(0, total)
+            self.proc_progress.setValue(done)
+
+    # ------------------------------------------------------------------ מנוע
+    def _start_engine(self, factory: Callable) -> None:
+        self.controller.engine_loading()
+        self.statusBar().showMessage(t("status.engine_loading"))
+        self._runner.submit(factory, self._engine_loaded, self._engine_failed)
+
+    def _engine_loaded(self, scheduler) -> None:
+        scheduler.start()                       # Warm-up ברקע (compile לכל bucket)
+        self.controller.engine_ready(scheduler)
+        self.statusBar().showMessage(t("status.engine_ready"))
+
+    def _engine_failed(self, e: BaseException) -> None:
+        detail = str(e) if isinstance(e, FixPicError) else f"{type(e).__name__}: {e}"
+        if not isinstance(e, FixPicError):
+            log.error("טעינת המנוע נכשלה", exc_info=e)
+        self.controller.engine_failed(detail)
+        self.statusBar().showMessage(t("status.ready"))
+        self._error_once("error.engine", detail=detail)
 
     # ------------------------------------------------------- אישור שינויים
     def confirm_discard(self, then: Callable[[], None]) -> None:
@@ -221,8 +354,12 @@ class MainWindow(QMainWindow):
             self._report("error.load", e)
             return
         self.session, self.display_name, self.save_path = session, name, None
+        self.controller.bind(session)
         self.canvas.set_image(session.rgb, session.alpha)
+        self.canvas.set_mask_layer(session.mask)
+        self.canvas.set_pending_source(lambda: session.pending_masks)
         self.mask_panel.bind(session.mask)
+        self.brush_panel.configure_for_image(*session.size)
         self.canvas.setFocus()
         self._set_busy(False)
 
@@ -314,6 +451,7 @@ class MainWindow(QMainWindow):
             e.ignore()
             self.confirm_discard(self._close_now)
             return
+        self.controller.shutdown()
         e.accept()
 
     def _close_now(self) -> None:

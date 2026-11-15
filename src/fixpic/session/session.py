@@ -215,13 +215,20 @@ class Session:
         return patch
 
     # ------------------------------------------------------------- Undo / Redo
+    def cancel_pending(self) -> bool:
+        """מבטל את כל המשיכות שבעיבוד ובתור (המסכות שלהן נזרקות, התמונה וההיסטוריה לא נוגעות). מחזיר True אם היה
+        מה לבטל. זה הביטול של Esc בממשק: בניגוד ל-`undo` הוא לעולם אינו מבטל Commit שכבר בוצע."""
+        if not self._pending and (self.scheduler is None or self.scheduler.current is None):
+            return False
+        self._epoch += 1
+        self._pending.clear()
+        if self.scheduler is not None:
+            self.scheduler.cancel_all()
+        return True
+
     def undo(self) -> HistoryAction:
         """Undo. בזמן עיבוד: מבטל את כל ה-Jobs (ההיסטוריה לא זזה); אחרת מבטל את ה-Commit האחרון."""
-        if self._pending or (self.scheduler is not None and self.scheduler.current is not None):
-            self._epoch += 1
-            self._pending.clear()
-            if self.scheduler is not None:
-                self.scheduler.cancel_all()
+        if self.cancel_pending():
             return HistoryAction.CANCELLED_JOBS
         patch = self.history.peek_undo()
         if patch is None:

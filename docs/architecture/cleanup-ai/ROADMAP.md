@@ -14,8 +14,8 @@
 | Milestone 1 – Model Integration | בוצע | 6 | 0 | 0 |  |
 | Milestone 1.5 (שלב ביניים) – Latency Spike והחלטת Runtime/Stack | בוצע | 8 | 0 | 0 | נסגר; אימות אריזה על Python 3.14 הועבר ל-M5 |
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
-| Milestone 3 – Editing Interface | בעבודה | 1 | 3 | 5 | M3.1-M3.3 בוצעו (קבצים, Session/History, שלד ממשק); הבא M3.4 (מברשת ו-Inpaint בממשק) |
-| Milestone 4 – Advanced Editing | בוצע בעיקרו | 1 | 5 | 0 | שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית עם שרביט ו-GrabCut (ללא UI) בוצעו; נשאר כל הממשק, ו-Spike המודל (AUTO-SELECT.md §7 שלבים 4–6) |
+| Milestone 3 – Editing Interface | בעבודה | 4 | 2 | 3 | M3.1-M3.4 בוצעו (קבצים, Session/History, שלד ממשק, מברשת ולולאת Inpaint); הבא M3.5 (Undo/Redo והשוואה לפני/אחרי בממשק) |
+| Milestone 4 – Advanced Editing | בוצע בעיקרו | 2 | 4 | 0 | שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית עם שרביט ו-GrabCut (ללא UI) בוצעו; נשאר כל הממשק, ו-Spike המודל (AUTO-SELECT.md §7 שלבים 4–6) |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
 <!-- STATUS:END -->
 
@@ -118,20 +118,20 @@
 - **M3.1 – ניהול תמונות (ללא UI): בוצע (2026-11-13).** `fixpic/imgio`: טעינה/שמירה PNG/JPG/WebP, נתיבי Unicode, Alpha, EXIF/ICC, שמירה אטומית, `image_from_array` להדבקה.
 - **M3.2 – שירותי אפליקציה (ללא UI): בוצע (2026-11-13).** `fixpic/session` (`Session`: תמונה עובדת, Commit אטומי מתוצאת Job לפי מסכה, `submit_stroke`/`finish`, Undo/Redo; `MaskLayer`: ציור/מחיקה על מסכה בגודל התמונה; `alpha.py`: מדיניות Alpha) ו-`fixpic/history` (`History`, `Patch`: מגבלת צעדים וזיכרון). Undo בזמן Processing = ביטול כל ה-Jobs. `tests/test_m32.py`, 65 בדיקות.
 - **M3.3 – שלד ממשק: בוצע (2026-11-14).** `fixpic/strings` (`he.json`, `t()`), `fixpic/ui` (`create_app` ב-RTL, `MainWindow`, `Canvas` עם Zoom/Pan על פירמידת הקטנות, `BackgroundRunner`), `python -m fixpic.app`; פתיחה/גרירה/הדבקה, שמירה/ייצוא ברקע עם מחוון. **Canvas הוא `QWidget` מותאם ולא `QGraphicsView`** (כפי שנבדק ב-UI Spike של M1.5). `tests/test_m33.py`, 39 בדיקות.
-- **M3.4 – מברשת ולולאת Inpaint:** מברשת (גודל משתנה) ומחיקת מסכה, שכבת מסכה, שחרור = Job דרך ה-Scheduler עם `brush_px`, Commit, מחוון עיבוד אחרי 200ms, ביטול, הצגת שגיאות.
+- **M3.4 – מברשת ולולאת Inpaint: בוצע (2026-11-14).** `ui/edit_loop.py` (`EditController`: משיכה -> מסכה בשכבה -> שחרור = `Session.submit_stroke` עם `brush_px` -> Commit; תור מלא או מנוע בטעינה = המסכה מחכה ומוגשת אוטומטית; כשל = המסכה נשארת, ללא הגשה חוזרת; מחוון עיבוד רק אחרי 200ms; Esc = `Session.cancel_pending`), `ui/brush_panel.py` (גודל בפיקסלי תמונה, ברירת מחדל 3% מהצלע הקצרה; מצב מחיקה; `[` `]` `E`), `ui/engine.py` (`default_engine_factory`, טעינת המנוע ברקע; `MainWindow(engine_factory=...)`), ו-`Canvas`: שכבת המסכה והמשיכות בעיבוד מעל התמונה (אדום/כחול), עיגול מברשת, כפתור שמאלי מצייר, ימני מוחק, אמצעי או Space מזיז. `tests/test_m34.py`, 43 בדיקות (Scheduler אמיתי ומודל מדומה, ונתיב אחד עם מודל ONNX קטן אמיתי). **לא נבדק:** Windows, מקלדת עברית (קיצורים), i5-6500T, Big LaMa דרך הממשק, מראה בעין.
 - **M3.5 – Undo/Redo ובדיקת לפני/אחרי בממשק:** חיבור ל-History, קיצורי מקלדת, השוואה בהחזקה וב-Toggle.
 - **M3.6 – סגירה:** 20 צעדי Undo/Redo, תגובתיות UI בזמן הרצה, נתיבים בעברית דרך הממשק (כולל Windows), בדיקת P0 מול `PARITY-SPEC.md` והשוואה צד-לצד על סט ייחוס.
 
 **משימות**
 - [x] טעינה בגרירה / פתיחה / הדבקה מהלוח; שמירה/ייצוא PNG/JPG/WebP ברזולוציה מלאה. שכבת הקבצים ב-M3.1, הממשק (גרירה, דיאלוגים, הדבקה, שמירה ברקע) ב-M3.3.
-- [ ] מברשת (גודל משתנה) שמפעילה Inpaint בשחרור כל משיכה (לולאת החוויה, `PARITY-SPEC.md` §3), Zoom/Pan.
+- [x] מברשת (גודל משתנה) שמפעילה Inpaint בשחרור כל משיכה (לולאת החוויה, `PARITY-SPEC.md` §3), Zoom/Pan. **בוצע ב-M3.4 (נבדק offscreen עם מודל מדומה; לא בעין ולא על Windows).**
 - [ ] השוואה לפני/אחרי: גם בהחזקה וגם כ-Toggle.
 - [ ] ממשק בעברית (RTL) עם מחרוזות בקובץ נפרד (`strings/he.json`); קיצורי מקלדת.
 - [~] בדיקת נתיבים: טעינה ושמירה בתיקיות ובשמות קבצים בעברית. **נבדק ב-M3.1 ברמת הקבצים על Linux** (תיקיות ושמות בעברית, רווחים, אימוג'י, ניקוד); נשאר Windows (כולל שם משתמש בעברית) ודרך הממשק (M3.6).
-- [~] מחיקה מהמסכה. **שירות `MaskLayer.erase` בוצע ב-M3.2**; נשאר הממשק (מצב מחיקה במברשת, M3.4).
+- [x] מחיקה מהמסכה. שירות `MaskLayer.erase` ב-M3.2; **ממשק ב-M3.4:** כפתור ימני או מצב מחיקה (`E`) במברשת.
 - [~] Undo/Redo (Patch-based). **השירות בוצע ב-M3.2** (`Session.undo/redo`, `History`, 20 צעדים נבדקו); נשאר חיבור לממשק וקיצורי מקלדת (M3.5).
 - [ ] תצוגת לפני/אחרי.
-- [ ] ריצה ברקע עם Progress וביטול.
+- [x] ריצה ברקע עם Progress וביטול. **בוצע ב-M3.4:** Scheduler ברקע, מחוון אחרי 200ms (מדויק כשיש כמה חלונות, אחרת "עסוק"), Esc מבטל עבודות בלי לבטל Commit.
 
 **תוצרים:** אפליקציה עובדת (גרסת Alpha).
 **בדיקות:** תרחישי משתמש ידניים; 20 צעדי Undo/Redo; תגובתיות ה-UI בזמן הרצה.
@@ -145,7 +145,7 @@
 
 **משימות**
 - [~] לאסו. **שירות בוצע (2026-11-14, ללא UI):** `mask_ops.polygon_region` ו-`MaskLayer.fill_polygon(points, erase=)` (מילוי/מחיקה של מצולע חופשי, כלל winding שונה מאפס); נשאר הממשק (ציור המסלול, מצב לאסו/מחיקה בלאסו); Undo של עריכת מסכה: שירות `MaskHistory` בוצע (ראו הפריט הבא), נשאר חיבור ל-UI.
-- [~] הרחבת/כיווץ מסכה. **שירות בוצע (2026-11-13, בשיחה מקבילה ל-M3.3):** `MaskLayer.grow/shrink` ו-`session/mask_ops.py`; **לוח בממשק בוצע (2026-11-14):** `ui/mask_panel.py` (כפתורים וגודל, בדוק), נשאר ציור התוצאה על ה-Canvas (M3.4).
+- [x] הרחבת/כיווץ מסכה. **שירות בוצע (2026-11-13, בשיחה מקבילה ל-M3.3):** `MaskLayer.grow/shrink` ו-`session/mask_ops.py`; **לוח בממשק בוצע (2026-11-14):** `ui/mask_panel.py` (כפתורים וגודל, בדוק); **ציור התוצאה על ה-Canvas בוצע ב-M3.4 (2026-11-14).**
 - [~] Undo/Redo לעריכות מסכה (ללא UI). **שירות בוצע (2026-11-14):** `session/mask_history.py` (`MaskHistory`: `do(op)`, `begin/end` למשיכה שלמה, `undo/redo`, מגבלות צעדים וזיכרון, זיהוי היסטוריה מיושנת) ו-`MaskLayer.apply_diff`; **חובר ללוח כלי המסכה (2026-11-14, כפתורי ביטול/שחזור של המסכה)**; נשאר קיצור מקלדת וקביעת הסדר מול `Session.undo` (Ctrl+Z).
 - [~] Feathering מתכוונן. **שירות בוצע:** `feather_px` לפי עבודה (`Pipeline.run`, `Scheduler.submit`, `Session.submit_stroke`; 0–64, `None` = לפי ה-cfg); נשאר הממשק (סליידר) וקביעת ברירת מחדל סופית.
 - [~] עיבוד מספר אזורים (Connected Components). **שירות בוצע:** `MaskLayer.components/component_at/remove_component_at/remove_small`; העיבוד עצמו של מספר אזורים כבר קיים ב-M2.4. נשאר הממשק (בחירה/מחיקה בלחיצה).
