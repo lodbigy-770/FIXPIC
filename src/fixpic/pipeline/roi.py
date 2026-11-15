@@ -66,6 +66,10 @@ def plan_roi_bbox(box, img_hw, size: int, margin_ratio: float = 0.25, min_margin
     win = max(needed, size)                 # צלע החלון בפיקסלי המקור
     scale = size / win                      # 1.0 כשההקשר נכנס ב-S
     ww, wh = min(win, img_w), min(win, img_h)
+    if scale < 1.0:
+        # החלון נחתך לתמונה: קנה המידה נקבע לפי הצלע בפועל, כדי שה-bucket לא יתבזבז על ריפוד (M3.7.5:
+        # ב-boy_large ב-1024 זה 0.197 במקום 0.164, והוא קנה המידה שבו עבד הייחוס של האתר)
+        scale = min(1.0, size / max(ww, wh))
     cx, cy = (bx0 + bx1) // 2, (by0 + by1) // 2
     x0 = int(np.clip(cx - ww // 2, 0, img_w - ww))
     y0 = int(np.clip(cy - wh // 2, 0, img_h - wh))

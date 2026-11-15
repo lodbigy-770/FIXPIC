@@ -91,7 +91,7 @@ def test_max_tiles_cap_shrinks_tiles_gradually_instead_of_cliff():
     single = Pipeline(FakeModel(), PipelineConfig(large_strategy="downscale")).run(img, huge, 512)
     r = Pipeline(FakeModel(), PipelineConfig(large_strategy="tile", max_tiles=4)).run(img, huge, 512)
     assert 1 < r.model_calls <= 4 and r.rois[0].downscaled
-    assert r.rois[0].scale > 2 * single.rois[0].scale and r.rois[0].scale < 1.0
+    assert r.rois[0].scale > 1.5 * single.rois[0].scale and r.rois[0].scale < 1.0   # 2 לפני M3.7.5: קנה המידה של החלון היחיד השתפר
 
 
 def test_tiles_see_previously_filled_context():

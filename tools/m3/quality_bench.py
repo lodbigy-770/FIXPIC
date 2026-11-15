@@ -6,6 +6,7 @@
   python tools/m3/quality_bench.py cases/boy_large --out m3_bench                    # הרשת הברירת-מחדל
   python tools/m3/quality_bench.py cases/boy_large --plan-only                       # רק תכנון: אילו תצורות ובכמה הרצות, בלי מודל
   python tools/m3/quality_bench.py cases/paris_chair cases/table_camera --out m3_bench --quick
+  python tools/m3/quality_bench.py cases/boy_large --out m3_bench --heavy                # M3.7.5: חלון יחיד ב-768/1024/1536
   python tools/m3/quality_bench.py cases/boy_large --sizes 384,512 --strategies auto,tile --min-scales 0.5,0.25 \\
         --feathers 3,8 --overlaps 64,128 --blends 0,32 --coarses 0,1 --max-runs 60 --threads 3
 
@@ -43,6 +44,9 @@ from fixpic.quality import measure, seam_ratio  # noqa: E402
 
 DEFAULT_GRID = dict(sizes=[384, 512], strategies=["downscale", "auto", "tile"], min_scales=[0.5, 0.25], feathers=[3],
                     overlaps=[64], blends=[0, 32])
+# M3.7.5: חלון יחיד גדול (הקטנה בהרצה אחת). ~10-45 שניות להרצה לפי המדידות ב-latency_results.json (768: 10s, 1024: 18s, 4 threads)
+HEAVY_GRID = dict(sizes=[768, 1024, 1536], strategies=["downscale"], min_scales=[0.5], feathers=[3], overlaps=[64],
+                  blends=[32], coarses=[0])
 QUICK_GRID = dict(sizes=[384], strategies=["auto", "tile"], min_scales=[0.5], feathers=[3], overlaps=[64], blends=[0, 32])
 
 
@@ -308,6 +312,7 @@ def main() -> None:
     ap.add_argument("cases", nargs="+", help="תיקיות מקרה (case.json + mask.png)")
     ap.add_argument("--out", default="m3_bench")
     ap.add_argument("--quick", action="store_true", help="רשת קטנה: bucket 384, auto/tile")
+    ap.add_argument("--heavy", action="store_true", help="M3.7.5: חלון יחיד ב-768/1024/1536 (הקטנה בהרצה אחת)")
     ap.add_argument("--sizes"), ap.add_argument("--strategies"), ap.add_argument("--min-scales")
     ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends"), ap.add_argument("--coarses", help="0,1: מגס לדק (M3.7.7) כבוי/דולק"), ap.add_argument("--coarse-sizes", dest="coarse_sizes", help="bucket של המעבר הגס, למשל 0,768,1024 (0 = כמו האריחים; רק עם --coarses 1)")
     ap.add_argument("--max-runs", type=int, default=80)
@@ -318,7 +323,7 @@ def main() -> None:
     ap.add_argument("--threads", type=int, default=3)
     a = ap.parse_args()
 
-    g = dict(QUICK_GRID if a.quick else DEFAULT_GRID)
+    g = dict(HEAVY_GRID if a.heavy else QUICK_GRID if a.quick else DEFAULT_GRID)
     for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int), ("coarses", int), ("coarse_sizes", int)):
         v = getattr(a, key)
         if v:
