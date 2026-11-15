@@ -25,6 +25,7 @@
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from pathlib import Path
 from typing import Callable
 
@@ -33,6 +34,7 @@ from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
 from PySide6.QtWidgets import (QDockWidget, QFileDialog, QInputDialog, QLabel, QMainWindow, QMessageBox, QProgressBar,
                                QToolBar, QToolButton)
 
+from ..casefile import save_case
 from ..errors import FixPicError, InvalidInputError
 from ..imgio import LoadedImage, SaveResult, image_from_array, load_image, save_image
 from ..session import Session
@@ -127,10 +129,13 @@ class MainWindow(QMainWindow):
         self.act_tool_lasso = self._action("action.select_lasso", lambda: self.select_panel.set_tool("lasso"), "L")
         self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
         self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
+        self.act_save_case = self._action("action.save_case", self.save_case)
         mb = self.menuBar()
         m = mb.addMenu(t("menu.file"))
         for a in (self.act_open, self.act_save, self.act_save_as, self.act_paste):
             m.addAction(a)
+        m.addSeparator()
+        m.addAction(self.act_save_case)
         m.addSeparator()
         m.addAction(self.act_quit)
         ed = mb.addMenu(t("menu.edit"))
@@ -292,6 +297,39 @@ class MainWindow(QMainWindow):
     def _pick_save(self, suggested: str, selected_filter: str) -> tuple[str, str]:
         filters = ";;".join(t(k) for k in _EXT_BY_FILTER)
         return QFileDialog.getSaveFileName(self, t("dialog.save_title"), suggested, filters, selected_filter)
+
+    def _pick_dir(self) -> str:
+        return QFileDialog.getExistingDirectory(self, t("dialog.case_title"))
+
+    def save_case(self) -> None:
+        """שומר את הקלט של המשיכה האחרונה (תמונה לפני, מסכה, פרמטרים) והתוצאה הנוכחית בתיקייה, כמקרה בדיקה איכות
+        (`fixpic.casefile`). לבדיקות איכות על המודל האמיתי, בלי לצייר מחדש."""
+        s = self.session
+        if s is None or self.busy:
+            return
+        sub = s.last_submission
+        if sub is None:
+            self._error("msg.no_case")
+            return
+        folder = self._pick_dir()
+        if not folder:
+            return
+        d = Path(folder) / f"case_{datetime.now():%Y%m%d_%H%M%S}"
+        res, params = s.rgb, {"brush_px": sub.brush_px, "size": sub.size, "feather_px": sub.feather_px}
+        self._set_busy(True, t("status.saving"))
+
+        def work() -> Path:
+            return save_case(d, mask=sub.mask, original_rgb=sub.rgb, result_rgb=res, params=params,
+                             note="נשמר מהממשק (שמירת מקרה בדיקה): result = התמונה הנוכחית")
+
+        def done(p: Path) -> None:
+            self._set_busy(False, t("status.case_saved", name=p.name))
+
+        def failed(e: BaseException) -> None:
+            self._set_busy(False, t("status.ready"))
+            self._report("error.save", e)
+
+        self._runner.submit(work, done, failed)
 
     def _ask_quality(self, fmt: str, current: int) -> int | None:
         """איכות ייצוא (1-100) ל-JPG/WebP. None = ביטול."""

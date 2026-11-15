@@ -290,6 +290,7 @@ class Win:
         w._pick_open = lambda: self.open_pick
         w._pick_save = self._pick_save
         w._ask_quality = lambda fmt, cur: cur
+        w._pick_dir = lambda: ""
         w.show()
 
     def _ask(self):

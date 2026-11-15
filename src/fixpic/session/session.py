@@ -59,6 +59,16 @@ class HistoryAction(str, Enum):
 
 
 @dataclass(frozen=True)
+class Submission:
+    """המשיכה האחרונה שהוגשה ל-Inpaint: הקלט המדויק של ה-Job (לשחזור בעיות איכות, ראו `fixpic.casefile`)."""
+    rgb: np.ndarray              # התמונה שעליה רץ ה-Job (קריאה-בלבד)
+    mask: np.ndarray
+    brush_px: float | None
+    size: int | None
+    feather_px: int | None
+
+
+@dataclass(frozen=True)
 class _Pending:
     mask: np.ndarray
     epoch: int
@@ -92,6 +102,7 @@ class Session:
         self.version = 0                    # עולה בכל שינוי בתמונה (Commit/Undo/Redo)
         self._epoch = 0                     # עולה ב-Undo/Redo: Jobs מ-epoch ישן אינם נכתבים
         self._pending: dict[Job, _Pending] = {}
+        self.last_submission: Submission | None = None
         self._saved_id = 0
 
     # ----------------------------------------------------------------- מצב
@@ -158,6 +169,7 @@ class Session:
         brush = brush_px if brush_px is not None else self.mask.brush_px
         job = self.scheduler.submit(self._rgb, mask, size, on_progress, on_done, brush, feather_px)
         self._pending[job] = _Pending(mask, self._epoch)
+        self.last_submission = Submission(self._rgb, mask, brush, size, feather_px)
         self.mask.clear()
         return job
 

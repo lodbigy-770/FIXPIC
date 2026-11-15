@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "width": 800,
+  "height": 600,
+  "mask_pixels": 38426,
+  "params": {
+    "derived_from": "table_cleanup (1).jpeg"
+  },
+  "note": "מצלמה, מדחף ומספר; reference = תוצאת Cleanup.pictures (800x600)"
+}

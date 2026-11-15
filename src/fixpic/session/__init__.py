@@ -3,6 +3,6 @@ from .alpha import fill_alpha
 from .mask_history import MaskHistory
 from .mask_layer import MaskLayer
 from .mask_ops import Component
-from .session import HistoryAction, JobOutcome, OutcomeKind, Session
+from .session import HistoryAction, JobOutcome, OutcomeKind, Session, Submission
 
-__all__ = ["Component", "HistoryAction", "JobOutcome", "MaskHistory", "MaskLayer", "OutcomeKind", "Session", "fill_alpha"]
+__all__ = ["Component", "HistoryAction", "JobOutcome", "MaskHistory", "MaskLayer", "OutcomeKind", "Session", "Submission", "fill_alpha"]

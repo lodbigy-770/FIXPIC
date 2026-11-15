@@ -1,0 +1,10 @@
+{
+  "schema": 1,
+  "width": 533,
+  "height": 800,
+  "mask_pixels": 43541,
+  "params": {
+    "derived_from": "paris_cleanup.jpeg"
+  },
+  "note": "כיסא צהוב; reference = תוצאת Cleanup.pictures (533x800)"
+}
