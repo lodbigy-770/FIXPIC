@@ -76,6 +76,24 @@ def main() -> None:
     print(f"commit refresh: canvas.set_image(keep_view) no alpha = {med_ms(lambda: c.set_image(rgb, keep_view=True), 8)}")
     print(f"commit refresh: canvas.set_image(keep_view) with alpha = {med_ms(lambda: c.set_image(rgb, alpha, keep_view=True), 8)}")
 
+    # M3.5: השוואה לפני/אחרי. הפעם הראשונה בונה פירמידת מקור (שמורה במטמון), הבאות רק מחליפות מצביע.
+    def first_compare(a):
+        c.clear_compare_cache()
+        c.set_compare(True, rgb, a, "x")
+        c.grab()
+        c.set_compare(False)
+    print(f"compare: first show (build original pyramid) no alpha = {med_ms(lambda: first_compare(None), 6)}")
+    print(f"compare: first show (build original pyramid) with alpha = {med_ms(lambda: first_compare(alpha), 6)}")
+    c.set_compare(True, rgb, alpha, "x")
+    c.set_compare(False)
+
+    def flip():
+        c.set_compare(True, rgb, alpha, "x")
+        c.grab()
+        c.set_compare(False)
+        c.grab()
+    print(f"compare: cached flip on + off, two full repaints (fit view) = {med_ms(flip, 20)}")
+
 
 if __name__ == "__main__":
     main()

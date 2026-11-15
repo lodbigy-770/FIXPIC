@@ -10,6 +10,9 @@
 - **לולאת העריכה (M3.4):** ה-Canvas במצב ציור כשיש תמונה ואין טעינה/שמירה ברקע. משיכות מגיעות ל-`EditController`
   (`edit_loop.py`), שמצייר ב-`Session.mask`, מגיש Job בשחרור ומבצע Commit בסיומו; החלון רק מגיב לאותות שלו
   (ציור מחדש, מחוון עיבוד אחרי 200ms, הודעות, דיאלוג שגיאה אחד בכל פעם).
+- **Undo/Redo והשוואה (M3.5):** Ctrl+Z, Ctrl+Y ו-Ctrl+Shift+Z פועלים על `Session` דרך `EditController` (לא על היסטוריית
+  המסכה שבלוח הכלים). השוואה לפני/אחרי: מתג (`C`) וגם החזקה (מקש `B`, או לחיצה ממושכת על כפתור בסרגל); בזמן השוואה אין
+  ציור, והקנבס מציג את `Session.original_*`. מצב ההשוואה מתאפס בתמונה חדשה.
 - **מנוע ההסרה** נטען ברקע רק אם ניתן `engine_factory` (`ui.app.main` נותן; בדיקות מזריקות מנוע מדומה). בלי מנוע
   משיכות רק מציירות מסכה.
 """
@@ -21,7 +24,8 @@ from typing import Callable
 
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
-from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QToolBar)
+from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QToolBar,
+                               QToolButton)
 
 from ..errors import FixPicError, InvalidInputError
 from ..imgio import LoadedImage, SaveResult, image_from_array, load_image, save_image
@@ -49,6 +53,8 @@ class MainWindow(QMainWindow):
         self.save_path: Path | None = None
         self.busy = False
         self._error_open = False
+        self._cmp_toggle = False
+        self._cmp_hold = False
         self._runner = BackgroundRunner(self)
         self.canvas = Canvas(self)
         self.controller = EditController(self)
@@ -85,6 +91,12 @@ class MainWindow(QMainWindow):
         self.act_zoom_in = self._action("action.zoom_in", lambda: self._zoom(1.25), QKeySequence.ZoomIn)
         self.act_zoom_out = self._action("action.zoom_out", lambda: self._zoom(0.8), QKeySequence.ZoomOut)
         self.act_cancel = self._action("action.cancel_jobs", self.controller.cancel, "Esc")
+        self.act_undo = self._action("action.undo", self._undo, QKeySequence.Undo)
+        self.act_redo = self._action("action.redo", self._redo, QKeySequence.Redo)
+        self.act_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
+        self.act_compare = self._action("action.compare_toggle", lambda: None, "C")
+        self.act_compare.setCheckable(True)
+        self.act_compare.toggled.connect(self._compare_toggled)
         self.act_erase = self._action("action.erase_mode", lambda: self.brush_panel.set_erase(not self.brush_panel.erase),
                                       "E")
         self.act_brush_bigger = self._action("action.brush_bigger", lambda: self.brush_panel.scale_diameter(1.2), "]")
@@ -97,15 +109,22 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(self.act_quit)
         ed = mb.addMenu(t("menu.edit"))
-        for a in (self.act_cancel, self.act_erase, self.act_brush_bigger, self.act_brush_smaller):
+        for a in (self.act_undo, self.act_redo, self.act_cancel, self.act_erase, self.act_brush_bigger,
+                  self.act_brush_smaller, self.act_compare):
             ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
             v.addAction(a)
         tb = QToolBar(t("toolbar.main"), self)
         tb.setMovable(False)
-        for a in (self.act_open, self.act_save, self.act_paste, self.act_fit, self.act_actual, self.act_cancel):
+        for a in (self.act_open, self.act_save, self.act_paste, self.act_undo, self.act_redo, self.act_fit,
+                  self.act_actual, self.act_cancel, self.act_compare):
             tb.addAction(a)
+        self.btn_hold = QToolButton()                         # החזקה בעכבר: לחיצה מציגה את המקור, שחרור מחזיר
+        self.btn_hold.setText(t("action.compare_hold"))
+        self.btn_hold.pressed.connect(lambda: self._compare_hold(True))
+        self.btn_hold.released.connect(lambda: self._compare_hold(False))
+        tb.addWidget(self.btn_hold)
         self.addToolBar(tb)
 
     def _build_brush_dock(self) -> None:
@@ -133,6 +152,9 @@ class MainWindow(QMainWindow):
         self.progress.setFixedWidth(140)
         self.progress.setTextVisible(False)
         self.progress.hide()
+        self.lbl_cmp = QLabel()
+        self.lbl_cmp.hide()
+        sb.addPermanentWidget(self.lbl_cmp)
         self.lbl_proc = QLabel()
         self.proc_progress = QProgressBar()        # עיבוד Inpaint; נפרד ממחוון הטעינה/שמירה
         self.proc_progress.setRange(0, 0)
@@ -169,7 +191,12 @@ class MainWindow(QMainWindow):
             a.setEnabled(has)
         working = has and (self.session.busy or self.controller.waiting is not None)
         self.act_cancel.setEnabled(working)
-        painting = has and not self.busy
+        c = self.controller
+        self.act_undo.setEnabled(has and not self.busy and c.can_undo)
+        self.act_redo.setEnabled(has and not self.busy and c.can_redo)
+        self.act_compare.setEnabled(has)
+        self.btn_hold.setEnabled(has)
+        painting = has and not self.busy and not self._comparing
         if painting != self.canvas.painting:
             self.canvas.set_painting(painting)
         for a in (self.act_erase, self.act_brush_bigger, self.act_brush_smaller):
@@ -237,7 +264,8 @@ class MainWindow(QMainWindow):
         self.brush_panel.diameterChanged.connect(self._brush_changed)
         self.brush_panel.eraseChanged.connect(self._erase_changed)
         c.changed.connect(self._edit_changed)
-        c.committed.connect(self._committed)
+        c.imageChanged.connect(self._image_changed)
+        cv.compareHoldChanged.connect(self._compare_hold)
         c.message.connect(self.statusBar().showMessage)
         c.failed.connect(lambda detail: self._error_once("error.inpaint", detail=detail))
         c.processingChanged.connect(self._processing_changed)
@@ -260,10 +288,53 @@ class MainWindow(QMainWindow):
         if self.controller.indicator_on:
             self._show_processing_text()
 
-    def _committed(self, _outcome) -> None:
+    def _image_changed(self) -> None:
+        """התמונה העובדת השתנתה (Commit, Undo, Redo): מרענן את הקנבס בלי לאבד זום והזזה."""
         s = self.session
         if s is not None:
             self.canvas.set_image(s.rgb, s.alpha, keep_view=True)
+        self._refresh()
+
+    # ----------------------------------------------------- Undo/Redo והשוואה
+    def _undo(self) -> None:
+        if self.session is not None and not self.busy:
+            self.controller.undo()
+
+    def _redo(self) -> None:
+        if self.session is not None and not self.busy:
+            self.controller.redo()
+
+    @property
+    def _comparing(self) -> bool:
+        return self._cmp_toggle or self._cmp_hold
+
+    def _compare_toggled(self, on: bool) -> None:
+        self._cmp_toggle = on
+        self._apply_compare()
+
+    def _compare_hold(self, on: bool) -> None:
+        self._cmp_hold = on and self.session is not None
+        self._apply_compare()
+
+    def _reset_compare(self) -> None:
+        self._cmp_hold = False
+        self._cmp_toggle = False
+        if self.act_compare.isChecked():
+            self.act_compare.blockSignals(True)
+            self.act_compare.setChecked(False)
+            self.act_compare.blockSignals(False)
+        self.canvas.clear_compare_cache()
+        self.lbl_cmp.hide()
+
+    def _apply_compare(self) -> None:
+        s, on = self.session, self._comparing
+        if s is None:
+            on = False
+        self.canvas.set_compare(on, s.original_rgb if s else None, s.original_alpha if s else None,
+                                t("compare.badge"))
+        on = self.canvas.comparing
+        self.lbl_cmp.setText(t("status.comparing"))
+        self.lbl_cmp.setVisible(on)
         self._refresh()
 
     def _show_processing_text(self) -> None:
@@ -354,6 +425,7 @@ class MainWindow(QMainWindow):
             self._report("error.load", e)
             return
         self.session, self.display_name, self.save_path = session, name, None
+        self._reset_compare()
         self.controller.bind(session)
         self.canvas.set_image(session.rgb, session.alpha)
         self.canvas.set_mask_layer(session.mask)

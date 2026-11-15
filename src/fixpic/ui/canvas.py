@@ -11,6 +11,9 @@
 - **משיכות (M3.4):** ה-Canvas אינו נוגע במסכה. הוא משדר `strokeStarted(נקודה, מחיקה)`, `strokeMoved(נקודה)`,
   `strokeEnded()` בקואורדינטות תמונה של **מרכזי פיקסלים** (פיקסל i = מרכזו ב-i, כמו `MaskLayer.paint`), והצד
   המחבר מצייר ב-`MaskLayer` ואז קורא ל-`update()`.
+- **השוואה לפני/אחרי (M3.5):** `set_compare(on, original_rgb, original_alpha, badge)` מחליף את התצוגה בתמונה המקורית
+  (פירמידה נבנית בפעם הראשונה ונשמרת עד `clear_compare_cache`), בלי שכבת המסכה ובלי עיגול מברשת, עם תג בפינה. הזום
+  וההזזה נשארים, כך שהמעבר ללא קפיצה. מקש B (`compareHoldChanged`) = החזקה; אובדן פוקוס משחרר אותה.
 - **שכבת המסכה** (`set_mask_layer`) ומשיכות בעיבוד (`set_pending_source`) מצוירות מעל התמונה ברזולוציית המסך בלבד:
   חלון המסכה הנראה מוקטן (INTER_AREA; בהגדלה: NEAREST) ל-QImage במידות המסך עם טבלת צבעים. התוצאה נשמרת במטמון לפי
   גרסת המסכה והתצוגה, כך שריחוף העכבר אינו מחשב אותה מחדש.
@@ -71,6 +74,7 @@ class Canvas(QWidget):
     strokeStarted = Signal(QPointF, bool)     # נקודת תמונה (מרכז פיקסל), האם מחיקה
     strokeMoved = Signal(QPointF)
     strokeEnded = Signal()
+    compareHoldChanged = Signal(bool)         # מקש ההחזקה (B) נלחץ/שוחרר
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -89,6 +93,10 @@ class Canvas(QWidget):
         self._hover: QPointF | None = None
         self._stroking: int | None = None     # הכפתור שפתח את המשיכה הפעילה
         self._stroke_erase = False
+        self._comparing = False
+        self._cmp_pyr: Pyramid | None = None
+        self._cmp_badge = ""
+        self._hold_key = False
         self._ov_cache: dict | None = None    # {"key", "items": [(QImage, QRectF, array)]}
         self._pend_cache: tuple | None = None # (refs, union)
         self._tables = {MASK_COLOR: _color_table(MASK_COLOR, OVERLAY_OPACITY),
@@ -105,6 +113,34 @@ class Canvas(QWidget):
         self.painting = on
         self.left_drag_pans = not on
         self._apply_cursor()
+        self.update()
+
+    @property
+    def comparing(self) -> bool:
+        return self._comparing
+
+    def set_compare(self, on: bool, rgb: np.ndarray | None = None, alpha: np.ndarray | None = None,
+                    badge: str = "") -> None:
+        """מציג את התמונה המקורית (`rgb`, `alpha`) במקום העובדת. הפירמידה נשמרת במטמון בין הפעלות."""
+        if on and self.pyr is not None:
+            if self._cmp_pyr is None:
+                if rgb is None:
+                    on = False
+                else:
+                    shown = rgb if alpha is None else composite_on(rgb, alpha, TRANSPARENT_BG)
+                    self._cmp_pyr = Pyramid(shown)
+            if self._cmp_pyr is not None and (self._cmp_pyr.w, self._cmp_pyr.h) != (self.pyr.w, self.pyr.h):
+                on = False                                          # מידות שונות: אין השוואה (לא קורה היום)
+        else:
+            on = False
+        self._comparing, self._cmp_badge = on, badge
+        self._apply_cursor()
+        self.update()
+
+    def clear_compare_cache(self) -> None:
+        """משחרר את פירמידת המקור (תמונה חדשה); יוצא ממצב השוואה."""
+        self._cmp_pyr = None
+        self._comparing = False
         self.update()
 
     def set_mask_layer(self, layer) -> None:
@@ -133,7 +169,7 @@ class Canvas(QWidget):
             self.setCursor(Qt.ClosedHandCursor)
         elif self._space:
             self.setCursor(Qt.OpenHandCursor)
-        elif self.painting and self.pyr is not None:
+        elif self.painting and self.pyr is not None and not self._comparing:
             self.setCursor(Qt.BlankCursor)     # העיגול מצויר ב-paintEvent
         else:
             self.unsetCursor()
@@ -277,19 +313,37 @@ class Canvas(QWidget):
             p.end()
             return
         vis = self.visible_source_rect()
+        pyr = self._cmp_pyr if self._comparing and self._cmp_pyr is not None else self.pyr
         if not vis.isEmpty():
-            lvl = self.pyr.level_for(self.scale)
+            lvl = pyr.level_for(self.scale)
             f = 1 / (2 ** lvl)
             src = QRectF(vis.x() * f, vis.y() * f, vis.width() * f, vis.height() * f)
             dst = QRectF(vis.x() * self.scale + self.offset.x(), vis.y() * self.scale + self.offset.y(),
                          vis.width() * self.scale, vis.height() * self.scale)
             p.setRenderHint(QPainter.SmoothPixmapTransform, self.scale < 2)
-            p.drawImage(dst, self.pyr.levels[lvl], src)
+            p.drawImage(dst, pyr.levels[lvl], src)
             p.setRenderHint(QPainter.SmoothPixmapTransform, False)
-            for img, rect, _keep in self._overlay_items(vis):    # `_keep` מחזיק את הזיכרון שמאחורי ה-QImage
-                p.drawImage(rect, img)
-        self._paint_brush_cursor(p)
+            if not self._comparing:
+                for img, rect, _keep in self._overlay_items(vis):    # `_keep` מחזיק את הזיכרון שמאחורי ה-QImage
+                    p.drawImage(rect, img)
+        if self._comparing:
+            self._paint_badge(p)
+        else:
+            self._paint_brush_cursor(p)
         p.end()
+
+    def _paint_badge(self, p: QPainter) -> None:
+        if not self._cmp_badge:
+            return
+        fm = p.fontMetrics()
+        w, h = fm.horizontalAdvance(self._cmp_badge) + 24, fm.height() + 12
+        r = QRectF(self.width() - w - 12, 12, w, h)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor(0, 0, 0, 170))
+        p.drawRoundedRect(r, 8, 8)
+        p.setPen(QColor(255, 255, 255))
+        p.drawText(r, Qt.AlignCenter, self._cmp_badge)
 
     def _paint_brush_cursor(self, p: QPainter) -> None:
         if not self.painting or self._hover is None or self._space or self._drag is not None:
@@ -374,6 +428,9 @@ class Canvas(QWidget):
             self._space = True
             self._apply_cursor()
             self.update()
+        elif e.key() == Qt.Key_B and not e.modifiers() and not e.isAutoRepeat():
+            self._hold_key = True
+            self.compareHoldChanged.emit(True)
         else:
             super().keyPressEvent(e)
 
@@ -382,8 +439,23 @@ class Canvas(QWidget):
             self._space = False
             self._apply_cursor()
             self.update()
+        elif e.key() == Qt.Key_B and not e.isAutoRepeat():
+            if self._hold_key:
+                self._hold_key = False
+                self.compareHoldChanged.emit(False)
         else:
             super().keyReleaseEvent(e)
+
+    def focusOutEvent(self, e) -> None:
+        """מקש ההחזקה (או Space) שנלחץ ואז הפוקוס עבר: אירוע השחרור לא יגיע, ולכן משחררים כאן."""
+        if self._hold_key:
+            self._hold_key = False
+            self.compareHoldChanged.emit(False)
+        if self._space:
+            self._space = False
+            self._apply_cursor()
+            self.update()
+        super().focusOutEvent(e)
 
     def resizeEvent(self, _) -> None:
         if self._fit_mode:
