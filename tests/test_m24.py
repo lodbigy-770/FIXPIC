@@ -41,7 +41,7 @@ def test_pipeline_far_masks_use_small_windows():
     img = rnd(3000, 4000)
     mask = blocks(3000, 4000, (100, 160, 100, 160), (2800, 2860, 3800, 3860))
     fm = FakeModel()
-    res = Pipeline(fm, PipelineConfig(feather_px=0)).run(img, mask, 256)
+    res = Pipeline(fm, PipelineConfig(coarse_fine=False, feather_px=0)).run(img, mask, 256)
     assert res.groups == 2 and res.model_calls == 2 and not any(r.downscaled for r in res.rois)
     assert all(s == ((256, 256, 3), (256, 256)) for s in fm.shapes)
     eff = res.effective_mask.astype(bool)
@@ -65,7 +65,7 @@ def test_tiling_fills_whole_mask_exactly_and_keeps_shapes(hw):
     img = rnd(h, w)
     mask = blocks(h, w, (h // 10, h - h // 10, w // 10, w - w // 10))
     fm = FakeModel()
-    cfg = PipelineConfig(large_strategy="tile", feather_px=0, mask_dilate_px=0, max_tiles=500)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", feather_px=0, mask_dilate_px=0, max_tiles=500)
     res = Pipeline(fm, cfg).run(img, mask, 512)
     assert res.model_calls > 4 and all(not r.downscaled for r in res.rois)
     assert all(s == ((512, 512, 3), (512, 512)) for s in fm.shapes)
@@ -77,10 +77,10 @@ def test_tiling_fills_whole_mask_exactly_and_keeps_shapes(hw):
 def test_auto_strategy_downscale_vs_tile():
     img = rnd(2000, 3000)
     mild = blocks(2000, 3000, (500, 1000, 500, 1000))        # scale ~0.5+ : הקטנה
-    r1 = Pipeline(FakeModel(), PipelineConfig(feather_px=0)).run(img, mild, 512)
+    r1 = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, feather_px=0)).run(img, mild, 512)
     assert r1.model_calls == 1 and r1.rois[0].downscaled
     huge = blocks(2000, 3000, (100, 1900, 100, 2900))        # scale קטן: אריחים
-    r2 = Pipeline(FakeModel(), PipelineConfig(feather_px=0)).run(img, huge, 512)
+    r2 = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, feather_px=0)).run(img, huge, 512)
     assert r2.model_calls > 1 and not r2.rois[0].downscaled
 
 
@@ -88,8 +88,8 @@ def test_max_tiles_cap_shrinks_tiles_gradually_instead_of_cliff():
     """M3.7.6: מעל `max_tiles` האריחים מוקטנים כמה שצריך (ולא נופלים להקטנה בחלון יחיד פי 8)."""
     img = rnd(2000, 3000)
     huge = blocks(2000, 3000, (100, 1900, 100, 2900))
-    single = Pipeline(FakeModel(), PipelineConfig(large_strategy="downscale")).run(img, huge, 512)
-    r = Pipeline(FakeModel(), PipelineConfig(large_strategy="tile", max_tiles=4)).run(img, huge, 512)
+    single = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, large_strategy="downscale")).run(img, huge, 512)
+    r = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=4)).run(img, huge, 512)
     assert 1 < r.model_calls <= 4 and r.rois[0].downscaled
     assert r.rois[0].scale > 1.5 * single.rois[0].scale and r.rois[0].scale < 1.0   # 2 לפני M3.7.5: קנה המידה של החלון היחיד השתפר
 
@@ -105,7 +105,7 @@ def test_tiles_see_previously_filled_context():
 
     img = rnd(1200, 1800)
     mask = blocks(1200, 1800, (100, 1100, 100, 1700))
-    Pipeline(Spy(), PipelineConfig(large_strategy="tile", feather_px=0, mask_dilate_px=0, max_tiles=200)).run(img, mask, 512)
+    Pipeline(Spy(), PipelineConfig(coarse_fine=False, large_strategy="tile", feather_px=0, mask_dilate_px=0, max_tiles=200)).run(img, mask, 512)
     assert seen[0] == 0 and max(seen) > 0
 
 
@@ -132,7 +132,7 @@ def test_feather_off_equals_mask():
 def test_feather_pipeline_outside_identical_and_rim_blended():
     img = rnd(400, 400)
     mask = blocks(400, 400, (150, 250, 150, 250))
-    res = Pipeline(FakeModel(), PipelineConfig(mask_dilate_px=0, feather_px=4)).run(img, mask, 384)
+    res = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, mask_dilate_px=0, feather_px=4)).run(img, mask, 384)
     eff = res.effective_mask.astype(bool)
     assert np.array_equal(res.image[~eff], img[~eff])
     assert (res.image[170:230, 170:230] == FILL).all()

@@ -31,7 +31,7 @@ def test_oom_retries_in_smaller_bucket_and_result_is_correct(exc):
     img = rnd(800, 800)
     mask = blocks(800, 800, (300, 360, 300, 380))
     fm = OomAbove(384, exc)
-    res = Pipeline(fm, PipelineConfig(feather_px=0)).run(img, mask, 512)
+    res = Pipeline(fm, PipelineConfig(coarse_fine=False, feather_px=0)).run(img, mask, 512)
     assert fm.attempts[:2] == [512, 384] and res.size_used == 384 and res.oom_retries == 1
     eff = res.effective_mask.astype(bool)
     assert (res.image[eff] == FILL).all() and np.array_equal(res.image[~eff], img[~eff])
@@ -49,7 +49,7 @@ def test_oom_at_every_size_raises_and_leaves_input_untouched():
 def test_oom_retry_disabled():
     fm = OomAbove(0)
     with pytest.raises(OutOfMemoryError):
-        Pipeline(fm, PipelineConfig(oom_retry=False)).run(rnd(500, 500), blocks(500, 500, (200, 240, 200, 240)), 512)
+        Pipeline(fm, PipelineConfig(coarse_fine=False, oom_retry=False)).run(rnd(500, 500), blocks(500, 500, (200, 240, 200, 240)), 512)
     assert fm.attempts == [512]
 
 
@@ -67,7 +67,7 @@ def test_oom_mid_tiling_restores_group_and_recovers():
 
     img = rnd(1500, 2000)
     mask = blocks(1500, 2000, (100, 1400, 100, 1900))
-    cfg = PipelineConfig(large_strategy="tile", feather_px=0, mask_dilate_px=0, max_tiles=500)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", feather_px=0, mask_dilate_px=0, max_tiles=500)
     res = Pipeline(LateOom(), cfg).run(img, mask, 512)
     assert res.oom_retries == 1 and res.size_used == 384
     eff = res.effective_mask.astype(bool)
@@ -105,9 +105,9 @@ def test_memory_limit_rejects_before_running_model():
     fm = FakeModel()
     need = estimate_memory_mb(2000, 3000, 1600)
     with pytest.raises(OutOfMemoryError):
-        Pipeline(fm, PipelineConfig(memory_limit_mb=need - 1)).run(img, blocks(2000, 3000, (10, 60, 10, 60)))
+        Pipeline(fm, PipelineConfig(coarse_fine=False, memory_limit_mb=need - 1)).run(img, blocks(2000, 3000, (10, 60, 10, 60)))
     assert fm.shapes == []
-    Pipeline(fm, PipelineConfig(memory_limit_mb=need)).run(img, blocks(2000, 3000, (10, 60, 10, 60)))
+    Pipeline(fm, PipelineConfig(coarse_fine=False, memory_limit_mb=need)).run(img, blocks(2000, 3000, (10, 60, 10, 60)))
     assert fm.shapes
 
 
@@ -120,7 +120,7 @@ def test_estimate_is_an_upper_bound_of_measured_peak(kw, rect):
     mask = blocks(h, w, rect)
     tracemalloc.start()
     tracemalloc.reset_peak()
-    Pipeline(FakeModel(), PipelineConfig(**kw)).run(img, mask, 512)
+    Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, **kw)).run(img, mask, 512)
     peak = tracemalloc.get_traced_memory()[1] / 2**20
     tracemalloc.stop()
     assert peak <= estimate_memory_mb(h, w, 0)
@@ -131,7 +131,7 @@ def test_progress_counts_match_model_calls_and_are_monotonic():
     ev = []
     img = rnd(1500, 2000)
     mask = blocks(1500, 2000, (100, 1400, 100, 1900))
-    cfg = PipelineConfig(large_strategy="tile", feather_px=0, max_tiles=500)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", feather_px=0, max_tiles=500)
     res = Pipeline(FakeModel(), cfg).run(img, mask, 512, progress=ev.append)
     inpaint = [e for e in ev if e.stage == "inpaint"]
     assert [e.done for e in inpaint] == list(range(1, res.model_calls + 1))
@@ -157,7 +157,7 @@ def test_cancel_from_progress_callback_stops_between_tiles():
     img = rnd(1500, 2000)
     before = img.copy()
     mask = blocks(1500, 2000, (100, 1400, 100, 1900))
-    cfg = PipelineConfig(large_strategy="tile", feather_px=0, max_tiles=500)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", feather_px=0, max_tiles=500)
 
     def cb(e):
         if e.done == 2:
@@ -171,6 +171,6 @@ def test_cancel_from_progress_callback_stops_between_tiles():
 def test_progress_total_grows_after_oom_retry():
     ev = []
     fm = OomAbove(384)
-    Pipeline(fm, PipelineConfig(feather_px=0)).run(rnd(800, 800), blocks(800, 800, (300, 360, 300, 380)), 512,
+    Pipeline(fm, PipelineConfig(coarse_fine=False, feather_px=0)).run(rnd(800, 800), blocks(800, 800, (300, 360, 300, 380)), 512,
                                                    progress=ev.append)
     assert ev[-1].done <= ev[-1].total and ev[-1].stage == "done"

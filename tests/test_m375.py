@@ -41,14 +41,14 @@ def test_pipeline_single_window_at_large_bucket(size):
     mask = np.zeros((3000, 2000), np.uint8)
     mask[200:2800, 300:1700] = 255
     fm = FakeModel()
-    pipe = Pipeline(fm, PipelineConfig(sizes=(256, 384, 512, 768, 1024), large_strategy="downscale"))
+    pipe = Pipeline(fm, PipelineConfig(coarse_fine=False, sizes=(256, 384, 512, 768, 1024), large_strategy="downscale"))
     res = pipe.run(img, mask, size)
     assert res.model_calls == 1 and fm.shapes == [((size, size, 3), (size, size))]
     assert res.rois[0].scale == pytest.approx(size / 3000)
     assert np.array_equal(res.image[res.effective_mask == 0], img[res.effective_mask == 0])
     # גודל שאינו ב-sizes נדחה
     with pytest.raises(Exception):
-        Pipeline(FakeModel(), PipelineConfig()).run(img, mask, 1024)
+        Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, sizes=(256, 384, 512))).run(img, mask, 1024)
 
 
 def test_big_window_check_importable_and_check_size_with_fake():

@@ -61,7 +61,7 @@ def test_image_sizes_outside_identical_and_memory_under_limit(ort_model, name):
     img = rnd(h, w)
     mask = rects(h, w, (h // 2, h // 2 + 60, w // 2, w // 2 + 90))
     limit = estimate_memory_mb(h, w, 1600)
-    pl = Pipeline(ort_model, PipelineConfig(memory_limit_mb=limit))
+    pl = Pipeline(ort_model, PipelineConfig(coarse_fine=False, memory_limit_mb=limit))
     before = img[::97, ::89].copy()
     tracemalloc.start()
     tracemalloc.reset_peak()
@@ -154,7 +154,7 @@ def test_cancel_midway_at_24mp_tiling_leaves_image_untouched(ort_model):
     keep = img.copy()
     mask = rects(h, w, (1000, 2500, 1000, 3300))
     cm = CountingModel(ort_model)
-    cfg = PipelineConfig(large_strategy="tile", max_tiles=64, mask_dilate_px=0)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=64, mask_dilate_px=0)
     total = {}
 
     def on_progress(job, p):

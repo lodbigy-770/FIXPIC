@@ -23,12 +23,12 @@ def mk(h, w, *boxes):
 
 
 CASES = {
-    "native": (400, 500, [(100, 100, 160, 150)], PipelineConfig()),
-    "downscale": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(large_strategy="downscale")),
-    "tile": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(large_strategy="tile", max_tiles=500)),
-    "auto_to_tiles": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(min_scale=0.9, max_tiles=500)),
-    "auto_cliff_downscale": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(min_scale=0.9, max_tiles=3)),
-    "two_groups": (600, 1600, [(20, 20, 80, 80), (1400, 400, 1480, 480)], PipelineConfig()),
+    "native": (400, 500, [(100, 100, 160, 150)], PipelineConfig(coarse_fine=False)),
+    "downscale": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(coarse_fine=False, large_strategy="downscale")),
+    "tile": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=500)),
+    "auto_to_tiles": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(coarse_fine=False, min_scale=0.9, max_tiles=500)),
+    "auto_cliff_downscale": (1500, 1200, [(100, 100, 900, 800)], PipelineConfig(coarse_fine=False, min_scale=0.9, max_tiles=3)),
+    "two_groups": (600, 1600, [(20, 20, 80, 80), (1400, 400, 1480, 480)], PipelineConfig(coarse_fine=False)),
 }
 
 
@@ -55,7 +55,7 @@ def test_plan_matches_run(name):
 
 
 def test_plan_validates_like_run():
-    pipe = Pipeline(FakeModel(), PipelineConfig())
+    pipe = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False))
     with pytest.raises(EmptyMaskError):
         pipe.plan(np.zeros((50, 50), np.uint8))
     with pytest.raises(InvalidInputError):
@@ -67,19 +67,19 @@ def test_plan_validates_like_run():
 def test_large_region_has_no_cliff_anymore():
     """M3.7.6, מקרה boy_large: ב-384 אריחים מוקטנים מעט (ולא חלון יחיד פי 16); ב-512 אריחים מקוריים."""
     mask = mk(5184, 3456, (1785, 886, 3208, 5045))
-    pipe = Pipeline(FakeModel(), PipelineConfig())
+    pipe = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False))
     r384, r512 = pipe.plan(mask, 384, 100.0), pipe.plan(mask, 512, 100.0)
     g = r384.groups[0]
-    assert g.kind == "tile" and 0.5 < g.scale < 1.0 and g.windows <= PipelineConfig().max_tiles
+    assert g.kind == "tile" and 0.5 < g.scale < 1.0 and g.windows <= PipelineConfig(coarse_fine=False).max_tiles
     assert r512.groups[0].kind == "tile" and r512.min_scale == 1.0
 
 
 def test_scale_degrades_gradually_with_region_size():
-    pipe = Pipeline(FakeModel(), PipelineConfig())
+    pipe = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False))
     scales = []
     for side in (300, 800, 1500, 2500, 4000, 6000, 9000):
         rep = pipe.plan(mk(9500, 9500, (100, 100, 100 + side, 100 + side)), 384, 60.0)
-        assert rep.runs <= PipelineConfig().max_tiles or rep.groups[0].kind != "tile"
+        assert rep.runs <= PipelineConfig(coarse_fine=False).max_tiles or rep.groups[0].kind != "tile"
         scales.append(rep.min_scale)
     assert all(a >= b - 1e-9 for a, b in zip(scales, scales[1:]))                      # לא עולה כשהאזור גדל
     assert all(a - b < 0.5 for a, b in zip(scales, scales[1:]))                        # ואין קפיצה (מצוק)
@@ -91,7 +91,7 @@ def test_downscaled_tiles_fill_mask_only_and_progress_matches():
     mask = mk(h, w, (100, 100, 1300, 1700))
     img = rnd(h, w, 9)
     events = []
-    pipe = Pipeline(FakeModel(), PipelineConfig(max_tiles=6, feather_px=0))
+    pipe = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, max_tiles=6, feather_px=0))
     rep = pipe.plan(mask, 256, 40.0)
     assert rep.groups[0].kind == "tile" and rep.groups[0].scale < 1.0 and rep.runs <= 6
     res = pipe.run(img, mask, 256, brush_px=40.0, progress=lambda p: events.append(p))

@@ -176,7 +176,7 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
     for i, cfg in enumerate(configs, 1):
         pc = replace(base, sizes=tuple(sorted(set(base.sizes) | {cfg["size"]} | ({cfg["coarse_size"]} if cfg.get("coarse_size") else set()))), large_strategy=cfg["large_strategy"],
                      min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
-                     tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_size=cfg.get("coarse_size") or None)
+                     tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_belt_px=64, coarse_size=cfg.get("coarse_size") or None)
         pipe = Pipeline(model, pc)
         rep = pipe.plan(mask, cfg["size"], brush)
         sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"], cfg.get("coarse_fine", 0), cfg.get("coarse_size", 0))
@@ -344,7 +344,7 @@ def main() -> None:
             for cfg in configs:
                 pc = PipelineConfig(sizes=tuple(sorted({256, 384, 512, cfg["size"]})), large_strategy=cfg["large_strategy"],
                                     min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
-                                    tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_size=cfg.get("coarse_size") or None)
+                                    tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_belt_px=64, coarse_size=cfg.get("coarse_size") or None)
                 rep = Pipeline(_Stub(), pc).plan(case["mask"], cfg["size"], brush)
                 sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"], cfg.get("coarse_fine", 0), cfg.get("coarse_size", 0))
                 note = f"= {seen[sig]}" if sig in seen else (f"> max-runs ({a.max_runs})" if rep.runs > a.max_runs else "תרוץ")

@@ -46,7 +46,7 @@ def case(tmp_path):
 
 def test_tile_seams_lines_between_tiles():
     mask = mk_mask(1500, 1200, (100, 100, 900, 800)) > 0
-    pipe = Pipeline(FakeModel(), PipelineConfig(large_strategy="tile", max_tiles=500))
+    pipe = Pipeline(FakeModel(), PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=500))
     lines = pipe.tile_seams(mask)
     assert lines and {k for k, *_ in lines} == {"v", "h"}
     plan = pipe.plan(mask)
@@ -59,7 +59,7 @@ def test_tile_seams_lines_between_tiles():
 
 def test_tile_seams_empty_without_tiles():
     mask = mk_mask(400, 500, (100, 100, 160, 150)) > 0
-    assert Pipeline(FakeModel(), PipelineConfig()).tile_seams(mask) == []
+    assert Pipeline(FakeModel(), PipelineConfig(coarse_fine=False)).tile_seams(mask) == []
 
 
 # ---------------------------------------------------------------- רשת
@@ -77,7 +77,7 @@ def test_plan_signature_ignores_overlap_without_tiles():
         info = ModelInfo(name="s", multiple=8, min_size=64, max_size=4096)
 
     mask = mk_mask(400, 500, (100, 100, 160, 150))
-    pipe = Pipeline(Stub(), PipelineConfig())
+    pipe = Pipeline(Stub(), PipelineConfig(coarse_fine=False))
     rep = pipe.plan(mask, 384)
     assert qb.plan_signature(rep, 64) == qb.plan_signature(rep, 128)
 

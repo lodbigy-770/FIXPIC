@@ -37,7 +37,7 @@ def mk():
 
 
 def run(blend, **kw):
-    cfg = PipelineConfig(large_strategy="tile", max_tiles=500, tile_blend_px=blend, feather_px=0, **kw)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=500, tile_blend_px=blend, feather_px=0, **kw)
     mask, img = mk(), rnd(H, W, 1)
     res = Pipeline(StepModel(), cfg).run(img, mask, 256, brush_px=30.0)
     return img, mask, res
@@ -83,7 +83,7 @@ def test_blend_does_not_change_number_of_model_calls_or_tiles():
 
 
 def test_blend_works_with_downscaled_tiles():
-    cfg = PipelineConfig(large_strategy="tile", max_tiles=4, min_scale=0.2, tile_blend_px=32, feather_px=0)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=4, min_scale=0.2, tile_blend_px=32, feather_px=0)
     mask, img = mk(), rnd(H, W, 2)
     res = Pipeline(StepModel(), cfg).run(img, mask, 256, brush_px=30.0)
     assert any(r.scale < 1 for r in res.rois)
@@ -92,7 +92,7 @@ def test_blend_works_with_downscaled_tiles():
 
 
 def test_blend_with_feather_and_cancel_paths_still_work():
-    cfg = PipelineConfig(large_strategy="tile", max_tiles=500, tile_blend_px=32, feather_px=3)
+    cfg = PipelineConfig(coarse_fine=False, large_strategy="tile", max_tiles=500, tile_blend_px=32, feather_px=3)
     mask, img = mk(), rnd(H, W, 3)
     res = Pipeline(StepModel(), cfg).run(img, mask, 256, brush_px=30.0)
     eff = res.effective_mask > 0

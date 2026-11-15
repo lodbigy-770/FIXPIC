@@ -23,7 +23,8 @@ STRIP = 128   # שורות בכל פעימת מיזוג: מונע מערכי flo
 
 @dataclass(frozen=True)
 class PipelineConfig:
-    sizes: tuple[int, ...] = (256, 384, 512)   # buckets (ADR-011)
+    sizes: tuple[int, ...] = (256, 384, 512, 768, 1024)   # buckets (ADR-011; 768/1024: חלון גדול ידני וקנה מידה למעבר הגס, ADR-012)
+    warm_max_size: int = 512     # Warm-up מקדים רק buckets עד גודל זה (768/1024: compile של 10-18 שניות, רק בשימוש)
     default_size: int = 384
     # ADR-008. None = אוטומטי: dilate_ratio × קוטר המברשת (brush_px, או מוערך מהמסכה), חסום בין dilate_min ל-dilate_max.
     # מספר = הרחבה קבועה בפיקסלים (0 = כבוי). כל הערכים זמניים עד בדיקת איכות על Big LaMa האמיתי.
@@ -46,12 +47,14 @@ class PipelineConfig:
     tile_blend_px: int = 32
     # M3.7.7 (מגס לדק), רק לקבוצות שמעובדות באריחים: מעבר ראשון בחלון יחיד מוקטן (מבנה וצבע של כל האזור), ואז מעבר
     # עדין באריחים ברזולוציה מקורית (או הקטנה קלה) על חגורה לאורך גבול המסכה בלבד, עם התוצאה הגסה כהקשר. פנים האזור
-    # נשאר כפי שהמעבר הגס מילא אותו. כבוי כברירת מחדל עד שיכויל על Big LaMa (M3.7.9). ערכים זמניים.
-    coarse_fine: bool = False
-    coarse_belt_px: int = 64     # רוחב החגורה, בפיקסלי קלט למודל (במקור: מוגדל פי 1/scale של האריחים)
+    # נשאר כפי שהמעבר הגס מילא אותו. **ADR-012 (M3.7.9): דולק כברירת מחדל עם חגורה 0 = מעבר גס בלבד**: ב-`boy_large` על
+    # Big LaMa החגורה שינתה את התוצאה בפחות מ-0.5 (0-255) ועלתה 85-115 שניות מתוך 100-130.
+    coarse_fine: bool = True
+    # רוחב החגורה, בפיקסלי קלט למודל (במקור: מוגדל פי 1/scale של האריחים). 0 = בלי מעבר עדין (חלון גס יחיד).
+    coarse_belt_px: int = 0
     # bucket של המעבר הגס בלבד (חייב להיות ב-`sizes`); None = אותו bucket של האריחים. גדול יותר = פחות הקטנה ויותר הקשר.
     # בניסיון חוזר אחרי OOM חוזרים ל-bucket של האריחים.
-    coarse_size: int | None = None
+    coarse_size: int | None = 768
     max_tiles: int = 64          # מעל זה חוזרים להקטנה (תקרת זמן)
     memory_limit_mb: int | None = None   # תקרת זיכרון להערכה מראש (כולל המודל); None = ללא בדיקה
     model_overhead_mb: int = 1600        # שיא תהליך של OpenVINO נמדד ב-M1.5: 1.51GB; ערך מעוגל כלפי מעלה
@@ -119,6 +122,10 @@ class PlanReport:
         return min((g.scale for g in self.groups), default=1.0)
 
 
+def c_belt_off(c: PipelineConfig) -> bool:
+    return c.coarse_belt_px == 0
+
+
 class Pipeline:
     def __init__(self, model: InpaintModel, cfg: PipelineConfig | None = None) -> None:
         self.model = model
@@ -127,6 +134,8 @@ class Pipeline:
         if self.cfg.large_strategy not in ("auto", "tile", "downscale"):
             raise InvalidInputError(f"large_strategy לא תקף: {self.cfg.large_strategy}")
         c = self.cfg
+        if c.coarse_belt_px < 0:
+            raise InvalidInputError("coarse_belt_px חייב להיות 0 ומעלה")
         if (c.dilate_ratio < 0 or c.dilate_min < 0 or c.dilate_max < c.dilate_min
                 or (c.mask_dilate_px is not None and c.mask_dilate_px < 0)
                 or not 0 <= c.native_margin_ratio <= c.margin_ratio):
@@ -137,7 +146,7 @@ class Pipeline:
 
     def warmup_order(self) -> list[int]:
         """סדר ה-buckets ל-Warm-up: הגודל הרגיל קודם."""
-        return [self.cfg.default_size] + [s for s in self.cfg.sizes if s != self.cfg.default_size]
+        return [self.cfg.default_size] + [s for s in self.cfg.sizes if s != self.cfg.default_size and s <= self.cfg.warm_max_size]
 
     def warmup(self, cancel: CancelToken | None = None, sizes: list[int] | None = None) -> None:
         """compile מראש ל-buckets (ברקע); ברירת מחדל: כולם, לפי warmup_order. no-op ל-backend בלי warmup."""
@@ -231,7 +240,10 @@ class Pipeline:
         out = []
         for g in group_mask(m, size, c.margin_ratio, c.min_margin):
             p, cores, ts = self._strategy(g, size, hw)
-            if cores is not None:
+            if cores is not None and c.coarse_fine and c.coarse_belt_px == 0:
+                p = plan_roi_bbox(g.box, hw, c.coarse_size or size, c.margin_ratio, c.min_margin, c.native_margin_ratio)
+                kind, eff, windows = "coarse", p.scale, 1
+            elif cores is not None:
                 runs = self._count(g, size, hw)
                 kind, eff, windows = "tile", ts, runs
             elif p.downscaled:
@@ -262,6 +274,8 @@ class Pipeline:
                 continue
             gx0, gy0, gx1, gy1 = g.box
             cov = m[gy0:gy1, gx0:gx1]
+            if self.cfg.coarse_fine and self.cfg.coarse_belt_px == 0:
+                continue                    # מעבר גס בלבד: חלון יחיד, אין תפרים
             if self.cfg.coarse_fine:        # התפרים הם רק של המעבר העדין, כלומר בתוך החגורה
                 cov = self._belt(g, _ts, hw)[0]
             for x in sorted({c[0] for c in cores} | {c[2] for c in cores}):
@@ -280,6 +294,8 @@ class Pipeline:
         if cores is None:
             return 1
         if self.cfg.coarse_fine:
+            if self.cfg.coarse_belt_px == 0:
+                return 1
             return 1 + self._count_tiles(self._belt(g, ts, hw)[0], g.box, cores)
         return self._count_tiles(g.mask, g.box, cores)
 
@@ -382,6 +398,8 @@ class Pipeline:
         if self.coarse_hook is not None:    # אבחון: העתק של תיבת הקבוצה אחרי המעבר הגס בלבד
             x0, y0, x1, y1 = g.box
             self.coarse_hook(g.box, result[y0:y1, x0:x1].copy())
+        if c_belt_off(self.cfg):
+            return
         belt, gain = self._belt(g, ts, hw)
         self._run_tiles(result, m, Group(g.box, belt), size, cores, ts, cancel, rois, st, feather, m_alpha=m, gain=gain)
 

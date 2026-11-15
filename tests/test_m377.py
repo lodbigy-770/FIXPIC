@@ -42,6 +42,8 @@ def mk(box=BOX):
 
 def cfg(cf, **kw):
     kw.setdefault("feather_px", 0)
+    kw.setdefault("coarse_belt_px", 64)      # ברירת המחדל (M3.7.9) היא 0 = מעבר גס בלבד; כאן בודקים את החגורה
+    kw.setdefault("coarse_size", None)
     return PipelineConfig(large_strategy="tile", max_tiles=500, coarse_fine=cf, **kw)
 
 
@@ -52,8 +54,12 @@ def run(cf, model=None, mask=None, **kw):
     return img, mask, model, Pipeline(model, cfg(cf, **kw)).run(img, mask, 256, brush_px=30.0)
 
 
-def test_off_by_default_and_unchanged():
-    assert PipelineConfig().coarse_fine is False
+def test_defaults_m379_coarse_only_768():
+    c = PipelineConfig()
+    assert c.coarse_fine is True and c.coarse_belt_px == 0 and c.coarse_size == 768 and 768 in c.sizes and 1024 in c.sizes
+
+
+def test_off_and_unchanged():
     _, _, _, a = run(False)
     _, _, _, b = run(False)
     assert np.array_equal(a.image, b.image) and a.model_calls > 4
@@ -182,7 +188,7 @@ def test_coarse_size_ignored_without_coarse_fine_and_validated_with_it():
     assert set(m.shapes) == {256}
     from fixpic.errors import InvalidInputError
     with pytest.raises(InvalidInputError):
-        Pipeline(ShapeModel(), cfg(True, coarse_size=1024)).run(img, mask, 256, brush_px=30.0)
+        Pipeline(ShapeModel(), cfg(True, sizes=(256, 384, 512), coarse_size=1024)).run(img, mask, 256, brush_px=30.0)
 
 
 def test_coarse_size_oom_falls_back_to_tile_bucket():
@@ -224,3 +230,42 @@ def test_bench_grid_has_coarse_size_axis():
     ids = [c["id"] for c in g]
     assert len(ids) == 4 and any(i.endswith("-cf768") for i in ids) and any(i.endswith("-cf1024") for i in ids)
     assert sum(1 for c in g if not c["coarse_fine"]) == 1 and all(c["coarse_size"] == 0 for c in g if not c["coarse_fine"])
+
+
+# ------------------------------------------------------------------ M3.7.9: מעבר גס בלבד (חגורה 0) כברירת מחדל
+def test_coarse_only_is_single_window_at_coarse_size_and_progress_matches():
+    img, mask = rnd(H, W, 8), mk()
+    model = ShapeModel()
+    seen = []
+    res = Pipeline(model, cfg(True, coarse_belt_px=0, coarse_size=512)).run(img, mask, 256, brush_px=30.0, progress=seen.append)
+    assert model.calls == 1 and model.shapes == [512] and res.model_calls == 1
+    assert seen[-1].stage == "done" and seen[-1].done == seen[-1].total == 1
+    eff = res.effective_mask > 0
+    assert np.array_equal(res.image[~eff], img[~eff])
+    cy, cx = (BOX[1] + BOX[3]) // 2, (BOX[0] + BOX[2]) // 2
+    assert (res.image[cy, cx] == 50).all()          # פנים האזור: ערך ההרצה היחידה, בלי שום מעבר עדין
+
+
+def test_coarse_only_plan_and_seams():
+    mask = mk()
+    pipe = Pipeline(ShapeModel(), cfg(True, coarse_belt_px=0, coarse_size=512))
+    rep = pipe.plan(mask, 256, brush_px=30.0)
+    assert [g.kind for g in rep.groups] == ["coarse"] and rep.groups[0].windows == 1
+    assert pipe.tile_seams(mask, 256, brush_px=30.0) == []
+
+
+def test_coarse_only_default_uses_768_and_belt_flag_restores_old_behaviour():
+    img, mask = rnd(H, W, 9), mk()
+    m = ShapeModel()
+    Pipeline(m, PipelineConfig(large_strategy="tile", max_tiles=500, feather_px=0)).run(img, mask, 256, brush_px=30.0)
+    assert m.shapes == [768]
+    m2 = ShapeModel()
+    Pipeline(m2, PipelineConfig(large_strategy="tile", max_tiles=500, feather_px=0, coarse_belt_px=64)).run(img, mask, 256, brush_px=30.0)
+    assert m2.shapes[0] == 768 and set(m2.shapes[1:]) == {256} and m2.calls > 2
+
+
+def test_warmup_order_skips_large_buckets_and_negative_belt_rejected():
+    from fixpic.errors import InvalidInputError
+    assert Pipeline(ShapeModel()).warmup_order() == [384, 256, 512]
+    with pytest.raises(InvalidInputError):
+        Pipeline(ShapeModel(), PipelineConfig(coarse_belt_px=-1))
