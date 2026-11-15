@@ -61,6 +61,7 @@ class EditController(QObject):
         self.engine_error: str | None = None
         self.diameter = 20.0                # קוטר המברשת בפיקסלי תמונה
         self.erase_mode = False
+        self.feather_px: int | None = None   # None = לפי ה-cfg של המנוע (M4: סליידר Feathering)
         self.indicator_on = False
         self._stroke: dict | None = None    # {"erase": bool, "last": (x, y)}
         self._waiting: str | None = None    # "queue" | "engine": מסכה בשכבה שמחכה להגשה
@@ -186,7 +187,7 @@ class EditController(QObject):
             self.changed.emit()
             return
         try:
-            s.submit_stroke(on_progress=self._on_progress, on_done=self._on_done)
+            s.submit_stroke(on_progress=self._on_progress, on_done=self._on_done, feather_px=self.feather_px)
         except QueueFullError:
             self._waiting = "queue"
             self.message.emit(t("status.queue_full"))

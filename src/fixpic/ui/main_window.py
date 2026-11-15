@@ -357,6 +357,7 @@ class MainWindow(QMainWindow):
         cv.strokeEnded.connect(c.end_stroke)
         self.brush_panel.diameterChanged.connect(self._brush_changed)
         self.brush_panel.eraseChanged.connect(self._erase_changed)
+        self.brush_panel.featherChanged.connect(lambda px: setattr(self.controller, "feather_px", px))
         c.changed.connect(self._edit_changed)
         c.imageChanged.connect(self._image_changed)
         cv.compareHoldChanged.connect(self._compare_hold)

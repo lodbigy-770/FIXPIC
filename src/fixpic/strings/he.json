@@ -72,6 +72,8 @@
 
   "dock.brush": "מברשת",
   "brush.size": "גודל:",
+  "brush.feather": "Feathering (החלקת קצה):",
+  "brush.feather_auto": "Feathering לפי ברירת מחדל",
   "brush.erase": "מצב מחיקה (מוחק מהמסכה)",
   "dock.mask": "כלי מסכה",
   "mask.amount": "גודל שינוי:",

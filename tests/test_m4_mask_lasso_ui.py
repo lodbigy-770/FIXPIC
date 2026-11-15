@@ -184,3 +184,36 @@ class TestUndoOrder:
         assert not ew.w.mask_panel.history.can_undo and ew.w.act_undo.isEnabled()
         ew.w.act_undo.trigger()
         assert np.array_equal(s.rgb, before)
+
+
+class TestFeatherSlider:
+    def test_default_is_auto_none_and_sliders_disabled(self, ew):
+        p = ew.w.brush_panel
+        assert p.feather_px is None and ew.c.feather_px is None
+        assert not p.feather_slider.isEnabled() and not p.feather_spin.isEnabled()
+
+    def test_manual_value_syncs_clamps_and_reaches_controller(self, ew):
+        ew.install(h=200, w=300)
+        p, got = ew.w.brush_panel, []
+        p.featherChanged.connect(got.append)
+        p.set_feather(20)
+        assert p.feather_px == 20 and ew.c.feather_px == 20 and p.feather_slider.value() == 20
+        assert p.feather_slider.isEnabled() and got == [20]
+        p.feather_slider.setValue(7)
+        assert p.feather_spin.value() == 7 and ew.c.feather_px == 7
+        p.set_feather(500)
+        assert p.feather_px == 64
+        p.set_feather(-3)
+        assert p.feather_px == 0
+        p.set_feather(None)
+        assert p.feather_px is None and ew.c.feather_px is None and not p.feather_spin.isEnabled()
+
+    @pytest.mark.parametrize("value", [None, 0, 12])
+    def test_submission_carries_chosen_feather(self, ew, value):
+        s = ew.install(h=200, w=300)
+        ew.w.brush_panel.set_feather(value)
+        before = s.rgb.copy()
+        ew.w.select_panel.set_tool("mask_fill")
+        drag(ew.canvas, SQUARE)
+        assert wait_until(lambda: not np.array_equal(s.rgb, before) and not s.busy)
+        assert s.last_submission.feather_px == value
