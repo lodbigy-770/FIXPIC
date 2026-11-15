@@ -147,3 +147,40 @@ class TestWithEngine:
         drag(ew.canvas, [(40, 30), (200, 30), (200, 160), (40, 160)])
         wait_until(lambda: s.busy, 0.3)
         assert s.mask.empty and not s.busy and np.array_equal(s.rgb, before)
+
+
+class TestUndoOrder:
+    """Ctrl+Z/Ctrl+Y: עריכת מסכה ממתינה קודם; אחרי הגשה ל-Inpaint ההיסטוריה מיושנת ומבטלים את התמונה."""
+
+    def test_ctrl_z_undoes_pending_mask_edit_then_redo(self, sw):
+        w = sw.w
+        assert not w.act_undo.isEnabled()
+        w.select_panel.set_tool("mask_fill")
+        drag(sw.canvas, SQUARE)
+        assert not sw.s.mask.empty and w.act_undo.isEnabled() and not w.act_redo.isEnabled()
+        w.act_undo.trigger()
+        assert sw.s.mask.empty and w.act_redo.isEnabled() and not w.act_undo.isEnabled()
+        w.act_redo.trigger()
+        assert sw.s.mask.array[90, 110] > 0
+
+    def test_undo_restores_erased_part_of_mask(self, sw):
+        w = sw.w
+        w.mask_panel.fill_polygon([(40, 30), (200, 30), (200, 150), (40, 150)])
+        before = sw.s.mask.array.copy()
+        w.select_panel.set_tool("mask_erase")
+        drag(sw.canvas, [(80, 60), (140, 60), (140, 110), (80, 110)])
+        assert not np.array_equal(sw.s.mask.array, before)
+        w.act_undo.trigger()
+        assert np.array_equal(sw.s.mask.array, before)
+        w.act_undo.trigger()
+        assert sw.s.mask.empty
+
+    def test_after_submit_ctrl_z_undoes_the_image_not_the_mask(self, ew):
+        s = ew.install(h=200, w=300)
+        before = s.rgb.copy()
+        ew.w.select_panel.set_tool("mask_fill")
+        drag(ew.canvas, SQUARE)
+        assert wait_until(lambda: not np.array_equal(s.rgb, before) and not s.busy)
+        assert not ew.w.mask_panel.history.can_undo and ew.w.act_undo.isEnabled()
+        ew.w.act_undo.trigger()
+        assert np.array_equal(s.rgb, before)

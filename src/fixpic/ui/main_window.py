@@ -247,8 +247,9 @@ class MainWindow(QMainWindow):
                   self.act_tool_mask_erase):
             a.setEnabled(can_select)
         c = self.controller
-        self.act_undo.setEnabled(has and not self.busy and c.can_undo)
-        self.act_redo.setEnabled(has and not self.busy and c.can_redo)
+        self.mask_panel.refresh()
+        self.act_undo.setEnabled(has and not self.busy and (c.can_undo or self._mask_can(False)))
+        self.act_redo.setEnabled(has and not self.busy and (c.can_redo or self._mask_can(True)))
         self.act_compare.setEnabled(has)
         self.btn_hold.setEnabled(has)
         painting = has and not self.busy and not self._comparing
@@ -451,12 +452,33 @@ class MainWindow(QMainWindow):
             self.controller.cancel()
 
     # ----------------------------------------------------- Undo/Redo והשוואה
+    def _mask_can(self, redo: bool) -> bool:
+        """יש עריכת מסכה ממתינה (עדיין לא הוגשה ל-Inpaint) שאפשר לבטל/לשחזר."""
+        h = self.mask_panel.history
+        return self.mask_panel.active and h is not None and (h.can_redo if redo else h.can_undo)
+
     def _undo(self) -> None:
-        if self.session is not None and not self.busy:
+        """Ctrl+Z: קודם עריכת מסכה ממתינה (לאסו, הרחבה, בחירה מאושרת שלא הוגשה); אחרי הגשה ההיסטוריה מיושנת
+        (המסכה רוקנה) ולכן Ctrl+Z מבטל את שינוי התמונה האחרון."""
+        if self.session is None or self.busy:
+            return
+        if self._mask_can(False):
+            self.select_ctl.cancel()
+            self.mask_panel.undo()
+            self.canvas.invalidate_overlay()
+            self._refresh()
+        else:
             self.controller.undo()
 
     def _redo(self) -> None:
-        if self.session is not None and not self.busy:
+        if self.session is None or self.busy:
+            return
+        if self._mask_can(True):
+            self.select_ctl.cancel()
+            self.mask_panel.redo()
+            self.canvas.invalidate_overlay()
+            self._refresh()
+        else:
             self.controller.redo()
 
     @property
