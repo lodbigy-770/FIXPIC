@@ -13,6 +13,10 @@
 - **Undo/Redo והשוואה (M3.5):** Ctrl+Z, Ctrl+Y ו-Ctrl+Shift+Z פועלים על `Session` דרך `EditController` (לא על היסטוריית
   המסכה שבלוח הכלים). השוואה לפני/אחרי: מתג (`C`) וגם החזקה (מקש `B`, או לחיצה ממושכת על כפתור בסרגל); בזמן השוואה אין
   ציור, והקנבס מציג את `Session.original_*`. מצב ההשוואה מתאפס בתמונה חדשה.
+- **בחירה חכמה (M4, שלב 4ב):** לוח `SelectPanel` (dock) בוחר כלי: מברשת / מלבן (S) / לאסו (L); P חוזר למברשת. הקנבס מצייר
+  מלבן/לאסו/משיכה מתקנת ומשדר אותם ל-`SmartSelectController` (GrabCut ברקע), וההצעה מצוירת בירוק. Enter מאשר (מוסיף למסכה
+  בצעד Undo אחד של לוח כלי המסכה, בלי להפעיל Inpaint), Esc מבטל קודם מחוות פעילה, אחר כך הצעה/קלט, ורק אחרי זה עיבוד Inpaint.
+  תמונה חדשה, Commit, Undo ו-Redo של התמונה זורקים את ההצעה. מחוון "הבחירה לוקחת זמן" בשורת המצב אחרי 200ms.
 - **מנוע ההסרה** נטען ברקע רק אם ניתן `engine_factory` (`ui.app.main` נותן; בדיקות מזריקות מנוע מדומה). בלי מנוע
   משיכות רק מציירות מסכה.
 """
@@ -36,6 +40,8 @@ from .canvas import Canvas
 from .convert import qimage_to_array
 from .edit_loop import EditController
 from .mask_panel import MaskToolsPanel
+from .select_panel import SelectPanel
+from .select_tool import SmartSelectController
 from .workers import BackgroundRunner
 
 log = logging.getLogger("fixpic.ui")
@@ -58,6 +64,8 @@ class MainWindow(QMainWindow):
         self._runner = BackgroundRunner(self)
         self.canvas = Canvas(self)
         self.controller = EditController(self)
+        self.select_ctl = SmartSelectController(self, history_source=lambda: self.mask_panel.history,
+                                                busy=self._inpaint_busy)
         self.setCentralWidget(self.canvas)
         self.setAcceptDrops(True)
         self.resize(1100, 760)
@@ -65,8 +73,10 @@ class MainWindow(QMainWindow):
         self._build_status()
         self._build_brush_dock()
         self._build_mask_dock()
+        self._build_select_dock()
         self.canvas.scaleChanged.connect(self._update_status)
         self._connect_editing()
+        self._connect_select()
         self._refresh()
         if engine_factory is not None:
             self._start_engine(engine_factory)
@@ -90,7 +100,7 @@ class MainWindow(QMainWindow):
         self.act_actual = self._action("action.actual_size", self.canvas.actual_size, "Ctrl+1")
         self.act_zoom_in = self._action("action.zoom_in", lambda: self._zoom(1.25), QKeySequence.ZoomIn)
         self.act_zoom_out = self._action("action.zoom_out", lambda: self._zoom(0.8), QKeySequence.ZoomOut)
-        self.act_cancel = self._action("action.cancel_jobs", self.controller.cancel, "Esc")
+        self.act_cancel = self._action("action.cancel_jobs", self._escape, "Esc")
         self.act_undo = self._action("action.undo", self._undo, QKeySequence.Undo)
         self.act_redo = self._action("action.redo", self._redo, QKeySequence.Redo)
         self.act_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
@@ -102,6 +112,11 @@ class MainWindow(QMainWindow):
         self.act_brush_bigger = self._action("action.brush_bigger", lambda: self.brush_panel.scale_diameter(1.2), "]")
         self.act_brush_smaller = self._action("action.brush_smaller", lambda: self.brush_panel.scale_diameter(1 / 1.2),
                                               "[")
+        self.act_tool_brush = self._action("action.select_brush", lambda: self.select_panel.set_tool("brush"), "P")
+        self.act_tool_box = self._action("action.select_box", lambda: self.select_panel.set_tool("box"), "S")
+        self.act_tool_lasso = self._action("action.select_lasso", lambda: self.select_panel.set_tool("lasso"), "L")
+        self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
+        self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
         mb = self.menuBar()
         m = mb.addMenu(t("menu.file"))
         for a in (self.act_open, self.act_save, self.act_save_as, self.act_paste):
@@ -111,6 +126,9 @@ class MainWindow(QMainWindow):
         ed = mb.addMenu(t("menu.edit"))
         for a in (self.act_undo, self.act_redo, self.act_cancel, self.act_erase, self.act_brush_bigger,
                   self.act_brush_smaller, self.act_compare):
+            ed.addAction(a)
+        ed.addSeparator()
+        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_select_accept):
             ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
@@ -144,6 +162,13 @@ class MainWindow(QMainWindow):
         self.mask_panel.maskChanged.connect(lambda _rect: self.canvas.update())
         self.mask_panel.failed.connect(lambda detail: self._error("error.unexpected", detail=detail))
 
+    def _build_select_dock(self) -> None:
+        self.select_panel = SelectPanel(self)
+        self.select_dock = QDockWidget(t("dock.select"), self)
+        self.select_dock.setWidget(self.select_panel)
+        self.select_dock.setFeatures(QDockWidget.DockWidgetMovable)
+        self.addDockWidget(Qt.RightDockWidgetArea, self.select_dock)
+
     def _build_status(self) -> None:
         sb = self.statusBar()
         self.lbl_size, self.lbl_zoom = QLabel(), QLabel()
@@ -155,6 +180,9 @@ class MainWindow(QMainWindow):
         self.lbl_cmp = QLabel()
         self.lbl_cmp.hide()
         sb.addPermanentWidget(self.lbl_cmp)
+        self.lbl_sel = QLabel(t("select.working"))      # מחוון הבחירה החכמה (אחרי 200ms)
+        self.lbl_sel.hide()
+        sb.addPermanentWidget(self.lbl_sel)
         self.lbl_proc = QLabel()
         self.proc_progress = QProgressBar()        # עיבוד Inpaint; נפרד ממחוון הטעינה/שמירה
         self.proc_progress.setRange(0, 0)
@@ -190,7 +218,14 @@ class MainWindow(QMainWindow):
         for a in (self.act_fit, self.act_actual, self.act_zoom_in, self.act_zoom_out):
             a.setEnabled(has)
         working = has and (self.session.busy or self.controller.waiting is not None)
-        self.act_cancel.setEnabled(working)
+        sel = self.select_ctl
+        self.act_cancel.setEnabled(working or sel.active or self.canvas.gesture_active)
+        can_select = has and not self.busy and not self._comparing
+        self.select_panel.set_enabled_for_work(can_select)
+        self.select_panel.set_state(sel.has_proposal, sel.has_input)
+        self.act_select_accept.setEnabled(can_select and sel.has_proposal)
+        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso):
+            a.setEnabled(can_select)
         c = self.controller
         self.act_undo.setEnabled(has and not self.busy and c.can_undo)
         self.act_redo.setEnabled(has and not self.busy and c.can_redo)
@@ -294,6 +329,49 @@ class MainWindow(QMainWindow):
         if s is not None:
             self.canvas.set_image(s.rgb, s.alpha, keep_view=True)
         self._refresh()
+
+    # ------------------------------------------------------------ בחירה חכמה
+    def _inpaint_busy(self) -> bool:
+        """נקרא מה-Worker של הבחירה (קריאה בלבד): Inpaint פעיל או ממתין, ו-GrabCut ממתין לו."""
+        s = self.session
+        return s is not None and (s.busy or self.controller.waiting is not None)
+
+    def _connect_select(self) -> None:
+        cv, ctl, panel = self.canvas, self.select_ctl, self.select_panel
+        cv.selectBoxDrawn.connect(ctl.request_box)
+        cv.selectLassoDrawn.connect(ctl.request_lasso)
+        cv.selectScribbleDrawn.connect(lambda path, positive: ctl.request_scribble(
+            path, positive, self.brush_panel.diameter / 2))
+        panel.toolChanged.connect(self._tool_changed)
+        panel.acceptRequested.connect(self._select_accept)
+        panel.cancelRequested.connect(self.select_ctl.cancel)
+        ctl.changed.connect(self._select_changed)
+        ctl.message.connect(self.statusBar().showMessage)
+        ctl.processingChanged.connect(self.lbl_sel.setVisible)
+        ctl.accepted.connect(lambda _rect: (self.mask_panel.refresh(), self.canvas.invalidate_overlay()))
+        self.controller.imageChanged.connect(ctl.on_image_changed)
+
+    def _tool_changed(self, tool: str) -> None:
+        self.select_ctl.cancel()
+        self.canvas.set_select_mode(None if tool == "brush" else tool)
+        self._select_changed()
+
+    def _select_changed(self) -> None:
+        ctl = self.select_ctl
+        self.canvas.set_proposal(ctl.proposal)
+        self.canvas.set_select_scribble(ctl.has_input)
+        self._refresh()
+
+    def _select_accept(self) -> None:
+        if self.session is not None and not self.busy:
+            self.select_ctl.accept()
+
+    def _escape(self) -> None:
+        """Esc: קודם מחוות פעילה, אחר כך הצעה/קלט בחירה, ורק אחרי זה ביטול עיבוד Inpaint."""
+        if self.canvas.cancel_gesture():
+            self._refresh()
+        elif not self.select_ctl.cancel():
+            self.controller.cancel()
 
     # ----------------------------------------------------- Undo/Redo והשוואה
     def _undo(self) -> None:
@@ -427,6 +505,7 @@ class MainWindow(QMainWindow):
         self.session, self.display_name, self.save_path = session, name, None
         self._reset_compare()
         self.controller.bind(session)
+        self.select_ctl.bind(session)
         self.canvas.set_image(session.rgb, session.alpha)
         self.canvas.set_mask_layer(session.mask)
         self.canvas.set_pending_source(lambda: session.pending_masks)
@@ -523,6 +602,7 @@ class MainWindow(QMainWindow):
             e.ignore()
             self.confirm_discard(self._close_now)
             return
+        self.select_ctl.shutdown()
         self.controller.shutdown()
         e.accept()
 
