@@ -54,7 +54,7 @@ _EXT_BY_FILTER = {"filter.png": ".png", "filter.jpg": ".jpg", "filter.webp": ".w
 _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
 _LOSSY = {".jpg", ".jpeg", ".webp"}
 DEFAULT_QUALITY = 92
-_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך", "M": "צ", "D": "ג"}     # קיצורי אות במקלדת עברית
+_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך", "M": "צ", "D": "ג", "R": "ר"}     # קיצורי אות במקלדת עברית
 
 
 class MainWindow(QMainWindow):
@@ -130,6 +130,8 @@ class MainWindow(QMainWindow):
         self.act_tool_mask_fill = self._action("action.mask_lasso_fill", lambda: self.select_panel.set_tool("mask_fill"), "M")
         self.act_tool_mask_erase = self._action("action.mask_lasso_erase",
                                                 lambda: self.select_panel.set_tool("mask_erase"), "D")
+        self.act_tool_mask_component = self._action("action.mask_component",
+                                                    lambda: self.select_panel.set_tool("mask_component"), "R")
         self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
         self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
         self.act_save_case = self._action("action.save_case", self.save_case)
@@ -147,7 +149,7 @@ class MainWindow(QMainWindow):
             ed.addAction(a)
         ed.addSeparator()
         for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
-                  self.act_tool_mask_erase, self.act_select_accept):
+                  self.act_tool_mask_erase, self.act_tool_mask_component, self.act_select_accept):
             ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
@@ -244,7 +246,7 @@ class MainWindow(QMainWindow):
         self.select_panel.set_state(sel.has_proposal, sel.has_input)
         self.act_select_accept.setEnabled(can_select and sel.has_proposal)
         for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
-                  self.act_tool_mask_erase):
+                  self.act_tool_mask_erase, self.act_tool_mask_component):
             a.setEnabled(can_select)
         c = self.controller
         self.mask_panel.refresh()
@@ -401,6 +403,7 @@ class MainWindow(QMainWindow):
         cv.selectBoxDrawn.connect(ctl.request_box)
         cv.selectLassoDrawn.connect(ctl.request_lasso)
         cv.maskLassoDrawn.connect(self._mask_lasso)
+        cv.maskComponentClicked.connect(self._mask_component)
         cv.selectScribbleDrawn.connect(lambda path, positive: ctl.request_scribble(
             path, positive, self.brush_panel.diameter / 2))
         panel.toolChanged.connect(self._tool_changed)
@@ -433,6 +436,17 @@ class MainWindow(QMainWindow):
         self._refresh()
         if rect is not None and not erase:
             self.controller.submit()
+
+    def _mask_component(self, x: float, y: float) -> None:
+        """לחיצה בכלי "מחיקת רכיב מסכה": מוחק את הרכיב המחובר שמתחת לנקודה (צעד Undo אחד); בלי הגשה ל-Inpaint."""
+        if self.session is None or self.busy or self._comparing:
+            return
+        rect = self.mask_panel.remove_component_at(x, y)
+        if rect is None:
+            self.statusBar().showMessage(t("mask.no_component"))
+            return
+        self.canvas.invalidate_overlay()
+        self._refresh()
 
     def _selection_accepted(self, _rect) -> None:
         """אישור הצעת בחירה = הסרה: המסכה שנוספה מוגשת ל-Inpaint בדיוק כמו אחרי שחרור מברשת (בדיקה ידנית ב-Windows:

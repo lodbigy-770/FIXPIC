@@ -1,7 +1,7 @@
 """לוח הבחירה החכמה (M4, AUTO-SELECT.md §4 ו-§7 שלב 4ב): בחירת כלי (מברשת / מלבן / לאסו), אישור וביטול הצעה, ורמז.
 
 חוזים:
-- הלוח אינו מכיר את הקנבס ואת הבקר: הוא משדר `toolChanged(str)` (`"brush"` | `"box"` | `"lasso"` | `"mask_fill"` | `"mask_erase"`; שני האחרונים = לאסו ישיר על המסכה), `acceptRequested` ו-
+- הלוח אינו מכיר את הקנבס ואת הבקר: הוא משדר `toolChanged(str)` (`"brush"` | `"box"` | `"lasso"` | `"mask_fill"` | `"mask_erase"` | `"mask_component"`; שלושת האחרונים עורכים את המסכה ישירות), `acceptRequested` ו-
   `cancelRequested`, והחלון הראשי מחבר. `set_state(has_proposal, has_input)` מעדכן כפתורים ורמז.
 - כשהחלון עסוק (`set_enabled_for_work(False)`) כל הלוח מושבת.
 """
@@ -12,7 +12,7 @@ from PySide6.QtWidgets import QButtonGroup, QLabel, QPushButton, QRadioButton, Q
 
 from ..strings import t
 
-TOOLS = ("brush", "box", "lasso", "mask_fill", "mask_erase")
+TOOLS = ("brush", "box", "lasso", "mask_fill", "mask_erase", "mask_component")
 
 
 class SelectPanel(QWidget):
@@ -32,6 +32,7 @@ class SelectPanel(QWidget):
             "lasso": QRadioButton(t("select.tool_lasso")),
             "mask_fill": QRadioButton(t("select.tool_mask_fill")),
             "mask_erase": QRadioButton(t("select.tool_mask_erase")),
+            "mask_component": QRadioButton(t("select.tool_mask_component")),
         }
         self._group = QButtonGroup(self)
         lay = QVBoxLayout(self)
@@ -83,5 +84,5 @@ class SelectPanel(QWidget):
             hint = t("select.hint_scribble")
         else:
             hint = t({"box": "select.hint_box", "lasso": "select.hint_lasso", "mask_fill": "select.hint_mask_fill",
-                      "mask_erase": "select.hint_mask_erase"}[self._tool])
+                      "mask_erase": "select.hint_mask_erase", "mask_component": "select.hint_mask_component"}[self._tool])
         self.lbl_hint.setText(hint)

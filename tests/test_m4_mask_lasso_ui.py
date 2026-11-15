@@ -217,3 +217,52 @@ class TestFeatherSlider:
         drag(ew.canvas, SQUARE)
         assert wait_until(lambda: not np.array_equal(s.rgb, before) and not s.busy)
         assert s.last_submission.feather_px == value
+
+
+class TestComponentClick:
+    def _two_blobs(self, sw):
+        m = sw.w.mask_panel
+        m.fill_polygon([(20, 20), (80, 20), (80, 70), (20, 70)])
+        m.fill_polygon([(150, 100), (220, 100), (220, 170), (150, 170)])
+        assert len(sw.s.mask.components()) == 2
+
+    def test_canvas_click_emits_point_and_no_gesture(self, app):
+        c, layer = painted_canvas(h=200, w=300)
+        c.set_select_mode("mask_component")
+        got, lasso = [], []
+        c.maskComponentClicked.connect(lambda x, y: got.append((x, y)))
+        c.maskLassoDrawn.connect(lambda *a: lasso.append(a))
+        drag(c, [(60, 40), (60, 40)])
+        assert len(got) == 1 and not lasso and not c.gesture_active and layer.empty
+        assert got[0][0] == pytest.approx(60.5, abs=1.0) and got[0][1] == pytest.approx(40.5, abs=1.0)
+
+    def test_click_removes_only_that_component_as_one_undo_step(self, sw):
+        w = sw.w
+        self._two_blobs(sw)
+        w.select_panel.set_tool("mask_component")
+        drag(sw.canvas, [(50, 45), (50, 45)])
+        assert sw.s.mask.array[45, 50] == 0 and sw.s.mask.array[130, 180] > 0
+        assert len(sw.s.mask.components()) == 1
+        w.act_undo.trigger()
+        assert len(sw.s.mask.components()) == 2
+
+    def test_click_off_component_changes_nothing_and_says_so(self, sw):
+        w = sw.w
+        self._two_blobs(sw)
+        before = sw.s.mask.array.copy()
+        w.select_panel.set_tool("mask_component")
+        drag(sw.canvas, [(120, 200), (120, 200)])
+        assert np.array_equal(sw.s.mask.array, before)
+        assert "אין רכיב" in w.statusBar().currentMessage()
+
+    def test_never_submits_and_shortcut(self, ew):
+        s = ew.install(h=200, w=300)
+        before = s.rgb.copy()
+        s.mask.fill_polygon(SQUARE)
+        ew.w.act_tool_mask_component.trigger()
+        assert ew.canvas.select_mode == "mask_component"
+        drag(ew.canvas, [(100, 90), (100, 90)])
+        wait_until(lambda: s.busy, 0.3)
+        assert s.mask.empty and not s.busy and np.array_equal(s.rgb, before)
+        assert ew.w.act_tool_mask_component.shortcut().toString() == "R"
+        assert "ר" in {k.toString() for k in ew.w.act_tool_mask_component.shortcuts()}

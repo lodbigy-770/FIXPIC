@@ -113,6 +113,7 @@ class Canvas(QWidget):
     compareHoldChanged = Signal(bool)         # מקש ההחזקה (B) נלחץ/שוחרר
     selectBoxDrawn = Signal(object)           # (x0, y0, x1, y1) בפיקסלי תמונה, לא חתוך, x0<x1 ו-y0<y1
     selectLassoDrawn = Signal(object)         # [(x, y), ...] בפיקסלי תמונה
+    maskComponentClicked = Signal(float, float)   # לחיצה בכלי "מחיקת רכיב מסכה": נקודת תמונה (M4)
     maskLassoDrawn = Signal(object, bool)     # ([(x, y), ...] בפיקסלי תמונה, erase): לאסו ישיר על המסכה (M4)
     selectScribbleDrawn = Signal(object, bool)  # ([(x, y), ...], positive)
 
@@ -165,8 +166,9 @@ class Canvas(QWidget):
     # ------------------------------------------------------------ בחירה חכמה
     def set_select_mode(self, mode: str | None) -> None:
         """`"box"` / `"lasso"` = כפתור שמאל מצייר מלבן/לאסו (במצב ציור); `"mask_fill"` / `"mask_erase"` = לאסו שמשודר
-        כ-`maskLassoDrawn` (מילוי/מחיקה ישירה של המסכה, בלי בחירה חכמה); None = מברשת רגילה."""
-        if mode not in (None, "box", "lasso", "mask_fill", "mask_erase"):
+        כ-`maskLassoDrawn` (מילוי/מחיקה ישירה של המסכה, בלי בחירה חכמה); `"mask_component"` = לחיצה שמאלית משדרת
+        `maskComponentClicked(x, y)` (בלי מחוות); None = מברשת רגילה."""
+        if mode not in (None, "box", "lasso", "mask_fill", "mask_erase", "mask_component"):
             raise ValueError(f"מצב בחירה לא מוכר: {mode}")
         self.cancel_gesture()
         self.select_mode = mode
@@ -536,6 +538,10 @@ class Canvas(QWidget):
         elif self._pan_button(e):
             self._drag = e.position()
             self._apply_cursor()
+            e.accept()
+        elif self.painting and self.select_mode == "mask_component" and e.button() == Qt.LeftButton:
+            q = self.view_to_image(e.position())
+            self.maskComponentClicked.emit(q.x(), q.y())
             e.accept()
         elif (self.painting and self.select_mode is not None and self._gesture is None
               and e.button() in (Qt.LeftButton, Qt.RightButton)):
