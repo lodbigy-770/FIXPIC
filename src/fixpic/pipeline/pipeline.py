@@ -80,6 +80,33 @@ class InpaintResult:
     feather_px: int = 0          # רוחב ה-Feathering שבו נעשה שימוש (כולל עקיפה לפי עבודה)
 
 
+@dataclass(frozen=True)
+class GroupPlan:
+    box: tuple[int, int, int, int]
+    mask_px: int
+    kind: str                   # "native" | "downscale" | "tile"
+    scale: float                # קנה מידה בפועל של הפיקסלים שנשלחים למודל (1.0 = מקורי)
+    window: tuple[int, int]     # רוחב, גובה החלון בפיקסלי המקור (ב-"tile": חלון הקבוצה כולה, לא האריח)
+    windows: int                # הרצות מודל
+
+
+@dataclass(frozen=True)
+class PlanReport:
+    size: int
+    dilate_px: int
+    brush_px: float
+    mask_px: int                # אחרי הרחבה
+    groups: list[GroupPlan]
+
+    @property
+    def runs(self) -> int:
+        return sum(g.windows for g in self.groups)
+
+    @property
+    def min_scale(self) -> float:
+        return min((g.scale for g in self.groups), default=1.0)
+
+
 class Pipeline:
     def __init__(self, model: InpaintModel, cfg: PipelineConfig | None = None) -> None:
         self.model = model
@@ -142,15 +169,7 @@ class Pipeline:
             if need > c.memory_limit_mb:
                 raise OutOfMemoryError(f"הערכת זיכרון {need}MB חורגת מהתקרה {c.memory_limit_mb}MB; התמונה לא שונתה")
 
-        m = (mask > 0).astype(np.uint8)
-        if not m.any():
-            raise EmptyMaskError("לא סומן אזור")
-        if c.mask_dilate_px is None and brush_px is None:
-            brush_px = estimate_brush_px(m)
-        r = dilate_radius(c.mask_dilate_px, brush_px or 0.0, c.dilate_ratio, c.dilate_min, c.dilate_max)
-        if r > 0:
-            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
-            m = cv2.dilate(m, k)
+        m, r, brush_px = self._prepare_mask(mask, brush_px)
         cancel.raise_if_cancelled()
 
         hw = image.shape[:2]
@@ -168,6 +187,45 @@ class Pipeline:
         st.emit("done")
         return InpaintResult(result, m, rois[0], rois, len(groups), len(rois), used, st.retries, r,
                              float(brush_px or 0.0), feather)
+
+    def _prepare_mask(self, mask: np.ndarray, brush_px: float | None) -> tuple[np.ndarray, int, float | None]:
+        """מסכה בינארית אחרי הרחבה: (m, רדיוס ההרחבה, brush_px בפועל)."""
+        c = self.cfg
+        m = (mask > 0).astype(np.uint8)
+        if not m.any():
+            raise EmptyMaskError("לא סומן אזור")
+        if c.mask_dilate_px is None and brush_px is None:
+            brush_px = estimate_brush_px(m)
+        r = dilate_radius(c.mask_dilate_px, brush_px or 0.0, c.dilate_ratio, c.dilate_min, c.dilate_max)
+        if r > 0:
+            k = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * r + 1, 2 * r + 1))
+            m = cv2.dilate(m, k)
+        return m, r, brush_px
+
+    def plan(self, mask: np.ndarray, size: int | None = None, brush_px: float | None = None) -> "PlanReport":
+        """מה ש-`run` יתכנן למסכה זו, בלי להריץ מודל ובלי תמונה (אבחון, M3.7.2): הרחבה, קבוצות, וכל קבוצה: חלון,
+        קנה מידה, אסטרטגיה (native/downscale/tile) ומספר הרצות מודל. משתמש באותו קוד תכנון כמו `run`."""
+        c = self.cfg
+        size = size or c.default_size
+        if size not in c.sizes:
+            raise InvalidInputError(f"גודל קלט {size} אינו באחד ה-buckets {c.sizes}")
+        if not isinstance(mask, np.ndarray) or mask.ndim != 2:
+            raise InvalidInputError("המסכה חייבת להיות [H,W]")
+        m, r, brush_px = self._prepare_mask(mask, brush_px)
+        hw = m.shape
+        out = []
+        for g in group_mask(m, size, c.margin_ratio, c.min_margin):
+            p, cores = self._strategy(g, size, hw)
+            if cores is not None:
+                bx, by = g.box[0], g.box[1]
+                runs = sum(1 for x0, y0, x1, y1 in cores if g.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
+                kind, eff, windows = "tile", 1.0, runs
+            elif p.downscaled:
+                kind, eff, windows = "downscale", p.scale, 1
+            else:
+                kind, eff, windows = "native", 1.0, 1
+            out.append(GroupPlan(g.box, int((g.mask > 0).sum()), kind, eff, (p.width, p.height), windows))
+        return PlanReport(size, r, float(brush_px or 0.0), int((m > 0).sum()), out)
 
     def _count(self, g: Group, size: int, hw) -> int:
         """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
