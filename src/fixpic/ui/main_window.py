@@ -367,6 +367,7 @@ class MainWindow(QMainWindow):
         c.failed.connect(lambda detail: self._error_once("error.inpaint", detail=detail))
         c.processingChanged.connect(self._processing_changed)
         c.progress.connect(self._processing_progress)
+        c.longProcessingChanged.connect(self._long_changed)
         self._brush_changed(self.brush_panel.diameter)
 
     def _brush_changed(self, d: int) -> None:
@@ -531,21 +532,35 @@ class MainWindow(QMainWindow):
 
     def _show_processing_text(self) -> None:
         n = len(self.session.pending_masks) if self.session is not None else 0
-        self.lbl_proc.setText(t("status.processing_n", count=n) if n > 1 else t("status.processing"))
+        parts = [t("status.processing_n", count=n) if n > 1 else t("status.processing")]
+        done, total = getattr(self, "_proc_stage", (0, 0))
+        if total > 1 and done < total:                      # M3.7.10: עיבוד רב-שלבי (אריחים/קבוצות)
+            parts.append(t("status.processing_stage", step=done + 1, total=total))
+        if self.controller.long_on:
+            parts.append(t("status.processing_long"))
+        self.lbl_proc.setText(" · ".join(parts))
+
+    def _long_changed(self, on: bool) -> None:
+        if self.controller.indicator_on:
+            self._show_processing_text()
 
     def _processing_changed(self, on: bool) -> None:
         self.lbl_proc.setVisible(on)
         self.proc_progress.setVisible(on)
         if on:
+            self._proc_stage = (0, 0)
             self.proc_progress.setRange(0, 0)
             self._show_processing_text()
         else:
+            self._proc_stage = (0, 0)
             self.lbl_proc.setText("")
 
     def _processing_progress(self, done: int, total: int) -> None:
+        self._proc_stage = (done, total)
         if self.controller.indicator_on and total > 1:
             self.proc_progress.setRange(0, total)
             self.proc_progress.setValue(done)
+            self._show_processing_text()
 
     # ------------------------------------------------------------------ מנוע
     def _start_engine(self, factory: Callable) -> None:

@@ -43,6 +43,8 @@
   "status.zoom": "{percent}%",
   "status.processing": "מעבד…",
   "status.processing_n": "מעבד… ({count} משיכות)",
+  "status.processing_stage": "שלב {step} מתוך {total}",
+  "status.processing_long": "אזור גדול, העיבוד ארוך מהרגיל (Ctrl+Z מבטל)",
   "status.engine_loading": "טוען את מנוע ההסרה…",
   "status.engine_ready": "מנוע ההסרה מוכן",
   "status.engine_wait": "מנוע ההסרה עדיין נטען. המשיכה תופעל כשיסתיים.",

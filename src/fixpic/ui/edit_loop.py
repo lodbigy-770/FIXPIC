@@ -33,6 +33,7 @@ from ..strings import t
 log = logging.getLogger("fixpic.ui.edit")
 
 INDICATOR_DELAY_MS = 200      # PARITY-SPEC §3.5
+LONG_DELAY_MS = 3000          # M3.7.10: עיבוד שנמשך כך מקבל הודעת "עיבוד ארוך" (אזור גדול, compile ראשון)
 
 
 class EngineState(str, Enum):
@@ -49,6 +50,7 @@ class EditController(QObject):
     message = Signal(str)               # הודעת סטטוס
     failed = Signal(str)                # כשל בעיבוד (טקסט מלא להצגה)
     processingChanged = Signal(bool)    # מחוון עיבוד (אחרי 200ms)
+    longProcessingChanged = Signal(bool)   # עיבוד ארוך (אחרי LONG_DELAY_MS), מתאפס בסיום
     progress = Signal(int, int)         # done, total של העבודה הרצה
     _job_done = Signal(object)          # פנימי: מ-thread של Worker ל-UI
     _job_progress = Signal(int, int)
@@ -63,12 +65,17 @@ class EditController(QObject):
         self.erase_mode = False
         self.feather_px: int | None = None   # None = לפי ה-cfg של המנוע (M4: סליידר Feathering)
         self.indicator_on = False
+        self.long_on = False
         self._stroke: dict | None = None    # {"erase": bool, "last": (x, y)}
         self._waiting: str | None = None    # "queue" | "engine": מסכה בשכבה שמחכה להגשה
         self._timer = QTimer(self)
         self._timer.setSingleShot(True)
         self._timer.setInterval(INDICATOR_DELAY_MS)
         self._timer.timeout.connect(self._show_indicator)
+        self._long_timer = QTimer(self)
+        self._long_timer.setSingleShot(True)
+        self._long_timer.setInterval(LONG_DELAY_MS)
+        self._long_timer.timeout.connect(self._show_long)
         self._job_done.connect(self._handle_done, Qt.QueuedConnection)
         self._job_progress.connect(self._handle_progress, Qt.QueuedConnection)
 
@@ -112,6 +119,7 @@ class EditController(QObject):
         if self.session is not None:
             self.session.cancel_pending()
         self._timer.stop()
+        self._long_timer.stop()
         if self.scheduler is not None:
             self.scheduler.shutdown(wait=True, timeout=timeout)
             self.scheduler = None
@@ -324,11 +332,22 @@ class EditController(QObject):
         if busy:
             if not self.indicator_on and not self._timer.isActive():
                 self._timer.start()
+            if not self.long_on and not self._long_timer.isActive():
+                self._long_timer.start()
         else:
             self._timer.stop()
+            self._long_timer.stop()
+            if self.long_on:
+                self.long_on = False
+                self.longProcessingChanged.emit(False)
             if self.indicator_on:
                 self.indicator_on = False
                 self.processingChanged.emit(False)
+
+    def _show_long(self) -> None:
+        if self.session is not None and self.session.busy and not self.long_on:
+            self.long_on = True
+            self.longProcessingChanged.emit(True)
 
     def _show_indicator(self) -> None:
         if self.session is not None and self.session.busy and not self.indicator_on:
