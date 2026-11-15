@@ -267,6 +267,8 @@ src/fixpic/
   history/          Undo/Redo (Patches); מומש ב-M3.2
   session/          Session, MaskLayer, MaskHistory, פעולות מסכה, מדיניות Alpha; מומש ב-M3.2 וב-M4
   select/           בחירה אוטומטית (שרביט, GrabCut, משיכה → נקודות, SelectionService); M4, ראו AUTO-SELECT.md
+  quality.py        מדדי איכות למילוי (צל מטושטש, פסים/תפרים, הפרש צבע בגבול); מומש ב-M3.7.3
+  casefile.py       מקרה בדיקה (תמונה, מסכה, פרמטרים); M3.7.1
   imgio/            טעינה/שמירה (נתיבי Unicode); לא נקרא io כדי לא להצל על ה-stdlib (מומש ב-M3.1)
 tests/
 tools/              m1/ m3/ m4/ (מדידות וסקריפטים להרצה אצל המשתמש), poc/ (ה-PoC הקיים; נשמר להיסטוריה)
