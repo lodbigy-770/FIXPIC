@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import math
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -40,6 +41,9 @@ class PipelineConfig:
     large_strategy: str = "auto"
     min_scale: float = 0.5       # מתחתיו, ב-"auto", עוברים לאריחים; ערך זמני (איכות לא נמדדה)
     tile_overlap: int = 64       # הקשר סביב ליבת האריח
+    # M3.7.6: מיזוג הדרגתי בין אריחים. פס (בפיקסלי קלט למודל) לאורך הצדדים שבהם כבר מולא אריח שכן; הוא ממולא שוב
+    # (המודל רואה אותו כמסכה) ומעורבב עם התוצאה הקודמת במשקל שעולה מ-0 ל-1. 0 = כבוי (מיזוג קשה בגבול הליבה). ערך זמני.
+    tile_blend_px: int = 32
     max_tiles: int = 64          # מעל זה חוזרים להקטנה (תקרת זמן)
     memory_limit_mb: int | None = None   # תקרת זיכרון להערכה מראש (כולל המודל); None = ללא בדיקה
     model_overhead_mb: int = 1600        # שיא תהליך של OpenVINO נמדד ב-M1.5: 1.51GB; ערך מעוגל כלפי מעלה
@@ -295,17 +299,33 @@ class Pipeline:
             return
         gm = Group(g.box, g.mask.copy())            # "נותר למילוי": ריק אחרי כל אריח
         bx, by = g.box[0], g.box[1]
+        c = self.cfg
+        k = 1.0 / ts if ts < 1.0 else 1.0
+        blend = min(math.ceil(c.tile_blend_px * k), math.ceil(c.tile_overlap * k)) if c.tile_blend_px > 0 else 0
         for core in cores:
             cancel.raise_if_cancelled()
             x0, y0, x1, y1 = core
             if not gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any():
                 continue
-            self._infer(result, m, gm, tile_plan(x0, y0, x1, y1, hw, size, ts), core, cancel, rois, feather)
-            gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx] = 0
+            # פס מיזוג: רק לכיוונים שכבר מולאו (שמאל ולמעלה, סדר שורות), ולא מעבר לתיבת הקבוצה
+            ex0 = max(bx, x0 - blend) if x0 > bx else x0
+            ey0 = max(by, y0 - blend) if y0 > by else y0
+            ebox = (ex0, ey0, x1, y1)
+            weight = None
+            if ex0 < x0 or ey0 < y0:
+                wx = np.ones(x1 - ex0, np.float32)
+                wx[:x0 - ex0] = (np.arange(x0 - ex0, dtype=np.float32) + 1) / (x0 - ex0 + 1)
+                wy = np.ones(y1 - ey0, np.float32)
+                wy[:y0 - ey0] = (np.arange(y0 - ey0, dtype=np.float32) + 1) / (y0 - ey0 + 1)
+                weight = np.minimum(wy[:, None], wx[None, :])
+                # בפס, המודל רואה את המסכה המקורית (ולא את "נותר למילוי") כדי למלא אותו מחדש
+                gm.mask[ey0 - by:y1 - by, ex0 - bx:x1 - bx] = g.mask[ey0 - by:y1 - by, ex0 - bx:x1 - bx]
+            self._infer(result, m, gm, tile_plan(ex0, ey0, x1, y1, hw, size, ts), ebox, cancel, rois, feather, weight)
+            gm.mask[ey0 - by:y1 - by, ex0 - bx:x1 - bx] = 0
             st.step()
 
     # ---------------------------------------------------------------- infer
-    def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois, feather) -> None:
+    def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois, feather, weight=None) -> None:
         """מריץ חלון אחד. g.mask: מה שנותר למילוי (המודל רואה אותו); נכתבים רק פיקסלים של g.mask בתוך commit_box."""
         size = p.size
         win_mask = np.zeros((p.height, p.width), np.uint8)
@@ -342,6 +362,9 @@ class Pipeline:
             return
         region = (p.x0 + cx0, p.y0 + cy0, p.x0 + cx1, p.y0 + cy1)
         alpha = self._alpha(m, region, feather)
+        if weight is not None:      # משקל מיזוג בין אריחים (ממוקם ב-commit_box; region יכול להיות חיתוך שלו)
+            wy0, wx0 = region[1] - commit_box[1], region[0] - commit_box[0]
+            alpha = alpha * weight[wy0:wy0 + alpha.shape[0], wx0:wx0 + alpha.shape[1]]
         for r0 in range(cy0, cy1, STRIP):
             r1 = min(cy1, r0 + STRIP)
             sel = win_mask[r0:r1, cx0:cx1] > 0
