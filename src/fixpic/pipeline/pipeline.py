@@ -44,6 +44,11 @@ class PipelineConfig:
     # M3.7.6: מיזוג הדרגתי בין אריחים. פס (בפיקסלי קלט למודל) לאורך הצדדים שבהם כבר מולא אריח שכן; הוא ממולא שוב
     # (המודל רואה אותו כמסכה) ומעורבב עם התוצאה הקודמת במשקל שעולה מ-0 ל-1. 0 = כבוי (מיזוג קשה בגבול הליבה). ערך זמני.
     tile_blend_px: int = 32
+    # M3.7.7 (מגס לדק), רק לקבוצות שמעובדות באריחים: מעבר ראשון בחלון יחיד מוקטן (מבנה וצבע של כל האזור), ואז מעבר
+    # עדין באריחים ברזולוציה מקורית (או הקטנה קלה) על חגורה לאורך גבול המסכה בלבד, עם התוצאה הגסה כהקשר. פנים האזור
+    # נשאר כפי שהמעבר הגס מילא אותו. כבוי כברירת מחדל עד שיכויל על Big LaMa (M3.7.9). ערכים זמניים.
+    coarse_fine: bool = False
+    coarse_belt_px: int = 64     # רוחב החגורה, בפיקסלי קלט למודל (במקור: מוגדל פי 1/scale של האריחים)
     max_tiles: int = 64          # מעל זה חוזרים להקטנה (תקרת זמן)
     memory_limit_mb: int | None = None   # תקרת זיכרון להערכה מראש (כולל המודל); None = ללא בדיקה
     model_overhead_mb: int = 1600        # שיא תהליך של OpenVINO נמדד ב-M1.5: 1.51GB; ערך מעוגל כלפי מעלה
@@ -221,8 +226,7 @@ class Pipeline:
         for g in group_mask(m, size, c.margin_ratio, c.min_margin):
             p, cores, ts = self._strategy(g, size, hw)
             if cores is not None:
-                bx, by = g.box[0], g.box[1]
-                runs = sum(1 for x0, y0, x1, y1 in cores if g.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
+                runs = self._count(g, size, hw)
                 kind, eff, windows = "tile", ts, runs
             elif p.downscaled:
                 kind, eff, windows = "downscale", p.scale, 1
@@ -251,23 +255,54 @@ class Pipeline:
             if cores is None:
                 continue
             gx0, gy0, gx1, gy1 = g.box
+            cov = m[gy0:gy1, gx0:gx1]
+            if self.cfg.coarse_fine:        # התפרים הם רק של המעבר העדין, כלומר בתוך החגורה
+                cov = self._belt(g, _ts, hw)[0]
             for x in sorted({c[0] for c in cores} | {c[2] for c in cores}):
                 if gx0 < x < gx1:
-                    both = (m[gy0:gy1, x - 1] > 0) & (m[gy0:gy1, x] > 0)
+                    both = (cov[:, x - 1 - gx0] > 0) & (cov[:, x - gx0] > 0)
                     lines += [("v", x, a, b) for a, b in runs(both, gy0)]
             for y in sorted({c[1] for c in cores} | {c[3] for c in cores}):
                 if gy0 < y < gy1:
-                    both = (m[y - 1, gx0:gx1] > 0) & (m[y, gx0:gx1] > 0)
+                    both = (cov[y - 1 - gy0, :] > 0) & (cov[y - gy0, :] > 0)
                     lines += [("h", y, a, b) for a, b in runs(both, gx0)]
         return lines
 
     def _count(self, g: Group, size: int, hw) -> int:
         """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
-        _, cores, _ts = self._strategy(g, size, hw)
+        _, cores, ts = self._strategy(g, size, hw)
         if cores is None:
             return 1
-        bx, by = g.box[0], g.box[1]
-        return sum(1 for x0, y0, x1, y1 in cores if g.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
+        if self.cfg.coarse_fine:
+            return 1 + self._count_tiles(self._belt(g, ts, hw)[0], g.box, cores)
+        return self._count_tiles(g.mask, g.box, cores)
+
+    @staticmethod
+    def _count_tiles(mask, box, cores) -> int:
+        bx, by = box[0], box[1]
+        return sum(1 for x0, y0, x1, y1 in cores if mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
+
+    def _belt(self, g: Group, ts: float, hw) -> tuple[np.ndarray, np.ndarray]:
+        """M3.7.7: (חגורה, gain) בגודל ה-box. חגורה: פיקסלי המסכה במרחק עד `coarse_belt_px` (במקור) מהגבול האמיתי של
+        הקבוצה. ה-box נחשב גבול (מחוץ לו אין מסכה), חוץ מצדדים שנוגעים בקצה התמונה (שם אין גבול). gain: 1 בעומק החגורה
+        ויורד ל-0 בקצה הפנימי שלה (חצי מהרוחב), כדי שהמעבר העדין יתמזג בהדרגה בתוצאה הגסה."""
+        k = 1.0 / ts if ts < 1.0 else 1.0
+        belt = max(2, math.ceil(self.cfg.coarse_belt_px * k))
+        x0, y0, x1, y1 = g.box
+        h, w = hw
+        pad = cv2.copyMakeBorder(g.mask, 1, 1, 1, 1, cv2.BORDER_CONSTANT, value=0)
+        if y0 == 0:
+            pad[0, :] = 1
+        if y1 == h:
+            pad[-1, :] = 1
+        if x0 == 0:
+            pad[:, 0] = 1
+        if x1 == w:
+            pad[:, -1] = 1
+        dist = cv2.distanceTransform(pad, cv2.DIST_L2, 3)[1:-1, 1:-1]
+        ramp = max(1.0, belt / 2.0)
+        gain = np.clip((belt - dist) / ramp, 0.0, 1.0).astype(np.float32)
+        return ((dist <= belt) & (g.mask > 0)).astype(np.uint8), gain
 
     def _run_group_with_retry(self, image, result, m, g: Group, size, cancel, rois, st, hw, feather) -> int:
         sizes = sorted((s for s in self.cfg.sizes if s <= size), reverse=True)
@@ -327,6 +362,19 @@ class Pipeline:
             self._infer(result, m, g, p, g.box, cancel, rois, feather)
             st.step()
             return
+        if not self.cfg.coarse_fine:
+            self._run_tiles(result, m, g, size, cores, ts, cancel, rois, st, feather)
+            return
+        # מגס לדק: (1) חלון יחיד מוקטן (p) ממלא את כל האזור; (2) אריחים רק על החגורה, והמודל רואה את המילוי הגס כהקשר
+        self._infer(result, m, g, p, g.box, cancel, rois, feather)
+        st.step()
+        belt, gain = self._belt(g, ts, hw)
+        self._run_tiles(result, m, Group(g.box, belt), size, cores, ts, cancel, rois, st, feather, m_alpha=m, gain=gain)
+
+    def _run_tiles(self, result, m, g: Group, size, cores, ts, cancel, rois, st, feather, m_alpha=None, gain=None) -> None:
+        """אריחים על g.mask. `m_alpha`: המסכה שלפיה מחושב ה-Feathering של הקצה (ברירת מחדל: m); `gain`: משקל נוסף בגודל
+        ה-box של הקבוצה (המעבר העדין של מגס-לדק)."""
+        hw = result.shape[:2]
         gm = Group(g.box, g.mask.copy())            # "נותר למילוי": ריק אחרי כל אריח
         bx, by = g.box[0], g.box[1]
         c = self.cfg
@@ -350,12 +398,13 @@ class Pipeline:
                 weight = np.minimum(wy[:, None], wx[None, :])
                 # בפס, המודל רואה את המסכה המקורית (ולא את "נותר למילוי") כדי למלא אותו מחדש
                 gm.mask[ey0 - by:y1 - by, ex0 - bx:x1 - bx] = g.mask[ey0 - by:y1 - by, ex0 - bx:x1 - bx]
-            self._infer(result, m, gm, tile_plan(ex0, ey0, x1, y1, hw, size, ts), ebox, cancel, rois, feather, weight)
+            self._infer(result, m if m_alpha is None else m_alpha, gm, tile_plan(ex0, ey0, x1, y1, hw, size, ts), ebox,
+                        cancel, rois, feather, weight, None if gain is None else (gain, (bx, by)))
             gm.mask[ey0 - by:y1 - by, ex0 - bx:x1 - bx] = 0
             st.step()
 
     # ---------------------------------------------------------------- infer
-    def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois, feather, weight=None) -> None:
+    def _infer(self, result, m, g: Group, p: RoiPlan, commit_box, cancel, rois, feather, weight=None, gain=None) -> None:
         """מריץ חלון אחד. g.mask: מה שנותר למילוי (המודל רואה אותו); נכתבים רק פיקסלים של g.mask בתוך commit_box."""
         size = p.size
         win_mask = np.zeros((p.height, p.width), np.uint8)
@@ -395,6 +444,9 @@ class Pipeline:
         if weight is not None:      # משקל מיזוג בין אריחים (ממוקם ב-commit_box; region יכול להיות חיתוך שלו)
             wy0, wx0 = region[1] - commit_box[1], region[0] - commit_box[0]
             alpha = alpha * weight[wy0:wy0 + alpha.shape[0], wx0:wx0 + alpha.shape[1]]
+        if gain is not None:        # משקל נוסף בגודל ה-box של הקבוצה, במקום (bx, by)
+            ga, (gbx, gby) = gain
+            alpha = alpha * ga[region[1] - gby:region[3] - gby, region[0] - gbx:region[2] - gbx]
         for r0 in range(cy0, cy1, STRIP):
             r1 = min(cy1, r0 + STRIP)
             sel = win_mask[r0:r1, cx0:cx1] > 0

@@ -7,7 +7,7 @@
   python tools/m3/quality_bench.py cases/boy_large --plan-only                       # רק תכנון: אילו תצורות ובכמה הרצות, בלי מודל
   python tools/m3/quality_bench.py cases/paris_chair cases/table_camera --out m3_bench --quick
   python tools/m3/quality_bench.py cases/boy_large --sizes 384,512 --strategies auto,tile --min-scales 0.5,0.25 \\
-        --feathers 3,8 --overlaps 64,128 --blends 0,32 --max-runs 60 --threads 3
+        --feathers 3,8 --overlaps 64,128 --blends 0,32 --coarses 0,1 --max-runs 60 --threads 3
 
 הרשת היא מכפלה של: `--sizes` x `--strategies` x `--min-scales` (רק ל-auto) x `--feathers` x `--overlaps` x `--blends` (רק כשיש אריחים; `tile_blend_px`, 0 = תפר קשה).
 תצורות שהתכנון שלהן זהה (אותו סוג/קנה מידה/מספר הרצות לכל קבוצה) מורצות פעם אחת. תצורה שדורשת יותר מ-`--max-runs` הרצות
@@ -83,22 +83,22 @@ def peak_rss_mb() -> float | None:
         return None
 
 
-def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int, blend: int) -> str:
+def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int, blend: int, coarse: int = 0) -> str:
     ms = f"-ms{min_scale:g}" if strategy == "auto" else ""
-    return f"s{size}-{strategy}{ms}-f{feather}-o{overlap}-b{blend}"
+    return f"s{size}-{strategy}{ms}-f{feather}-o{overlap}-b{blend}" + ("-cf" if coarse else "")
 
 
-def build_grid(sizes, strategies, min_scales, feathers, overlaps, blends=(32,)) -> list[dict]:
+def build_grid(sizes, strategies, min_scales, feathers, overlaps, blends=(32,), coarses=(0,)) -> list[dict]:
     """רשימת תצורות (מילונים). min_scale רלוונטי רק ל-auto; overlap מצומצם בהמשך לפי התכנון."""
     out, seen = [], set()
     for size, strat, feather in itertools.product(sizes, strategies, feathers):
         for ms in (min_scales if strat == "auto" else [min_scales[0] if min_scales else 0.5]):
-            for ov, bl in itertools.product(overlaps, blends):
-                cid = config_id(size, strat, ms, feather, ov, bl)
+            for ov, bl, cf in itertools.product(overlaps, blends, coarses):
+                cid = config_id(size, strat, ms, feather, ov, bl, cf)
                 if cid not in seen:
                     seen.add(cid)
                     out.append(dict(id=cid, size=size, large_strategy=strat, min_scale=ms, feather_px=feather,
-                                    tile_overlap=ov, tile_blend_px=bl))
+                                    tile_overlap=ov, tile_blend_px=bl, coarse_fine=int(cf)))
     return out
 
 
@@ -168,7 +168,7 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
     for i, cfg in enumerate(configs, 1):
         pc = replace(base, sizes=tuple(sorted(set(base.sizes) | {cfg["size"]})), large_strategy=cfg["large_strategy"],
                      min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
-                     tile_blend_px=cfg["tile_blend_px"])
+                     tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)))
         pipe = Pipeline(model, pc)
         rep = pipe.plan(mask, cfg["size"], brush)
         sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"])
@@ -295,7 +295,7 @@ def main() -> None:
     ap.add_argument("--out", default="m3_bench")
     ap.add_argument("--quick", action="store_true", help="רשת קטנה: bucket 384, auto/tile")
     ap.add_argument("--sizes"), ap.add_argument("--strategies"), ap.add_argument("--min-scales")
-    ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends")
+    ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends"), ap.add_argument("--coarses", help="0,1: מגס לדק (M3.7.7) כבוי/דולק")
     ap.add_argument("--max-runs", type=int, default=80)
     ap.add_argument("--plan-only", action="store_true", help="רק תכנון (בלי מודל)")
     ap.add_argument("--save-full", action="store_true")
@@ -305,7 +305,7 @@ def main() -> None:
     a = ap.parse_args()
 
     g = dict(QUICK_GRID if a.quick else DEFAULT_GRID)
-    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int)):
+    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int), ("coarses", int)):
         v = getattr(a, key)
         if v:
             g[key] = _list(v, typ)
@@ -325,7 +325,7 @@ def main() -> None:
             for cfg in configs:
                 pc = PipelineConfig(sizes=tuple(sorted({256, 384, 512, cfg["size"]})), large_strategy=cfg["large_strategy"],
                                     min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
-                                    tile_blend_px=cfg["tile_blend_px"])
+                                    tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)))
                 rep = Pipeline(_Stub(), pc).plan(case["mask"], cfg["size"], brush)
                 sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"])
                 note = f"= {seen[sig]}" if sig in seen else (f"> max-runs ({a.max_runs})" if rep.runs > a.max_runs else "תרוץ")
