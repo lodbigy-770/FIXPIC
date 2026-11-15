@@ -13,7 +13,10 @@
         --coarses 1 --coarse-sizes 768 --belt-px 0 --textures 0,1   # M3.7.8 על מסלול ברירת המחדל (חלון גס 768 בלי חגורה)
   #   # M3.7.8: שחזור טקסטורה (הוסיף "-tx" למזהה)
 
-הרשת היא מכפלה של: `--sizes` x `--strategies` x `--min-scales` (רק ל-auto) x `--feathers` x `--overlaps` x `--blends` (רק כשיש אריחים; `tile_blend_px`, 0 = תפר קשה).
+# M3.7.12: --dilates auto,20,60,m8  (auto = ההרחבה האוטומטית; N = N פיקסלים ברזולוציה מלאה; mN = לפחות N פיקסלים בקלט המודל; הוסיף "-dN"/"-dmN" למזהה)
+
+הרשת היא מכפלה של: `--sizes` x `--strategies` x `--min-scales` (רק ל-auto) x `--feathers` x `--overlaps` x `--blends` (רק כשיש אריחים; `tile_blend_px`, 0 = תפר קשה) x `--dilates` (M3.7.12).
+שימו לב: ההרחבה משנה את המסכה שעליה נמדדים texture/stripe/cdiff, ולכן בין ערכי הרחבה שונים המדדים אינם מדד איכות מהימן; ההכרעה בעין.
 תצורות שהתכנון שלהן זהה (אותו סוג/קנה מידה/מספר הרצות לכל קבוצה) מורצות פעם אחת. תצורה שדורשת יותר מ-`--max-runs` הרצות
 מודל מדולגת ומדווחת (ב-i5-6500T כל הרצה כ-1-2 שניות). שיא הזיכרון הוא של התהליך כולו עד כה (עולה בלבד), ולכן ערך גבוה
 בתצורה מסוימת אומר שהיא העלתה את השיא; לבידוד מלא מריצים תצורה אחת בכל הרצה.
@@ -30,6 +33,7 @@ import argparse
 import csv
 import itertools
 import json
+import math
 import sys
 import time
 from dataclasses import replace
@@ -91,34 +95,71 @@ def peak_rss_mb() -> float | None:
 
 
 def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int, blend: int, coarse: int = 0,
-              coarse_size: int = 0, texture: int = 0) -> str:
+              coarse_size: int = 0, texture: int = 0, dilate: str = "auto") -> str:
     ms = f"-ms{min_scale:g}" if strategy == "auto" else ""
     return (f"s{size}-{strategy}{ms}-f{feather}-o{overlap}-b{blend}" + ("-cf" if coarse else "")
-            + (f"{coarse_size}" if coarse and coarse_size else "") + ("-tx" if texture else ""))
+            + (f"{coarse_size}" if coarse and coarse_size else "") + ("-tx" if texture else "") + (f"-d{dilate}" if dilate != "auto" else ""))
 
 
 def build_grid(sizes, strategies, min_scales, feathers, overlaps, blends=(32,), coarses=(0,), coarse_sizes=(0,),
-               textures=(0,)) -> list[dict]:
+               textures=(0,), dilates=("auto",)) -> list[dict]:
     """רשימת תצורות (מילונים). min_scale רלוונטי רק ל-auto; overlap מצומצם בהמשך לפי התכנון."""
     out, seen = [], set()
     for size, strat, feather in itertools.product(sizes, strategies, feathers):
         for ms in (min_scales if strat == "auto" else [min_scales[0] if min_scales else 0.5]):
-            for ov, bl, cf, cs, tx in itertools.product(overlaps, blends, coarses, coarse_sizes, textures):
+            for ov, bl, cf, cs, tx, dl in itertools.product(overlaps, blends, coarses, coarse_sizes, textures, dilates):
                 if not cf and cs:
                     continue                    # coarse_size רלוונטי רק עם מגס לדק
-                cid = config_id(size, strat, ms, feather, ov, bl, cf, cs, tx)
+                dl = parse_dilate(dl)
+                cid = config_id(size, strat, ms, feather, ov, bl, cf, cs, tx, dl)
                 if cid not in seen:
                     seen.add(cid)
                     out.append(dict(id=cid, size=size, large_strategy=strat, min_scale=ms, feather_px=feather,
                                     tile_overlap=ov, tile_blend_px=bl, coarse_fine=int(cf), coarse_size=int(cs),
-                                    texture_restore=int(tx)))
+                                    texture_restore=int(tx), dilate=dl))
     return out
+
+
+MAX_DILATE_PX = 512     # תקרה להרחבה ברזולוציה מלאה (ליבת ההרחבה היא אליפסה של (2r+1)^2)
+
+
+def parse_dilate(tok) -> str:
+    """\"auto\" | \"N\" (פיקסלים ברזולוציה מלאה, 0 = כבוי) | \"mN\" (לפחות N פיקסלים בקלט המודל). מחזיר צורה מנורמלת."""
+    t = str(tok).strip().lower()
+    if t == "auto":
+        return t
+    body = t[1:] if t.startswith("m") else t
+    if not body.isdigit():
+        raise ValueError(f"--dilates: ערך לא תקין {tok!r} (auto, N או mN)")
+    return f"m{int(body)}" if t.startswith("m") else str(int(body))
+
+
+def resolve_dilate(model, pc: PipelineConfig, mask: np.ndarray, size: int, brush, token: str) -> int | None:
+    """הרחבה קבועה (פיקסלים ברזולוציה מלאה) לתצורה, או None (= אוטומטי, כמו `Pipeline`).
+
+    \"mN\": קנה המידה שבו המודל רואה את האזור תלוי בהרחבה (חלון גדול יותר = הקטנה גדולה יותר), ולכן שני סבבים:
+    קנה מידה מהתכנון האוטומטי, r = ceil(N/scale), תכנון מחדש עם r, ושוב r = ceil(N/scale). חסום ב-`MAX_DILATE_PX`.
+    בקנה מידה 1.0 (או יותר) r = N."""
+    tok = parse_dilate(token)
+    if tok == "auto":
+        return None
+    if not tok.startswith("m"):
+        return min(int(tok), MAX_DILATE_PX)
+    n = int(tok[1:])
+    if n == 0:
+        return 0
+    r = None
+    for _ in range(2):
+        cfg = pc if r is None else replace(pc, mask_dilate_px=r)
+        scale = Pipeline(model, cfg).plan(mask, size, brush).min_scale
+        r = min(MAX_DILATE_PX, int(math.ceil(n / max(min(scale, 1.0), 1e-3))))
+    return r
 
 
 def plan_signature(rep, ov: int, blend: int = 0) -> tuple:
     """חתימת תכנון: שתי תצורות עם אותה חתימה (ואותו feather) נותנות אותה ריצה. החפיפה נכללת רק כשיש אריחים."""
     has_tile = any(g.kind == "tile" for g in rep.groups)
-    return (rep.size, tuple((g.kind, round(g.scale, 3), g.windows) for g in rep.groups), (ov, blend) if has_tile else None)
+    return (rep.size, rep.dilate_px, tuple((g.kind, round(g.scale, 3), g.windows) for g in rep.groups), (ov, blend) if has_tile else None)
 
 
 def crop_box(mask: np.ndarray, margin: float = 0.15) -> tuple[slice, slice]:
@@ -183,6 +224,9 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
                      min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
                      tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_belt_px=cfg.get("coarse_belt_px", 64), coarse_size=cfg.get("coarse_size") or None,
                      texture_restore=bool(cfg.get("texture_restore", 0)))
+        dil = resolve_dilate(model, pc, mask, cfg["size"], brush, cfg.get("dilate", "auto"))
+        if dil is not None:
+            pc = replace(pc, mask_dilate_px=dil)
         pipe = Pipeline(model, pc)
         rep = pipe.plan(mask, cfg["size"], brush)
         sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"], cfg.get("coarse_fine", 0), cfg.get("coarse_size", 0),
@@ -196,7 +240,7 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
             log(f"[{i}/{len(configs)}] {cfg['id']}: דילוג ({rep.runs} הרצות > {max_runs})")
             continue
         seen[sig] = cfg["id"]
-        row = dict(cfg, planned_runs=rep.runs, kinds=",".join(sorted({g.kind for g in rep.groups})),
+        row = dict(cfg, dilate_px=rep.dilate_px, planned_runs=rep.runs, kinds=",".join(sorted({g.kind for g in rep.groups})),
                    scale=round(rep.min_scale, 3))
         coarse_cell: list = []
         if cfg.get("coarse_fine"):          # אבחון M3.7.7: איך נראה המילוי אחרי המעבר הגס בלבד
@@ -249,7 +293,7 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
     return data
 
 
-COLS = ["id", "planned_runs", "kinds", "scale", "seconds", "texture_groups", "peak_rss_mb", "texture_ratio", "stripe_score", "seam_ratio",
+COLS = ["id", "dilate_px", "planned_runs", "kinds", "scale", "seconds", "texture_groups", "peak_rss_mb", "texture_ratio", "stripe_score", "seam_ratio",
         "boundary_color_diff", "boundary_color_diff_p95", "ref_texture_ratio", "ref_stripe_score",
         "ref_boundary_color_diff", "error"]
 
@@ -324,6 +368,7 @@ def main() -> None:
     ap.add_argument("--sizes"), ap.add_argument("--strategies"), ap.add_argument("--min-scales")
     ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends"), ap.add_argument("--coarses", help="0,1: מגס לדק (M3.7.7) כבוי/דולק"), ap.add_argument("--textures", help="0,1: שחזור טקסטורה (M3.7.8) כבוי/דולק"), ap.add_argument("--coarse-sizes", dest="coarse_sizes", help="bucket של המעבר הגס, למשל 0,768,1024 (0 = כמו האריחים; רק עם --coarses 1)")
     ap.add_argument("--belt-px", dest="belt_px", type=int, default=64, help="רוחב חגורת המעבר העדין בתצורות מגס-לדק (--coarses 1); 0 = חלון גס יחיד בלי חגורה, כמו ברירת המחדל של ADR-012 (M3.7.9)")
+    ap.add_argument("--dilates", help="M3.7.12: הרחבת מסכה: auto, N (פיקסלים ברזולוציה מלאה, 0 = כבוי) או mN (לפחות N פיקסלים בקלט המודל), למשל auto,20,60,m8")
     ap.add_argument("--max-runs", type=int, default=80)
     ap.add_argument("--plan-only", action="store_true", help="רק תכנון (בלי מודל)")
     ap.add_argument("--save-full", action="store_true")
@@ -333,7 +378,7 @@ def main() -> None:
     a = ap.parse_args()
 
     g = dict(HEAVY_GRID if a.heavy else QUICK_GRID if a.quick else DEFAULT_GRID)
-    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int), ("coarses", int), ("coarse_sizes", int), ("textures", int)):
+    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int), ("coarses", int), ("coarse_sizes", int), ("textures", int), ("dilates", str)):
         v = getattr(a, key)
         if v:
             g[key] = _list(v, typ)
@@ -358,12 +403,15 @@ def main() -> None:
                                     min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
                                     tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_belt_px=cfg.get("coarse_belt_px", 64), coarse_size=cfg.get("coarse_size") or None,
                      texture_restore=bool(cfg.get("texture_restore", 0)))
+                dil = resolve_dilate(_Stub(), pc, case["mask"], cfg["size"], brush, cfg.get("dilate", "auto"))
+                if dil is not None:
+                    pc = replace(pc, mask_dilate_px=dil)
                 rep = Pipeline(_Stub(), pc).plan(case["mask"], cfg["size"], brush)
                 sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"], cfg.get("coarse_fine", 0), cfg.get("coarse_size", 0),
                cfg.get("texture_restore", 0))
                 note = f"= {seen[sig]}" if sig in seen else (f"> max-runs ({a.max_runs})" if rep.runs > a.max_runs else "תרוץ")
                 seen.setdefault(sig, cfg["id"])
-                print(f"  {cfg['id']:28} {rep.runs:>4} הרצות, קנה מידה {rep.min_scale:.3f}, {note}")
+                print(f"  {cfg['id']:34} הרחבה {rep.dilate_px:>3}px, {rep.runs:>4} הרצות, קנה מידה {rep.min_scale:.3f}, הרחבה בקלט המודל {rep.dilate_px * rep.min_scale:.1f}px, {note}")
         return
 
     from fixpic.cli import DEFAULT_MODELS
