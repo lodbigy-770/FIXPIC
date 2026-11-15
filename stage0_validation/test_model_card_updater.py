@@ -122,6 +122,27 @@ class TestParseBackupWrite:
         write_model_card(p, text)
         assert p.read_bytes() == text.encode("utf-8") and not p.read_bytes().startswith(b"\xef\xbb\xbf")
 
+    def test_write_always_uses_lf_even_on_windows(self, monkeypatch, tmp_path):
+        """רגרסיה (נתפס ב-Windows, 2026-11-14): מצב טקסט הפך כל \\n ל-\\r\\n. כאן בודקים שהקוד מבקש newline="\\n" במפורש,
+        כי את os.linesep של Windows אי אפשר לדמות ב-Linux; הבדיקה הקודמת (read_bytes) תופסת זאת ב-Windows עצמו."""
+        from stage0_validation import model_card_updater as mcu
+        seen = {}
+        real_open = open
+
+        def spy(file, mode="r", *a, **kw):
+            seen.update(kw)
+            return real_open(file, mode, *a, **kw)
+
+        monkeypatch.setattr(mcu, "open", spy, raising=False)
+        write_model_card(tmp_path / "x.md", "a\nb\n")
+        assert seen.get("newline") == "\n" and seen.get("encoding") == "utf-8"
+
+    def test_crlf_card_is_normalised_to_lf_on_write(self, tmp_path):
+        p = tmp_path / "MODEL_CARD.md"
+        p.write_bytes("# MODEL_CARD\r\n> שורה\r\n".encode("utf-8"))
+        write_model_card(p, parse_model_card(p))
+        assert p.read_bytes() == "# MODEL_CARD\n> שורה\n".encode("utf-8")
+
     def test_write_overwrites(self, tmp_path):
         p = tmp_path / "x.md"
         write_model_card(p, "long old content" * 10)

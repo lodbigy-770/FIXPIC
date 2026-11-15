@@ -1198,3 +1198,11 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 **הרצה:** `python -m pytest stage0_validation/test_model_card_updater.py -q` (תיקיית `stage0_validation/` אינה ב-`testpaths` של `pytest.ini`, ולכן אינה ברצה הרגילה של `tests/`).
 
 **לא נבדק:** Windows (סיומות שורה ב-`write_model_card` במצב טקסט); הרצת `validate_stage0.py` מלאה על הקובץ האמיתי (הוא LFS pointer בסביבת Claude).
+
+## 2026-11-14 – Stage 0: תיקון `write_model_card` ב-Windows (סיומות שורה)
+
+**נתפס אצל המשתמש (Windows, Python 3.14) בהרצת `test_model_card_updater.py`:** 48 עברו, 1 נכשלה (`test_write_roundtrip_hebrew_no_bom`): `write_model_card` כתב במצב טקסט, ולכן ב-Windows כל `\n` הפך ל-`\r\n`. זה אותו "לא נבדק: Windows" שסומן בערך הקודם. **באג אמיתי בקוד, לא רק בבדיקה:** הכרטיס בריפו שמור עם LF בלבד (89 שורות, אפס CRLF), ו-`validate_stage0.py` הורץ אצל המשתמש ב-Windows פעמיים, כך שכל הרצה הייתה הופכת את כל הכרטיס ל-CRLF ומייצרת diff של הקובץ כולו במקום שורה אחת.
+
+**תיקון:** `open(path, 'w', encoding='utf-8', newline='\n')` (תמיד LF, בכל פלטפורמה). `parse_model_card` קורא בקריאת שורות אוניברסלית, ולכן כרטיס עם CRLF מנורמל ל-LF בכתיבה. נוספו שתי בדיקות: אחת שמוודאת ש-`newline="\n"` מבוקש במפורש (את `os.linesep` של Windows אי אפשר לדמות ב-Linux, ולכן זו בדיקה על הקריאה ל-`open`; נבדק שהיא נכשלת בלי התיקון), ואחת לנרמול CRLF→LF. הבדיקה המקורית (`read_bytes`) נשארת ותופסת זאת ב-Windows עצמו. סה"כ בקובץ: **51 עוברות, 1 xfail** (Linux).
+
+**לא נבדק:** ריצה מחודשת ב-Windows אחרי התיקון (נדרשת הרצה אצל המשתמש). **פתוח:** `add_verification_note` עדיין מוסיף שורה כפולה בכל הרצה (xfail), טרם הוחלט אם לתקן.

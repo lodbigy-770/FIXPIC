@@ -267,7 +267,11 @@ def write_model_card(path: Path, content: str) -> None:
     Write updated MODEL_CARD content back to disk.
 
     Uses explicit UTF-8 encoding to ensure Hebrew characters are preserved
-    without corruption on all platforms.
+    without corruption on all platforms, and always writes ``\\n`` line endings
+    (``newline="\\n"``): the card is stored with LF in the repo, and text-mode
+    writing on Windows would otherwise convert every line to CRLF and turn a
+    one-line update into a whole-file diff.  (``parse_model_card`` reads with
+    universal newlines, so a CRLF card is normalised to LF on write.)
 
     Args:
         path:    Destination path (normally the original MODEL_CARD.md).
@@ -276,5 +280,5 @@ def write_model_card(path: Path, content: str) -> None:
     Raises:
         PermissionError: If the file cannot be written.
     """
-    with open(path, 'w', encoding='utf-8') as f:
+    with open(path, 'w', encoding='utf-8', newline='\n') as f:
         f.write(content)
