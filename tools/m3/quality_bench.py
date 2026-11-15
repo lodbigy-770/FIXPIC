@@ -49,9 +49,16 @@ QUICK_GRID = dict(sizes=[384], strategies=["auto", "tile"], min_scales=[0.5], fe
 # ---------------------------------------------------------------- עזר
 
 def peak_rss_mb() -> float | None:
-    """שיא הזיכרון של התהליך עד כה (MB), או None אם אי אפשר למדוד."""
+    """שיא הזיכרון של התהליך עד כה (MB), או None אם אי אפשר למדוד. ב-Windows: PeakWorkingSetSize (psutil אם מותקן,
+    אחרת ctypes עם חתימות מפורשות; בגרסה הראשונה החתימות חסרו והמדידה החזירה None אצל המשתמש)."""
     try:
         if sys.platform == "win32":
+            try:
+                import psutil
+                mi = psutil.Process().memory_info()
+                return getattr(mi, "peak_wset", mi.rss) / 2**20
+            except ImportError:
+                pass
             import ctypes
             from ctypes import wintypes
 
@@ -61,12 +68,14 @@ def peak_rss_mb() -> float | None:
                             ("QuotaPeakPagedPoolUsage", ctypes.c_size_t), ("QuotaPagedPoolUsage", ctypes.c_size_t),
                             ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t), ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
                             ("PagefileUsage", ctypes.c_size_t), ("PeakPagefileUsage", ctypes.c_size_t)]
+            k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+            k32.GetCurrentProcess.restype = wintypes.HANDLE
+            fn = getattr(k32, "K32GetProcessMemoryInfo", None) or ctypes.WinDLL("psapi").GetProcessMemoryInfo
+            fn.argtypes = [wintypes.HANDLE, ctypes.POINTER(PMC), wintypes.DWORD]
+            fn.restype = wintypes.BOOL
             pmc = PMC()
             pmc.cb = ctypes.sizeof(PMC)
-            k32 = ctypes.windll.kernel32
-            k32.GetCurrentProcess.restype = wintypes.HANDLE
-            ok = ctypes.windll.psapi.GetProcessMemoryInfo(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb)
-            return pmc.PeakWorkingSetSize / 2**20 if ok else None
+            return pmc.PeakWorkingSetSize / 2**20 if fn(k32.GetCurrentProcess(), ctypes.byref(pmc), pmc.cb) else None
         import resource
         v = resource.getrusage(resource.RUSAGE_SELF).ru_maxrss
         return v / 2**20 if sys.platform == "darwin" else v / 1024
@@ -233,8 +242,8 @@ def _f(v, nd=2):
 def summary_text(data: dict) -> str:
     L = [f"מקרה {data['case']}: {data['size'][0]}x{data['size'][1]}, מסכה {data['mask_pixels']:,} px"
          + (f", ייחוס {data['reference_size'][0]}x{data['reference_size'][1]}" if data["reference_size"] else "")]
-    L.append("קריאה: texture נמוך מ-1 = מרוח; stripe גבוה (מעל כ-10) = תפר/פס; seam מעל כ-1.5 = תפר אריחים; "
-             "cdiff = הפרש צבע בגבול. השוואה רק בין שורות של אותו מקרה.")
+    L.append("קריאה: texture מתחת ל-0.5 = מרוח, מעל 0.85 = תקין; seam מעל 1.3 = תפר אריחים; stripe הוא יחסי בלבד "
+             "(פי 3 מהנמוך באותו מקרה = חשד); cdiff משקף בעיקר את הסצנה. פרטים: analyze_bench.py")
     L.append(f"{'id':28} {'runs':>5} {'kinds':>9} {'scale':>6} {'sec':>7} {'rssMB':>6} {'tex':>6} {'strp':>6} {'seam':>6} "
              f"{'cdiff':>6} | {'r.tex':>6} {'r.strp':>6} {'r.cdif':>6}")
     for r in data["rows"]:

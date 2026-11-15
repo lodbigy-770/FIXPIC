@@ -144,3 +144,21 @@ def test_blend_axis_runs_both_and_dedupes_without_tiles(case, tmp_path):
     done = [r["id"] for r in data["rows"] if not r.get("reference")]
     assert "s384-tile-f3-o64-b0" in done and "s384-tile-f3-o64-b32" in done
     assert sum("downscale" in i for i in done) == 1 and any("זהה" in s["reason"] for s in data["skipped"])
+
+
+def test_analyze_bench_roundtrip(case, tmp_path):
+    spec2 = importlib.util.spec_from_file_location("analyze_bench", REPO / "tools" / "m3" / "analyze_bench.py")
+    ab = importlib.util.module_from_spec(spec2)
+    spec2.loader.exec_module(ab)
+    cfgs = qb.build_grid([384], ["downscale", "tile"], [0.5], [3], [64], [32])
+    qb.run_bench(FakeModel(), case, cfgs, tmp_path / "o", log=lambda *_: None)
+    lines = ab.analyze_case(tmp_path / "o" / "c1", case.parent)
+    text = "\n".join(lines)
+    assert "reference" in text and "s384-tile-f3-o64-b32" in text and "s384-downscale-f3-o64-b32" in text
+    ref = {"texture_ratio": 0.45}
+    good = dict(texture_ratio=0.44, stripe_score=5.0, seam_ratio=None)
+    assert ab.verdict(good, 5.0, ref) == "תקין"                       # הייחוס עצמו נמוך: יחסית אליו תקין
+    assert "מרוח" in ab.verdict(dict(good, texture_ratio=0.2), 5.0, None)
+    assert "seam" in ab.verdict(dict(good, texture_ratio=0.9, seam_ratio=1.5), 5.0, None)
+    assert "stripe" in ab.verdict(dict(good, texture_ratio=0.9, stripe_score=70.0), 5.0, None)
+    assert ab.verdict(dict(good, texture_ratio=0.9, stripe_score=11.0), 3.0, None) == "תקין"   # מתחת לרצפה 12
