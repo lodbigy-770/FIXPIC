@@ -16,7 +16,7 @@
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
 | Milestone 3 – Editing Interface | בעבודה | 7 | 1 | 1 | M3.1-M3.6 בוצעו בסביבת הפיתוח (קבצים, Session/History, שלד ממשק, מברשת ולולאת Inpaint, Undo/Redo והשוואה, סגירה: רענון אזורי, איכות ייצוא, גלילה); נשארו בדיקות ידניות ב-Windows (`M3-ACCEPTANCE.md`) |
 | Milestone 3.7 – איכות הסרה באזורים גדולים | בעבודה | 4 | 3 | 4 | נפתח מתוצאות הבדיקה הידנית: הסרה של אזור גדול משאירה צל מטושטש; 11 שלבים קטנים, חלקם דורשים הרצה על Big LaMa אצל המשתמש |
-| Milestone 4 – Advanced Editing | בוצע בעיקרו | 2 | 4 | 0 | שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית עם שרביט ו-GrabCut (ללא UI) בוצעו; נשאר כל הממשק, ו-Spike המודל (AUTO-SELECT.md §7 שלבים 4–6) |
+| Milestone 4 – Advanced Editing | בוצע בעיקרו | 3 | 3 | 0 | שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית עם שרביט ו-GrabCut (ללא UI) בוצעו; נשאר כל הממשק, ו-Spike המודל (AUTO-SELECT.md §7 שלבים 4–6) |
 | Milestone 5 – Production | טרם התחיל | 0 | 0 | 12 |  |
 <!-- STATUS:END -->
 
@@ -186,7 +186,7 @@
 **תלות:** M3.
 
 **משימות**
-- [~] לאסו. **שירות בוצע (2026-11-14, ללא UI):** `mask_ops.polygon_region` ו-`MaskLayer.fill_polygon(points, erase=)` (מילוי/מחיקה של מצולע חופשי, כלל winding שונה מאפס); נשאר הממשק (ציור המסלול, מצב לאסו/מחיקה בלאסו); Undo של עריכת מסכה: שירות `MaskHistory` בוצע (ראו הפריט הבא), נשאר חיבור ל-UI.
+- [x] לאסו. **שירות בוצע (2026-11-14, ללא UI):** `mask_ops.polygon_region` ו-`MaskLayer.fill_polygon(points, erase=)` (מילוי/מחיקה של מצולע חופשי, כלל winding שונה מאפס); **ממשק בוצע (2026-11-15):** שני כלים בלוח הבחירה (`mask_fill`, `mask_erase`; קיצורים M ו-D, וגם צ/ג בפריסה עברית), `Canvas.maskLassoDrawn(points, erase)`, `MaskToolsPanel.fill_polygon` (צעד Undo אחד ב-`MaskHistory`), `MainWindow._mask_lasso`: מילוי מוגש ל-Inpaint כמו שחרור מברשת, מחיקה רק מעדכנת מסכה ותצוגה; `tests/test_m4_mask_lasso_ui.py`, 14 בדיקות. נשאר ב-Undo של עריכת מסכה (הפריט הבא): קיצור מקלדת וסדר מול `Session.undo`.
 - [x] הרחבת/כיווץ מסכה. **שירות בוצע (2026-11-13, בשיחה מקבילה ל-M3.3):** `MaskLayer.grow/shrink` ו-`session/mask_ops.py`; **לוח בממשק בוצע (2026-11-14):** `ui/mask_panel.py` (כפתורים וגודל, בדוק); **ציור התוצאה על ה-Canvas בוצע ב-M3.4 (2026-11-14).**
 - [~] Undo/Redo לעריכות מסכה (ללא UI). **שירות בוצע (2026-11-14):** `session/mask_history.py` (`MaskHistory`: `do(op)`, `begin/end` למשיכה שלמה, `undo/redo`, מגבלות צעדים וזיכרון, זיהוי היסטוריה מיושנת) ו-`MaskLayer.apply_diff`; **חובר ללוח כלי המסכה (2026-11-14, כפתורי ביטול/שחזור של המסכה)**; נשאר קיצור מקלדת וקביעת הסדר מול `Session.undo` (Ctrl+Z).
 - [~] Feathering מתכוונן. **שירות בוצע:** `feather_px` לפי עבודה (`Pipeline.run`, `Scheduler.submit`, `Session.submit_stroke`; 0–64, `None` = לפי ה-cfg); נשאר הממשק (סליידר) וקביעת ברירת מחדל סופית.

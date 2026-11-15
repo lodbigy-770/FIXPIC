@@ -54,7 +54,7 @@ _EXT_BY_FILTER = {"filter.png": ".png", "filter.jpg": ".jpg", "filter.webp": ".w
 _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
 _LOSSY = {".jpg", ".jpeg", ".webp"}
 DEFAULT_QUALITY = 92
-_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך"}     # קיצורי אות במקלדת עברית
+_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך", "M": "צ", "D": "ג"}     # קיצורי אות במקלדת עברית
 
 
 class MainWindow(QMainWindow):
@@ -127,6 +127,9 @@ class MainWindow(QMainWindow):
         self.act_tool_brush = self._action("action.select_brush", lambda: self.select_panel.set_tool("brush"), "P")
         self.act_tool_box = self._action("action.select_box", lambda: self.select_panel.set_tool("box"), "S")
         self.act_tool_lasso = self._action("action.select_lasso", lambda: self.select_panel.set_tool("lasso"), "L")
+        self.act_tool_mask_fill = self._action("action.mask_lasso_fill", lambda: self.select_panel.set_tool("mask_fill"), "M")
+        self.act_tool_mask_erase = self._action("action.mask_lasso_erase",
+                                                lambda: self.select_panel.set_tool("mask_erase"), "D")
         self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
         self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
         self.act_save_case = self._action("action.save_case", self.save_case)
@@ -143,7 +146,8 @@ class MainWindow(QMainWindow):
                   self.act_brush_smaller, self.act_compare):
             ed.addAction(a)
         ed.addSeparator()
-        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_select_accept):
+        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
+                  self.act_tool_mask_erase, self.act_select_accept):
             ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
@@ -239,7 +243,8 @@ class MainWindow(QMainWindow):
         self.select_panel.set_enabled_for_work(can_select)
         self.select_panel.set_state(sel.has_proposal, sel.has_input)
         self.act_select_accept.setEnabled(can_select and sel.has_proposal)
-        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso):
+        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
+                  self.act_tool_mask_erase):
             a.setEnabled(can_select)
         c = self.controller
         self.act_undo.setEnabled(has and not self.busy and c.can_undo)
@@ -393,6 +398,7 @@ class MainWindow(QMainWindow):
         cv, ctl, panel = self.canvas, self.select_ctl, self.select_panel
         cv.selectBoxDrawn.connect(ctl.request_box)
         cv.selectLassoDrawn.connect(ctl.request_lasso)
+        cv.maskLassoDrawn.connect(self._mask_lasso)
         cv.selectScribbleDrawn.connect(lambda path, positive: ctl.request_scribble(
             path, positive, self.brush_panel.diameter / 2))
         panel.toolChanged.connect(self._tool_changed)
@@ -414,6 +420,17 @@ class MainWindow(QMainWindow):
         self.canvas.set_proposal(ctl.proposal)
         self.canvas.set_select_scribble(ctl.has_input)
         self._refresh()
+
+    def _mask_lasso(self, points, erase: bool) -> None:
+        """לאסו ישיר על המסכה (M4): מילוי = כמו שחרור מברשת (המסכה מוגשת ל-Inpaint); מחיקה = רק עדכון המסכה והתצוגה.
+        שניהם צעד Undo אחד בלוח כלי המסכה."""
+        if self.session is None or self.busy or self._comparing:
+            return
+        rect = self.mask_panel.fill_polygon(points, erase=erase)
+        self.canvas.invalidate_overlay()
+        self._refresh()
+        if rect is not None and not erase:
+            self.controller.submit()
 
     def _selection_accepted(self, _rect) -> None:
         """אישור הצעת בחירה = הסרה: המסכה שנוספה מוגשת ל-Inpaint בדיוק כמו אחרי שחרור מברשת (בדיקה ידנית ב-Windows:

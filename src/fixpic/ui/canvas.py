@@ -113,6 +113,7 @@ class Canvas(QWidget):
     compareHoldChanged = Signal(bool)         # מקש ההחזקה (B) נלחץ/שוחרר
     selectBoxDrawn = Signal(object)           # (x0, y0, x1, y1) בפיקסלי תמונה, לא חתוך, x0<x1 ו-y0<y1
     selectLassoDrawn = Signal(object)         # [(x, y), ...] בפיקסלי תמונה
+    maskLassoDrawn = Signal(object, bool)     # ([(x, y), ...] בפיקסלי תמונה, erase): לאסו ישיר על המסכה (M4)
     selectScribbleDrawn = Signal(object, bool)  # ([(x, y), ...], positive)
 
     def __init__(self, parent=None) -> None:
@@ -132,7 +133,7 @@ class Canvas(QWidget):
         self._hover: QPointF | None = None
         self._stroking: int | None = None     # הכפתור שפתח את המשיכה הפעילה
         self._stroke_erase = False
-        self.select_mode: str | None = None   # None | "box" | "lasso" (בחירה חכמה)
+        self.select_mode: str | None = None   # None | "box" | "lasso" (בחירה חכמה) | "mask_fill" | "mask_erase" (לאסו על המסכה)
         self.select_scribble = False          # יש קלט פעיל: גרירה = משיכה מתקנת
         self._proposal = None                 # Proposal | None, מצויר בירוק
         self._gesture: dict | None = None     # {"kind", "button", "pts": [QPointF תמונה], "positive"}
@@ -163,8 +164,9 @@ class Canvas(QWidget):
 
     # ------------------------------------------------------------ בחירה חכמה
     def set_select_mode(self, mode: str | None) -> None:
-        """`"box"` / `"lasso"` = כפתור שמאל מצייר מלבן/לאסו (במצב ציור); None = מברשת רגילה."""
-        if mode not in (None, "box", "lasso"):
+        """`"box"` / `"lasso"` = כפתור שמאל מצייר מלבן/לאסו (במצב ציור); `"mask_fill"` / `"mask_erase"` = לאסו שמשודר
+        כ-`maskLassoDrawn` (מילוי/מחיקה ישירה של המסכה, בלי בחירה חכמה); None = מברשת רגילה."""
+        if mode not in (None, "box", "lasso", "mask_fill", "mask_erase"):
             raise ValueError(f"מצב בחירה לא מוכר: {mode}")
         self.cancel_gesture()
         self.select_mode = mode
@@ -586,7 +588,10 @@ class Canvas(QWidget):
         else:
             super().mousePressEvent(e)            # כפתור ימני בלי קלט פעיל: אין משמעות
             return
-        self._gesture = {"kind": kind, "button": int(e.button().value), "positive": positive,
+        target = kind                              # מצב הכלי בזמן ההתחלה (mask_fill/mask_erase נראים כמו לאסו)
+        if kind in ("mask_fill", "mask_erase"):
+            kind = "lasso"
+        self._gesture = {"kind": kind, "target": target, "button": int(e.button().value), "positive": positive,
                          "pts": [self.view_to_image(e.position())], "last": e.position()}
         e.accept()
         self.update()
@@ -621,7 +626,11 @@ class Canvas(QWidget):
                                       max(pts[0].x(), q.x()), max(pts[0].y(), q.y())))
         elif g["kind"] == "lasso":
             if len(pts) >= 3:
-                self.selectLassoDrawn.emit([(q.x(), q.y()) for q in pts])
+                path = [(q.x(), q.y()) for q in pts]
+                if g.get("target") in ("mask_fill", "mask_erase"):
+                    self.maskLassoDrawn.emit(path, g["target"] == "mask_erase")
+                else:
+                    self.selectLassoDrawn.emit(path)
         else:
             self.selectScribbleDrawn.emit([(q.x(), q.y()) for q in pts], bool(g["positive"]))
 

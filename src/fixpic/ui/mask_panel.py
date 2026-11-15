@@ -5,6 +5,7 @@
   `bind(None)` מנתק ומשבית. אין תלות ב-`Canvas`: הלוח רק משנה את השכבה ומשדר `maskChanged(rect)` (מלבן ששונה,
   `(x0, y0, x1, y1)`) כדי שהצד המצייר יצייר מחדש.
 - כל פעולה היא צעד אחד ב-`MaskHistory.do`; פעולה שלא שינתה דבר אינה משדרת ואינה נרשמת.
+- `fill_polygon(points, erase=)` מיועדת לקריאה מה-Canvas (לאסו על המסכה, M4).
 - `remove_component_at(x, y)` מיועדת לקריאה מה-Canvas (לחיצה על רכיב) ב-M3.4/M4.
 - כשהחלון עסוק (`set_enabled_for_work(False)`) הכפתורים מושבתים והפעולות לא רצות.
 - שגיאות `FixPicError` מדווחות ב-`failed(str)` ואינן משנות את השכבה.
@@ -112,6 +113,10 @@ class MaskToolsPanel(QWidget):
 
     def remove_component_at(self, x: float, y: float):
         return self._edit(lambda layer: layer.remove_component_at(x, y))
+
+    def fill_polygon(self, points, *, erase: bool = False):
+        """לאסו על המסכה: מילוי (או מחיקה) של מצולע חופשי כצעד Undo אחד. מחזיר את המלבן ששונה או None."""
+        return self._edit(lambda layer: layer.fill_polygon(points, erase=erase))
 
     def clear(self):
         def op(layer: MaskLayer):
