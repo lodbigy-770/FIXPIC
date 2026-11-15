@@ -265,7 +265,7 @@ class TestCanvasGestures:
     def test_invalid_mode(self, app):
         c, _ = painted_canvas()
         with pytest.raises(ValueError):
-            c.set_select_mode("wand")
+            c.set_select_mode("polygon")
 
 
 class TestProposalOverlay:
@@ -653,7 +653,7 @@ class TestWindowEndToEnd:
         p.set_state(True, True)
         assert p.btn_accept.isEnabled()
         with pytest.raises(ValueError):
-            p.set_tool("wand")
+            p.set_tool("polygon")
 
     def test_close_shuts_down_service(self, app):
         h = SWin()

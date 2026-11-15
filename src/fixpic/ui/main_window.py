@@ -46,6 +46,7 @@ from .edit_loop import EditController
 from .mask_panel import MaskToolsPanel
 from .select_panel import SelectPanel
 from .select_tool import SmartSelectController
+from .wand_tool import WandController
 from .workers import BackgroundRunner
 
 log = logging.getLogger("fixpic.ui")
@@ -74,6 +75,7 @@ class MainWindow(QMainWindow):
         self.controller = EditController(self)
         self.select_ctl = SmartSelectController(self, history_source=lambda: self.mask_panel.history,
                                                 busy=self._inpaint_busy)
+        self.wand_ctl = WandController(self, history_source=lambda: self.mask_panel.history, busy=self._inpaint_busy)
         self.setCentralWidget(self.canvas)
         self.setAcceptDrops(True)
         self.resize(1100, 760)
@@ -126,6 +128,7 @@ class MainWindow(QMainWindow):
         self.act_brush_smaller = self._action("action.brush_smaller", lambda: self.brush_panel.scale_diameter(1 / 1.2),
                                               "[")
         self.act_tool_brush = self._action("action.select_brush", lambda: self.select_panel.set_tool("brush"), "P")
+        self.act_tool_wand = self._action("action.select_wand", lambda: self.select_panel.set_tool("wand"), "W")
         self.act_tool_box = self._action("action.select_box", lambda: self.select_panel.set_tool("box"), "S")
         self.act_tool_lasso = self._action("action.select_lasso", lambda: self.select_panel.set_tool("lasso"), "L")
         self.act_tool_mask_fill = self._action("action.mask_lasso_fill", lambda: self.select_panel.set_tool("mask_fill"), "M")
@@ -150,7 +153,7 @@ class MainWindow(QMainWindow):
                   self.act_brush_smaller, self.act_compare):
             ed.addAction(a)
         ed.addSeparator()
-        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
+        for a in (self.act_tool_brush, self.act_tool_wand, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
                   self.act_tool_mask_erase, self.act_tool_mask_component, self.act_select_accept):
             ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
@@ -243,13 +246,14 @@ class MainWindow(QMainWindow):
         for a in (self.act_fit, self.act_actual, self.act_zoom_in, self.act_zoom_out):
             a.setEnabled(has)
         working = has and (self.session.busy or self.controller.waiting is not None)
-        sel = self.select_ctl
-        self.act_cancel.setEnabled(working or sel.active or self.canvas.gesture_active)
+        sel = self._active_ctl
+        self.act_cancel.setEnabled(working or self.select_ctl.active or self.wand_ctl.active
+                                   or self.canvas.gesture_active)
         can_select = has and not self.busy and not self._comparing
         self.select_panel.set_enabled_for_work(can_select)
         self.select_panel.set_state(sel.has_proposal, sel.has_input)
         self.act_select_accept.setEnabled(can_select and sel.has_proposal)
-        for a in (self.act_tool_brush, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
+        for a in (self.act_tool_brush, self.act_tool_wand, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
                   self.act_tool_mask_erase, self.act_tool_mask_component):
             a.setEnabled(can_select)
         c = self.controller
@@ -419,22 +423,45 @@ class MainWindow(QMainWindow):
             path, positive, self.brush_panel.diameter / 2))
         panel.toolChanged.connect(self._tool_changed)
         panel.acceptRequested.connect(self._select_accept)
-        panel.cancelRequested.connect(self.select_ctl.cancel)
+        panel.cancelRequested.connect(self._cancel_selection)
         ctl.changed.connect(self._select_changed)
         ctl.message.connect(self.statusBar().showMessage)
         ctl.processingChanged.connect(self.lbl_sel.setVisible)
         ctl.accepted.connect(self._selection_accepted)
         self.controller.imageChanged.connect(ctl.on_image_changed)
+        wnd = self.wand_ctl                                   # שרביט (שלב 4א): אותו מבנה, בקר נפרד
+        cv.wandPressed.connect(wnd.press)
+        cv.wandDragged.connect(wnd.drag)
+        panel.toleranceChanged.connect(wnd.set_tolerance)
+        wnd.toleranceChanged.connect(panel.set_tolerance)
+        wnd.changed.connect(self._select_changed)
+        wnd.message.connect(self.statusBar().showMessage)
+        wnd.processingChanged.connect(self.lbl_sel.setVisible)
+        wnd.accepted.connect(self._selection_accepted)
+        self.controller.imageChanged.connect(wnd.on_image_changed)
+        panel.set_tolerance(wnd.tolerance)
+
+    @property
+    def _active_ctl(self) -> SmartSelectController:
+        """בקר הכלי הנבחר בלוח: שרביט או בחירה חכמה (מלבן/לאסו). למברשת: בקר הבחירה החכמה (ריק)."""
+        return self.wand_ctl if self.select_panel.tool == "wand" else self.select_ctl
+
+    def _cancel_selection(self) -> bool:
+        a = self.select_ctl.cancel()
+        b = self.wand_ctl.cancel()
+        return a or b
 
     def _tool_changed(self, tool: str) -> None:
-        self.select_ctl.cancel()
+        self._cancel_selection()
         self.canvas.set_select_mode(None if tool == "brush" else tool)
         self._select_changed()
 
     def _select_changed(self) -> None:
-        ctl = self.select_ctl
+        ctl = self._active_ctl
+        wand = ctl is self.wand_ctl
         self.canvas.set_proposal(ctl.proposal)
-        self.canvas.set_select_scribble(ctl.has_input)
+        self.canvas.set_select_scribble(ctl.has_input and not wand)      # בשרביט גרירה = סבילות, לא משיכה מתקנת
+        self.canvas.set_wand_seed(self.wand_ctl.seed if wand else None)
         self._refresh()
 
     def _mask_lasso(self, points, erase: bool) -> None:
@@ -468,13 +495,13 @@ class MainWindow(QMainWindow):
 
     def _select_accept(self) -> None:
         if self.session is not None and not self.busy:
-            self.select_ctl.accept()
+            self._active_ctl.accept()
 
     def _escape(self) -> None:
         """Esc: קודם מחוות פעילה, אחר כך הצעה/קלט בחירה, ורק אחרי זה ביטול עיבוד Inpaint."""
         if self.canvas.cancel_gesture():
             self._refresh()
-        elif not self.select_ctl.cancel():
+        elif not self._cancel_selection():
             self.controller.cancel()
 
     # ----------------------------------------------------- Undo/Redo והשוואה
@@ -676,6 +703,7 @@ class MainWindow(QMainWindow):
         self._reset_compare()
         self.controller.bind(session)
         self.select_ctl.bind(session)
+        self.wand_ctl.bind(session)
         self.canvas.set_image(session.rgb, session.alpha)
         self.canvas.set_mask_layer(session.mask)
         self.canvas.set_pending_source(lambda: session.pending_masks)
@@ -779,6 +807,7 @@ class MainWindow(QMainWindow):
             self.confirm_discard(self._close_now)
             return
         self.select_ctl.shutdown()
+        self.wand_ctl.shutdown()
         self.controller.shutdown()
         e.accept()
 

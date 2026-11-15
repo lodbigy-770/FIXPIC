@@ -42,6 +42,9 @@ INDICATOR_DELAY_MS = 200      # כמו מחוון ה-Inpaint (PARITY-SPEC §3.5)
 
 
 class SmartSelectController(QObject):
+    PROPOSAL_MSG = "select.proposal"    # מפתחות הודעה שתת-מחלקות (שרביט) מחליפות
+    EMPTY_MSG = "select.empty"
+
     changed = Signal()                  # הצעה/קלט/עיבוד השתנו: לצייר מחדש ולעדכן כפתורים
     message = Signal(str)               # הודעת סטטוס
     processingChanged = Signal(bool)    # מחוון "הבחירה לוקחת זמן" (אחרי 200ms)
@@ -250,10 +253,10 @@ class SmartSelectController(QObject):
             return
         if state is RequestState.DONE and req.proposal is not None:
             self.proposal = req.proposal
-            self.message.emit(t("select.proposal", count=self.proposal.pixel_count))
+            self.message.emit(t(self.PROPOSAL_MSG, count=self.proposal.pixel_count))
         elif state is RequestState.EMPTY or (state is RequestState.DONE and req.proposal is None):
             self.proposal = None                    # הקלט נשאר: משיכה מתקנת אחרת אפשרית
-            self.message.emit(t("select.empty"))
+            self.message.emit(t(self.EMPTY_MSG))
         else:                                       # FAILED: חוזרים למצב הקודם
             self._prompts, self.proposal = self._rollback
             err = req.error

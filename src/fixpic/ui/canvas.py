@@ -19,6 +19,10 @@
   גרסת המסכה והתצוגה, כך שריחוף העכבר אינו מחשב אותה מחדש.
 - תמונה עם Alpha מוצגת על רקע אפור-בהיר (תצוגה בלבד; ה-Alpha עצמו נשמר ב-Session).
 - בניית פירמידה ב-thread של ה-UI: נמדד כ-0.05 שניות ל-24MP בספייק.
+- **שרביט (M4, שלב 4א):** `set_select_mode("wand")` – כפתור שמאל משדר `wandPressed(נקודת תמונה רציפה בתוך התמונה: פיקסל i
+  מכסה [i, i+1))`, בגרירה `wandDragged(dx)` (פיקסלי מסך מרגע הלחיצה, ימינה חיובי) ובשחרור `wandReleased()`. בשרביט גרירה
+  אינה משיכה מתקנת גם כשיש קלט פעיל, לחיצה מחוץ לתמונה וכפתור ימני אינם עושים דבר, ו-`set_wand_seed(נקודה)` מצייר טבעת
+  בנקודת הלחיצה. ההצעה עצמה מצוירת כמו של GrabCut (`set_proposal`).
 - **בחירה חכמה (M4, שלב 4ב):** `set_select_mode("box"|"lasso"|None)` מחליף את משמעות הכפתור השמאלי במצב ציור: גרירה מציירת
   מלבן/לאסו, ובשחרור משודר `selectBoxDrawn((x0, y0, x1, y1))` או `selectLassoDrawn([(x, y), ...])` בפיקסלי תמונה (לא חתוכים).
   כש-`set_select_scribble(True)` (יש הצעה/קלט פעיל) גרירה שמאלית = משיכה מתקנת חיובית, ימנית או Alt = שלילית
@@ -116,6 +120,9 @@ class Canvas(QWidget):
     maskComponentClicked = Signal(float, float)   # לחיצה בכלי "מחיקת רכיב מסכה": נקודת תמונה (M4)
     maskLassoDrawn = Signal(object, bool)     # ([(x, y), ...] בפיקסלי תמונה, erase): לאסו ישיר על המסכה (M4)
     selectScribbleDrawn = Signal(object, bool)  # ([(x, y), ...], positive)
+    wandPressed = Signal(QPointF)             # שרביט: נקודת תמונה רציפה בתוך התמונה
+    wandDragged = Signal(float)               # שרביט: הסטה אופקית במסך מרגע הלחיצה (ימינה חיובי)
+    wandReleased = Signal()
 
     def __init__(self, parent=None) -> None:
         super().__init__(parent)
@@ -137,6 +144,7 @@ class Canvas(QWidget):
         self.select_mode: str | None = None   # None | "box" | "lasso" (בחירה חכמה) | "mask_fill" | "mask_erase" (לאסו על המסכה)
         self.select_scribble = False          # יש קלט פעיל: גרירה = משיכה מתקנת
         self._proposal = None                 # Proposal | None, מצויר בירוק
+        self._wand_seed: QPointF | None = None  # טבעת סימון בנקודת לחיצת השרביט
         self._gesture: dict | None = None     # {"kind", "button", "pts": [QPointF תמונה], "positive"}
         self._comparing = False
         self._cmp_pyr: Pyramid | None = None
@@ -165,10 +173,10 @@ class Canvas(QWidget):
 
     # ------------------------------------------------------------ בחירה חכמה
     def set_select_mode(self, mode: str | None) -> None:
-        """`"box"` / `"lasso"` = כפתור שמאל מצייר מלבן/לאסו (במצב ציור); `"mask_fill"` / `"mask_erase"` = לאסו שמשודר
-        כ-`maskLassoDrawn` (מילוי/מחיקה ישירה של המסכה, בלי בחירה חכמה); `"mask_component"` = לחיצה שמאלית משדרת
-        `maskComponentClicked(x, y)` (בלי מחוות); None = מברשת רגילה."""
-        if mode not in (None, "box", "lasso", "mask_fill", "mask_erase", "mask_component"):
+        """`"box"` / `"lasso"` = כפתור שמאל מצייר מלבן/לאסו, `"wand"` = לחיצת שרביט (`wandPressed` וגרירת סבילות); `"mask_fill"` /
+        `"mask_erase"` = לאסו שמשודר כ-`maskLassoDrawn` (מילוי/מחיקה ישירה של המסכה, בלי בחירה חכמה); `"mask_component"` = לחיצה
+        שמאלית משדרת `maskComponentClicked(x, y)` (בלי מחוות); None = מברשת רגילה (במצב ציור)."""
+        if mode not in (None, "box", "lasso", "wand", "mask_fill", "mask_erase", "mask_component"):
             raise ValueError(f"מצב בחירה לא מוכר: {mode}")
         self.cancel_gesture()
         self.select_mode = mode
@@ -181,6 +189,12 @@ class Canvas(QWidget):
             self.cancel_gesture()
             self.select_scribble = on
             self._apply_cursor()
+            self.update()
+
+    def set_wand_seed(self, seed: QPointF | None) -> None:
+        """נקודת הלחיצה של השרביט (פיקסלי תמונה רציפים) לטבעת סימון; None מנקה."""
+        if seed != self._wand_seed:
+            self._wand_seed = QPointF(seed) if seed is not None else None
             self.update()
 
     def set_proposal(self, proposal) -> None:
@@ -448,6 +462,7 @@ class Canvas(QWidget):
             self._paint_badge(p)
         else:
             self._paint_gesture(p)
+            self._paint_wand_seed(p)
             self._paint_brush_cursor(p)
         p.end()
 
@@ -466,7 +481,7 @@ class Canvas(QWidget):
 
     def _paint_gesture(self, p: QPainter) -> None:
         g = self._gesture
-        if g is None or not g["pts"]:
+        if g is None or not g["pts"] or g["kind"] == "wand":
             return
         pts = [self.image_to_view(q) for q in g["pts"]]
         p.setRenderHint(QPainter.Antialiasing, True)
@@ -489,6 +504,17 @@ class Canvas(QWidget):
                 p.drawPolyline(pts)
                 if len(pts) >= 3:
                     p.drawLine(pts[-1], pts[0])
+
+    def _paint_wand_seed(self, p: QPainter) -> None:
+        if self._wand_seed is None or self.select_mode != "wand":
+            return
+        c = self.image_to_view(self._wand_seed)
+        p.setRenderHint(QPainter.Antialiasing, True)
+        p.setBrush(Qt.NoBrush)
+        p.setPen(QPen(QColor(0, 0, 0, 200), 3))
+        p.drawEllipse(c, 6, 6)
+        p.setPen(QPen(QColor(255, 255, 255, 240), 1.5))
+        p.drawEllipse(c, 6, 6)
 
     def _paint_brush_cursor(self, p: QPainter) -> None:
         if not self.painting or self._hover is None or self._space or self._drag is not None:
@@ -584,6 +610,14 @@ class Canvas(QWidget):
             e.accept()
 
     def _begin_select_gesture(self, e) -> None:
+        if self.select_mode == "wand":
+            p = self.view_to_image(e.position())
+            if e.button() == Qt.LeftButton and 0 <= p.x() < self.pyr.w and 0 <= p.y() < self.pyr.h:
+                self._gesture = {"kind": "wand", "button": int(e.button().value), "positive": True, "pts": [p],
+                                 "last": e.position(), "start": e.position()}
+                self.wandPressed.emit(p)
+            e.accept()                                # שרביט: כפתור ימני ולחיצה מחוץ לתמונה אינם עושים דבר
+            return
         left = e.button() == Qt.LeftButton
         shift = bool(e.modifiers() & Qt.ShiftModifier)
         if self.select_scribble and not (left and shift):
@@ -605,6 +639,10 @@ class Canvas(QWidget):
     def _extend_select_gesture(self, e) -> None:
         g = self._gesture
         pos = e.position()
+        if g["kind"] == "wand":
+            self.wandDragged.emit(pos.x() - g["start"].x())
+            self.update()
+            return
         if g["kind"] == "box":
             g["pts"] = g["pts"][:1] + [self.view_to_image(pos)]
         else:
@@ -616,6 +654,9 @@ class Canvas(QWidget):
 
     def _finish_select_gesture(self, e) -> None:
         g, self._gesture = self._gesture, None
+        if g["kind"] == "wand":
+            self.wandReleased.emit()
+            return
         pts = g["pts"]
         if g["kind"] != "box" and len(pts) >= 1:
             end = self.view_to_image(e.position())
