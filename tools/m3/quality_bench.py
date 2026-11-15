@@ -7,9 +7,9 @@
   python tools/m3/quality_bench.py cases/boy_large --plan-only                       # רק תכנון: אילו תצורות ובכמה הרצות, בלי מודל
   python tools/m3/quality_bench.py cases/paris_chair cases/table_camera --out m3_bench --quick
   python tools/m3/quality_bench.py cases/boy_large --sizes 384,512 --strategies auto,tile --min-scales 0.5,0.25 \\
-        --feathers 3,8 --overlaps 64,128 --max-runs 60 --threads 3
+        --feathers 3,8 --overlaps 64,128 --blends 0,32 --max-runs 60 --threads 3
 
-הרשת היא מכפלה של: `--sizes` x `--strategies` x `--min-scales` (רק ל-auto) x `--feathers` x `--overlaps` (רק כשיש אריחים).
+הרשת היא מכפלה של: `--sizes` x `--strategies` x `--min-scales` (רק ל-auto) x `--feathers` x `--overlaps` x `--blends` (רק כשיש אריחים; `tile_blend_px`, 0 = תפר קשה).
 תצורות שהתכנון שלהן זהה (אותו סוג/קנה מידה/מספר הרצות לכל קבוצה) מורצות פעם אחת. תצורה שדורשת יותר מ-`--max-runs` הרצות
 מודל מדולגת ומדווחת (ב-i5-6500T כל הרצה כ-1-2 שניות). שיא הזיכרון הוא של התהליך כולו עד כה (עולה בלבד), ולכן ערך גבוה
 בתצורה מסוימת אומר שהיא העלתה את השיא; לבידוד מלא מריצים תצורה אחת בכל הרצה.
@@ -41,9 +41,9 @@ from fixpic.errors import FixPicError  # noqa: E402
 from fixpic.pipeline import Pipeline, PipelineConfig  # noqa: E402
 from fixpic.quality import measure, seam_ratio  # noqa: E402
 
-DEFAULT_GRID = dict(sizes=[384, 512], strategies=["downscale", "auto", "tile"], min_scales=[0.5, 0.25], feathers=[3, 8],
-                    overlaps=[64])
-QUICK_GRID = dict(sizes=[384], strategies=["auto", "tile"], min_scales=[0.5], feathers=[3], overlaps=[64])
+DEFAULT_GRID = dict(sizes=[384, 512], strategies=["downscale", "auto", "tile"], min_scales=[0.5, 0.25], feathers=[3],
+                    overlaps=[64], blends=[0, 32])
+QUICK_GRID = dict(sizes=[384], strategies=["auto", "tile"], min_scales=[0.5], feathers=[3], overlaps=[64], blends=[0, 32])
 
 
 # ---------------------------------------------------------------- עזר
@@ -74,29 +74,29 @@ def peak_rss_mb() -> float | None:
         return None
 
 
-def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int) -> str:
+def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int, blend: int) -> str:
     ms = f"-ms{min_scale:g}" if strategy == "auto" else ""
-    return f"s{size}-{strategy}{ms}-f{feather}-o{overlap}"
+    return f"s{size}-{strategy}{ms}-f{feather}-o{overlap}-b{blend}"
 
 
-def build_grid(sizes, strategies, min_scales, feathers, overlaps) -> list[dict]:
+def build_grid(sizes, strategies, min_scales, feathers, overlaps, blends=(32,)) -> list[dict]:
     """רשימת תצורות (מילונים). min_scale רלוונטי רק ל-auto; overlap מצומצם בהמשך לפי התכנון."""
     out, seen = [], set()
     for size, strat, feather in itertools.product(sizes, strategies, feathers):
         for ms in (min_scales if strat == "auto" else [min_scales[0] if min_scales else 0.5]):
-            for ov in overlaps:
-                cid = config_id(size, strat, ms, feather, ov)
+            for ov, bl in itertools.product(overlaps, blends):
+                cid = config_id(size, strat, ms, feather, ov, bl)
                 if cid not in seen:
                     seen.add(cid)
                     out.append(dict(id=cid, size=size, large_strategy=strat, min_scale=ms, feather_px=feather,
-                                    tile_overlap=ov))
+                                    tile_overlap=ov, tile_blend_px=bl))
     return out
 
 
-def plan_signature(rep, ov: int) -> tuple:
+def plan_signature(rep, ov: int, blend: int = 0) -> tuple:
     """חתימת תכנון: שתי תצורות עם אותה חתימה (ואותו feather) נותנות אותה ריצה. החפיפה נכללת רק כשיש אריחים."""
     has_tile = any(g.kind == "tile" for g in rep.groups)
-    return (rep.size, tuple((g.kind, round(g.scale, 3), g.windows) for g in rep.groups), ov if has_tile else None)
+    return (rep.size, tuple((g.kind, round(g.scale, 3), g.windows) for g in rep.groups), (ov, blend) if has_tile else None)
 
 
 def crop_box(mask: np.ndarray, margin: float = 0.15) -> tuple[slice, slice]:
@@ -158,10 +158,11 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
 
     for i, cfg in enumerate(configs, 1):
         pc = replace(base, sizes=tuple(sorted(set(base.sizes) | {cfg["size"]})), large_strategy=cfg["large_strategy"],
-                     min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"])
+                     min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
+                     tile_blend_px=cfg["tile_blend_px"])
         pipe = Pipeline(model, pc)
         rep = pipe.plan(mask, cfg["size"], brush)
-        sig = (plan_signature(rep, cfg["tile_overlap"]), cfg["feather_px"])
+        sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"])
         if sig in seen:
             skipped.append(dict(id=cfg["id"], reason=f"תכנון זהה ל-{seen[sig]}"))
             log(f"[{i}/{len(configs)}] {cfg['id']}: דילוג (תכנון זהה ל-{seen[sig]})")
@@ -285,7 +286,7 @@ def main() -> None:
     ap.add_argument("--out", default="m3_bench")
     ap.add_argument("--quick", action="store_true", help="רשת קטנה: bucket 384, auto/tile")
     ap.add_argument("--sizes"), ap.add_argument("--strategies"), ap.add_argument("--min-scales")
-    ap.add_argument("--feathers"), ap.add_argument("--overlaps")
+    ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends")
     ap.add_argument("--max-runs", type=int, default=80)
     ap.add_argument("--plan-only", action="store_true", help="רק תכנון (בלי מודל)")
     ap.add_argument("--save-full", action="store_true")
@@ -295,7 +296,7 @@ def main() -> None:
     a = ap.parse_args()
 
     g = dict(QUICK_GRID if a.quick else DEFAULT_GRID)
-    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int)):
+    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int)):
         v = getattr(a, key)
         if v:
             g[key] = _list(v, typ)
@@ -314,9 +315,10 @@ def main() -> None:
             seen = {}
             for cfg in configs:
                 pc = PipelineConfig(sizes=tuple(sorted({256, 384, 512, cfg["size"]})), large_strategy=cfg["large_strategy"],
-                                    min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"])
+                                    min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
+                                    tile_blend_px=cfg["tile_blend_px"])
                 rep = Pipeline(_Stub(), pc).plan(case["mask"], cfg["size"], brush)
-                sig = (plan_signature(rep, cfg["tile_overlap"]), cfg["feather_px"])
+                sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"])
                 note = f"= {seen[sig]}" if sig in seen else (f"> max-runs ({a.max_runs})" if rep.runs > a.max_runs else "תרוץ")
                 seen.setdefault(sig, cfg["id"])
                 print(f"  {cfg['id']:28} {rep.runs:>4} הרצות, קנה מידה {rep.min_scale:.3f}, {note}")

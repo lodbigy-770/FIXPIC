@@ -67,7 +67,7 @@ def test_tile_seams_empty_without_tiles():
 def test_build_grid_dedupes_and_min_scale_only_for_auto():
     g = qb.build_grid([384], ["downscale", "auto", "tile"], [0.5, 0.25], [3], [64])
     ids = [c["id"] for c in g]
-    assert ids == ["s384-downscale-f3-o64", "s384-auto-ms0.5-f3-o64", "s384-auto-ms0.25-f3-o64", "s384-tile-f3-o64"]
+    assert ids == ["s384-downscale-f3-o64-b32", "s384-auto-ms0.5-f3-o64-b32", "s384-auto-ms0.25-f3-o64-b32", "s384-tile-f3-o64-b32"]
 
 
 def test_plan_signature_ignores_overlap_without_tiles():
@@ -134,4 +134,13 @@ def test_cli_plan_only(case):
     r = subprocess.run([sys.executable, str(REPO / "tools" / "m3" / "quality_bench.py"), str(case), "--plan-only", "--quick"],
                        capture_output=True, text=True, encoding="utf-8", timeout=120)
     assert r.returncode == 0, r.stderr
-    assert "s384-tile-f3-o64" in r.stdout
+    assert "s384-tile-f3-o64-b0" in r.stdout
+
+
+def test_blend_axis_runs_both_and_dedupes_without_tiles(case, tmp_path):
+    cfgs = qb.build_grid([384], ["downscale", "tile"], [0.5], [3], [64], [0, 32])
+    assert len(cfgs) == 4
+    data = qb.run_bench(FakeModel(), case, cfgs, tmp_path / "o", log=lambda *_: None)
+    done = [r["id"] for r in data["rows"] if not r.get("reference")]
+    assert "s384-tile-f3-o64-b0" in done and "s384-tile-f3-o64-b32" in done
+    assert sum("downscale" in i for i in done) == 1 and any("זהה" in s["reason"] for s in data["skipped"])
