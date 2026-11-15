@@ -1,0 +1,4 @@
+﻿id,planned_runs,kinds,scale,seconds,peak_rss_mb,texture_ratio,stripe_score,seam_ratio,boundary_color_diff,boundary_color_diff_p95,ref_texture_ratio,ref_stripe_score,ref_boundary_color_diff,error
+reference,,,,,,,,,,,0.4540832930145957,4.663387298583984,17.77437400817871,
+s384-downscale-f3-o64-b0,2,native,1.0,3.07,,0.452644845260728,24.1707763671875,,24.014251708984375,58.74330520629883,,,,
+s512-downscale-f3-o64-b0,2,native,1.0,5.36,,0.4408154379140641,25.352252960205078,,24.303401947021484,57.810909271240234,,,,

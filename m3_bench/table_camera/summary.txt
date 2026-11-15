@@ -1,0 +1,20 @@
+מקרה table_camera: 800x600, מסכה 38,426 px, ייחוס 800x600
+קריאה: texture נמוך מ-1 = מרוח; stripe גבוה (מעל כ-10) = תפר/פס; seam מעל כ-1.5 = תפר אריחים; cdiff = הפרש צבע בגבול. השוואה רק בין שורות של אותו מקרה.
+id                            runs     kinds  scale     sec  rssMB    tex   strp   seam  cdiff |  r.tex r.strp r.cdif
+reference                                                                                      |   0.45    4.7   17.8
+s384-downscale-f3-o64-b0         2    native    1.0     3.1      -   0.45   24.2      -   24.0 |      -      -      -
+s512-downscale-f3-o64-b0         2    native    1.0     5.4      -   0.44   25.4      -   24.3 |      -      -      -
+דילוג s384-downscale-f3-o64-b32: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s384-auto-ms0.5-f3-o64-b0: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s384-auto-ms0.5-f3-o64-b32: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s384-auto-ms0.25-f3-o64-b0: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s384-auto-ms0.25-f3-o64-b32: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s384-tile-f3-o64-b0: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s384-tile-f3-o64-b32: תכנון זהה ל-s384-downscale-f3-o64-b0
+דילוג s512-downscale-f3-o64-b32: תכנון זהה ל-s512-downscale-f3-o64-b0
+דילוג s512-auto-ms0.5-f3-o64-b0: תכנון זהה ל-s512-downscale-f3-o64-b0
+דילוג s512-auto-ms0.5-f3-o64-b32: תכנון זהה ל-s512-downscale-f3-o64-b0
+דילוג s512-auto-ms0.25-f3-o64-b0: תכנון זהה ל-s512-downscale-f3-o64-b0
+דילוג s512-auto-ms0.25-f3-o64-b32: תכנון זהה ל-s512-downscale-f3-o64-b0
+דילוג s512-tile-f3-o64-b0: תכנון זהה ל-s512-downscale-f3-o64-b0
+דילוג s512-tile-f3-o64-b32: תכנון זהה ל-s512-downscale-f3-o64-b0

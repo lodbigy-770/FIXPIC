@@ -1,0 +1,129 @@
+{
+  "case": "table_camera",
+  "size": [
+    800,
+    600
+  ],
+  "mask_pixels": 38426,
+  "reference_size": [
+    800,
+    600
+  ],
+  "max_runs": 80,
+  "rows": [
+    {
+      "id": "reference",
+      "reference": true,
+      "ref_texture_ratio": 0.4540832930145957,
+      "ref_texture_rms_inside": 4.660245895385742,
+      "ref_texture_rms_ring": 10.563535690307617,
+      "ref_stripe_score": 4.663387298583984,
+      "ref_boundary_color_diff": 17.77437400817871,
+      "ref_boundary_color_diff_p95": 58.8038330078125
+    },
+    {
+      "id": "s384-downscale-f3-o64-b0",
+      "size": 384,
+      "large_strategy": "downscale",
+      "min_scale": 0.5,
+      "feather_px": 3,
+      "tile_overlap": 64,
+      "tile_blend_px": 0,
+      "planned_runs": 2,
+      "kinds": "native",
+      "scale": 1.0,
+      "seconds": 3.07,
+      "model_calls": 2,
+      "peak_rss_mb": null,
+      "texture_ratio": 0.452644845260728,
+      "texture_rms_inside": 5.145177364349365,
+      "texture_rms_ring": 11.669228553771973,
+      "stripe_score": 24.1707763671875,
+      "boundary_color_diff": 24.014251708984375,
+      "boundary_color_diff_p95": 58.74330520629883,
+      "seam_lines": 0,
+      "seam_ratio": null
+    },
+    {
+      "id": "s512-downscale-f3-o64-b0",
+      "size": 512,
+      "large_strategy": "downscale",
+      "min_scale": 0.5,
+      "feather_px": 3,
+      "tile_overlap": 64,
+      "tile_blend_px": 0,
+      "planned_runs": 2,
+      "kinds": "native",
+      "scale": 1.0,
+      "seconds": 5.36,
+      "model_calls": 2,
+      "peak_rss_mb": null,
+      "texture_ratio": 0.4408154379140641,
+      "texture_rms_inside": 5.004179954528809,
+      "texture_rms_ring": 11.669228553771973,
+      "stripe_score": 25.352252960205078,
+      "boundary_color_diff": 24.303401947021484,
+      "boundary_color_diff_p95": 57.810909271240234,
+      "seam_lines": 0,
+      "seam_ratio": null
+    }
+  ],
+  "skipped": [
+    {
+      "id": "s384-downscale-f3-o64-b32",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s384-auto-ms0.5-f3-o64-b0",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s384-auto-ms0.5-f3-o64-b32",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s384-auto-ms0.25-f3-o64-b0",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s384-auto-ms0.25-f3-o64-b32",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s384-tile-f3-o64-b0",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s384-tile-f3-o64-b32",
+      "reason": "תכנון זהה ל-s384-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-downscale-f3-o64-b32",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-auto-ms0.5-f3-o64-b0",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-auto-ms0.5-f3-o64-b32",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-auto-ms0.25-f3-o64-b0",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-auto-ms0.25-f3-o64-b32",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-tile-f3-o64-b0",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    },
+    {
+      "id": "s512-tile-f3-o64-b32",
+      "reason": "תכנון זהה ל-s512-downscale-f3-o64-b0"
+    }
+  ]
+}
