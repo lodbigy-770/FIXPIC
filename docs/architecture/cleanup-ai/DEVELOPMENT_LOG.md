@@ -1613,3 +1613,11 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 
 **מצב M4:** כל פריטי המסכה בממשק הושלמו (לאסו, הרחבה/כיווץ, Undo/Redo, Feathering, רכיבים). נשאר: חיווט שרביט (4א, שיחה מקבילה), Spike המודל (5), `ModelProvider` (6).
 
+## M4 – הכנת הרצת ה-Spike (שלב 5 ב-AUTO-SELECT, 2026-11-15)
+
+**מה:** `tools/m4/fetch_spike_models.py` מוריד שני מועמדי MobileSAM ל-`models/spike/` (נוסף ל-`.gitignore`) ומדפיס את פקודת `model_spike.py`: `vietanhdev/segment-anything-onnx-models` (`mobile_sam_20230629.zip`, encoder.onnx + decoder.onnx, Apache-2.0 לפי כרטיס המאגר) ו-`Acly/MobileSAM` (`mobile_sam_image_encoder.onnx` + `sam_mask_decoder_single.onnx`, MIT לפי כרטיס המאגר). שמות הקבצים והרישיונות נקראו מדפי Hugging Face בחיפוש רשת; **לא אומת** מול המודלים עצמם.
+
+**לא נבדק:** ההורדה (אין רשת בסביבת Claude: 403 מהפרוקסי), ושחוזה הקלט/הפלט של המפענחים תואם ל-`model_spike.py` (הסקריפט עוצר ומדפיס שמות קלט/פלט אם לא). הרישיון נבדק רק ברמת כרטיס המאגר, לא ברישיון נתוני האימון.
+
+**נדרש מהמשתמש:** להריץ `fetch_spike_models.py`, ואז `model_spike.py` (ראו הפקודה שהסקריפט מדפיס), ולדחוף את `m4_out/model_spike/` (JSON ו-PNG-ים) לריפו.
+

@@ -16,3 +16,6 @@ dist/fixpic.exe
 
 # נוצר בכל הרצה של validate_stage0.py (גיבוי MODEL_CARD)
 docs/architecture/cleanup-ai/MODEL_CARD.md.bak
+
+# מועמדי Spike המודל (tools/m4/fetch_spike_models.py): קבצים גדולים, לא נכנסים ל-git
+models/spike/
