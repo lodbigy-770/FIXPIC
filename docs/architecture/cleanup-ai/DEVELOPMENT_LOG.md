@@ -1575,3 +1575,20 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 
 **הבא ב-M4:** סליידר Feathering, בחירה/מחיקת רכיב בלחיצה.
 
+
+---
+
+## M5 – טיפול בקריסות ויומן מקומי (2026-11-15)
+
+**למה זה הצעד הראשון ב-M5:** ב-`src` לא היה שום קובץ יומן או hook לחריגות (היה רק `logging.getLogger` בכמה מודולים, בלי handler), כך שקריסה ביישום הארוז לא הייתה משאירה זכר. (סריקה נוספת: אין שימוש ברשת בקוד היישום; זה בסיס לפריט "בדיקת Offline" שעדיין לא בוצע.)
+
+**מה נבנה:**
+- `fixpic/diagnostics.py`: `setup_logging()` (RotatingFileHandler, UTF-8, 1MB x 5 גיבויים; ראש יומן עם גרסאות Python/numpy/OpenCV/ORT/OpenVINO/PySide6; בטוח לקריאה חוזרת; כשל ביצירה מחזיר None ואינו זורק), `install_crash_handlers(on_crash)` (hooks ל-`sys.excepthook`, `threading.excepthook`, `sys.unraisablehook`; `KeyboardInterrupt` ו-`SystemExit` בthread לא נחשבים קריסה; חריגה ב-callback נבלעת), `write_crash_report` (דוח `crash-<זמן>.txt`: traceback, סביבה, 60 שורות אחרונות מהיומן; שומר 10 אחרונים), `faulthandler` ל-`native-crash.log` לקריסות native, `uninstall_crash_handlers` לבדיקות.
+- `ui/crash_dialog.py`: `CrashNotifier` מעביר את ההודעה מכל thread ל-thread של הממשק (Signal), עם "שגיאה חמורה", נתיב הדוח והבהרה שהוא נשאר במחשב; הודעה נוספת בזמן שאחת פתוחה לא נערמת. שתי מחרוזות חדשות ב-`he.json` (+ כותרת).
+- `ui/app.main`: `setup_logging()` ואז `install_crash_handlers(on_crash=notifier.notify)` לפני בניית החלון.
+
+**נבדק:** 17 בדיקות חדשות; הסוויטה המלאה (כולל UI, עם PySide6 שהותקן כעת בסביבה) 934 עוברות, 3 מדולגות. בנוסף הרצה מקצה לקצה: `main()` ב-offscreen עם חריגה שנזרקה מטיימר בתוך לולאת האירועים: ההודעה הוצגה, נכתב דוח, והיישום המשיך; ושגיאת טעינת המודל (LFS pointer) נרשמה ביומן האמיתי.
+
+**מגבלות:** Windows לא נבדק (בפרט `%LOCALAPPDATA%` ו-`faulthandler` שם); קריסה שהמערכת הורגת בלי חריגה לא נתפסת (רק שורה אחרונה ביומן); OOM בממשק מוצג כשגיאת הסרה כללית ולא בהודעה ייעודית; `cli` אינו מגדיר יומן; הדוחות אינם נשלחים (בכוונה, אין רשת), והמשתמש צריך לדעת איפה הם (הנתיב מוצג בהודעה). היומן עלול להכיל שמות קבצים (לא פיקסלים).
+
+**הבא ב-M5 (לבחירה):** בדיקת Offline בפועל (הרצה עם חסימת sockets), סקירת רישיונות, בדיקות תמונות גדולות ועומס זיכרון; האריזה והחתימה דורשות Windows.
