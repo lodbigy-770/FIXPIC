@@ -49,6 +49,9 @@ class PipelineConfig:
     # נשאר כפי שהמעבר הגס מילא אותו. כבוי כברירת מחדל עד שיכויל על Big LaMa (M3.7.9). ערכים זמניים.
     coarse_fine: bool = False
     coarse_belt_px: int = 64     # רוחב החגורה, בפיקסלי קלט למודל (במקור: מוגדל פי 1/scale של האריחים)
+    # bucket של המעבר הגס בלבד (חייב להיות ב-`sizes`); None = אותו bucket של האריחים. גדול יותר = פחות הקטנה ויותר הקשר.
+    # בניסיון חוזר אחרי OOM חוזרים ל-bucket של האריחים.
+    coarse_size: int | None = None
     max_tiles: int = 64          # מעל זה חוזרים להקטנה (תקרת זמן)
     memory_limit_mb: int | None = None   # תקרת זיכרון להערכה מראש (כולל המודל); None = ללא בדיקה
     model_overhead_mb: int = 1600        # שיא תהליך של OpenVINO נמדד ב-M1.5: 1.51GB; ערך מעוגל כלפי מעלה
@@ -120,6 +123,7 @@ class Pipeline:
     def __init__(self, model: InpaintModel, cfg: PipelineConfig | None = None) -> None:
         self.model = model
         self.cfg = cfg or PipelineConfig()
+        self.coarse_hook: Callable[[tuple[int, int, int, int], np.ndarray], None] | None = None   # אבחון M3.7.7
         if self.cfg.large_strategy not in ("auto", "tile", "downscale"):
             raise InvalidInputError(f"large_strategy לא תקף: {self.cfg.large_strategy}")
         c = self.cfg
@@ -166,6 +170,8 @@ class Pipeline:
         size = size or c.default_size
         if size not in c.sizes:
             raise InvalidInputError(f"גודל קלט {size} אינו באחד ה-buckets {c.sizes}")
+        if c.coarse_fine and c.coarse_size is not None and c.coarse_size not in c.sizes:
+            raise InvalidInputError(f"coarse_size {c.coarse_size} אינו באחד ה-buckets {c.sizes}")
         if not isinstance(image, np.ndarray) or image.dtype != np.uint8 or image.ndim != 3 or image.shape[2] != 3:
             raise InvalidInputError("נדרשת תמונה uint8 בצורה [H,W,3] (RGB)")
         if image.shape[0] == 0 or image.shape[1] == 0:
@@ -309,7 +315,7 @@ class Pipeline:
         n_before = len(rois)
         for i, s in enumerate(sizes):
             try:
-                self._run_group(result, m, g, s, cancel, rois, st, feather)
+                self._run_group(result, m, g, s, cancel, rois, st, feather, self.cfg.coarse_size if i == 0 else None)
                 return s
             except (OutOfMemoryError, MemoryError) as e:
                 if not is_oom(e):
@@ -355,7 +361,7 @@ class Pipeline:
                 return p, tile_cores(g.box, size, c.tile_overlap, ts), ts
         return p, None, p.scale
 
-    def _run_group(self, result, m, g: Group, size, cancel, rois, st, feather) -> None:
+    def _run_group(self, result, m, g: Group, size, cancel, rois, st, feather, coarse_size=None) -> None:
         hw = result.shape[:2]
         p, cores, ts = self._strategy(g, size, hw)
         if cores is None:
@@ -365,9 +371,17 @@ class Pipeline:
         if not self.cfg.coarse_fine:
             self._run_tiles(result, m, g, size, cores, ts, cancel, rois, st, feather)
             return
-        # מגס לדק: (1) חלון יחיד מוקטן (p) ממלא את כל האזור; (2) אריחים רק על החגורה, והמודל רואה את המילוי הגס כהקשר
-        self._infer(result, m, g, p, g.box, cancel, rois, feather)
+        # מגס לדק: (1) חלון יחיד מוקטן ממלא את כל האזור (ב-`coarse_size` אם הוגדר); (2) אריחים רק על החגורה, והמודל
+        # רואה את המילוי הגס כהקשר
+        pc = p
+        if coarse_size and coarse_size != size:
+            c = self.cfg
+            pc = plan_roi_bbox(g.box, hw, coarse_size, c.margin_ratio, c.min_margin, c.native_margin_ratio)
+        self._infer(result, m, g, pc, g.box, cancel, rois, feather)
         st.step()
+        if self.coarse_hook is not None:    # אבחון: העתק של תיבת הקבוצה אחרי המעבר הגס בלבד
+            x0, y0, x1, y1 = g.box
+            self.coarse_hook(g.box, result[y0:y1, x0:x1].copy())
         belt, gain = self._belt(g, ts, hw)
         self._run_tiles(result, m, Group(g.box, belt), size, cores, ts, cancel, rois, st, feather, m_alpha=m, gain=gain)
 

@@ -83,22 +83,26 @@ def peak_rss_mb() -> float | None:
         return None
 
 
-def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int, blend: int, coarse: int = 0) -> str:
+def config_id(size: int, strategy: str, min_scale: float, feather: int, overlap: int, blend: int, coarse: int = 0,
+              coarse_size: int = 0) -> str:
     ms = f"-ms{min_scale:g}" if strategy == "auto" else ""
-    return f"s{size}-{strategy}{ms}-f{feather}-o{overlap}-b{blend}" + ("-cf" if coarse else "")
+    return (f"s{size}-{strategy}{ms}-f{feather}-o{overlap}-b{blend}" + ("-cf" if coarse else "")
+            + (f"{coarse_size}" if coarse and coarse_size else ""))
 
 
-def build_grid(sizes, strategies, min_scales, feathers, overlaps, blends=(32,), coarses=(0,)) -> list[dict]:
+def build_grid(sizes, strategies, min_scales, feathers, overlaps, blends=(32,), coarses=(0,), coarse_sizes=(0,)) -> list[dict]:
     """רשימת תצורות (מילונים). min_scale רלוונטי רק ל-auto; overlap מצומצם בהמשך לפי התכנון."""
     out, seen = [], set()
     for size, strat, feather in itertools.product(sizes, strategies, feathers):
         for ms in (min_scales if strat == "auto" else [min_scales[0] if min_scales else 0.5]):
-            for ov, bl, cf in itertools.product(overlaps, blends, coarses):
-                cid = config_id(size, strat, ms, feather, ov, bl, cf)
+            for ov, bl, cf, cs in itertools.product(overlaps, blends, coarses, coarse_sizes):
+                if not cf and cs:
+                    continue                    # coarse_size רלוונטי רק עם מגס לדק
+                cid = config_id(size, strat, ms, feather, ov, bl, cf, cs)
                 if cid not in seen:
                     seen.add(cid)
                     out.append(dict(id=cid, size=size, large_strategy=strat, min_scale=ms, feather_px=feather,
-                                    tile_overlap=ov, tile_blend_px=bl, coarse_fine=int(cf)))
+                                    tile_overlap=ov, tile_blend_px=bl, coarse_fine=int(cf), coarse_size=int(cs)))
     return out
 
 
@@ -166,12 +170,12 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
         cells.append(("reference", big[cy, cx]))
 
     for i, cfg in enumerate(configs, 1):
-        pc = replace(base, sizes=tuple(sorted(set(base.sizes) | {cfg["size"]})), large_strategy=cfg["large_strategy"],
+        pc = replace(base, sizes=tuple(sorted(set(base.sizes) | {cfg["size"]} | ({cfg["coarse_size"]} if cfg.get("coarse_size") else set()))), large_strategy=cfg["large_strategy"],
                      min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
-                     tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)))
+                     tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_size=cfg.get("coarse_size") or None)
         pipe = Pipeline(model, pc)
         rep = pipe.plan(mask, cfg["size"], brush)
-        sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"])
+        sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"], cfg.get("coarse_fine", 0), cfg.get("coarse_size", 0))
         if sig in seen:
             skipped.append(dict(id=cfg["id"], reason=f"תכנון זהה ל-{seen[sig]}"))
             log(f"[{i}/{len(configs)}] {cfg['id']}: דילוג (תכנון זהה ל-{seen[sig]})")
@@ -183,6 +187,14 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
         seen[sig] = cfg["id"]
         row = dict(cfg, planned_runs=rep.runs, kinds=",".join(sorted({g.kind for g in rep.groups})),
                    scale=round(rep.min_scale, 3))
+        coarse_cell: list = []
+        if cfg.get("coarse_fine"):          # אבחון M3.7.7: איך נראה המילוי אחרי המעבר הגס בלבד
+            def _hook(box, crop, _img=img, _cell=coarse_cell):
+                x0, y0, x1, y1 = box
+                canvas = _img.copy()
+                canvas[y0:y1, x0:x1] = crop
+                _cell.append(canvas[cy, cx].copy())
+            pipe.coarse_hook = _hook
         t0 = time.perf_counter()
         try:
             res = pipe.run(img, mask, cfg["size"], brush_px=brush)
@@ -206,6 +218,8 @@ def run_bench(model, case_dir: str | Path, configs: list[dict], out_dir: str | P
             rimg, rmask = to_ref_size(res.image, m, ref_hw)
             row.update({f"ref_{k}": v for k, v in (safe_measure(rimg, rmask) or {}).items()})
         write_png(out / "crops" / f"{cfg['id']}.png", res.image[cy, cx])
+        if coarse_cell:
+            write_png(out / "crops" / f"{cfg['id']}-coarse.png", coarse_cell[-1])
         if save_full:
             write_png(out / f"{cfg['id']}.png", res.image)
         cells.append((cfg["id"], res.image[cy, cx]))
@@ -295,7 +309,7 @@ def main() -> None:
     ap.add_argument("--out", default="m3_bench")
     ap.add_argument("--quick", action="store_true", help="רשת קטנה: bucket 384, auto/tile")
     ap.add_argument("--sizes"), ap.add_argument("--strategies"), ap.add_argument("--min-scales")
-    ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends"), ap.add_argument("--coarses", help="0,1: מגס לדק (M3.7.7) כבוי/דולק")
+    ap.add_argument("--feathers"), ap.add_argument("--overlaps"), ap.add_argument("--blends"), ap.add_argument("--coarses", help="0,1: מגס לדק (M3.7.7) כבוי/דולק"), ap.add_argument("--coarse-sizes", dest="coarse_sizes", help="bucket של המעבר הגס, למשל 0,768,1024 (0 = כמו האריחים; רק עם --coarses 1)")
     ap.add_argument("--max-runs", type=int, default=80)
     ap.add_argument("--plan-only", action="store_true", help="רק תכנון (בלי מודל)")
     ap.add_argument("--save-full", action="store_true")
@@ -305,7 +319,7 @@ def main() -> None:
     a = ap.parse_args()
 
     g = dict(QUICK_GRID if a.quick else DEFAULT_GRID)
-    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int), ("coarses", int)):
+    for key, typ in (("sizes", int), ("strategies", str), ("min_scales", float), ("feathers", int), ("overlaps", int), ("blends", int), ("coarses", int), ("coarse_sizes", int)):
         v = getattr(a, key)
         if v:
             g[key] = _list(v, typ)
@@ -325,9 +339,9 @@ def main() -> None:
             for cfg in configs:
                 pc = PipelineConfig(sizes=tuple(sorted({256, 384, 512, cfg["size"]})), large_strategy=cfg["large_strategy"],
                                     min_scale=cfg["min_scale"], feather_px=cfg["feather_px"], tile_overlap=cfg["tile_overlap"],
-                                    tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)))
+                                    tile_blend_px=cfg["tile_blend_px"], coarse_fine=bool(cfg.get("coarse_fine", 0)), coarse_size=cfg.get("coarse_size") or None)
                 rep = Pipeline(_Stub(), pc).plan(case["mask"], cfg["size"], brush)
-                sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"])
+                sig = (plan_signature(rep, cfg["tile_overlap"], cfg["tile_blend_px"]), cfg["feather_px"], cfg.get("coarse_fine", 0), cfg.get("coarse_size", 0))
                 note = f"= {seen[sig]}" if sig in seen else (f"> max-runs ({a.max_runs})" if rep.runs > a.max_runs else "תרוץ")
                 seen.setdefault(sig, cfg["id"])
                 print(f"  {cfg['id']:28} {rep.runs:>4} הרצות, קנה מידה {rep.min_scale:.3f}, {note}")
