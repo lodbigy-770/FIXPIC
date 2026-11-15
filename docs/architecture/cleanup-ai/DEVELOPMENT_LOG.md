@@ -1621,3 +1621,14 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 
 **נדרש מהמשתמש:** להריץ `fetch_spike_models.py`, ואז `model_spike.py` (ראו הפקודה שהסקריפט מדפיס), ולדחוף את `m4_out/model_spike/` (JSON ו-PNG-ים) לריפו.
 
+## M5 – בדיקת Offline (2026-11-15)
+
+**מה:** `tests/test_m5_offline.py`. מגן (`netguard`) מחליף ב-`socket` את `connect`, `connect_ex`, `sendto`, `sendmsg` ואת `getaddrinfo`, `gethostbyname*`, `create_connection`: כל קריאה נרשמת וזורקת `NetworkAttempt`; חיבור על `AF_UNIX` (מקומי, אינו רשת) מותר. הבדיקות מריצות תחתיו: (1) `cli.main` מקצה לקצה עם נתיבים עבריים ומודל סינתטי; (2) `Pipeline` ו-`JobScheduler` עם `Session`; (3) `MainWindow` עם `default_engine_factory` שטוען מודל מהדיסק עד `EngineState.READY`, וכיבוי מסודר. בסוף כל מסלול: אין ניסיונות רשת רשומים, ואף אחד מ-`requests`, `urllib3`, `httpx`, `aiohttp`, `PySide6.QtNetwork`, `webbrowser` אינו ב-`sys.modules`. שתי בדיקות נוספות מוכיחות שהמגן עצמו עובד (חוסם ורושם; ו-`socketpair` מקומי עובר).
+
+**ממצא בדרך:** בגרסה הראשונה של בדיקת ה-UI התהליך נפל בסיום (`terminate called without an active exception`, קוד 134) אף שכל הבדיקות עברו: החלון נסגר בלי להמתין לטעינת המנוע וללא `controller.shutdown()`. התיקון הוא אותו דפוס של `EWin.close` ב-`test_m34.py` (המתנה ל-READY, `_runner.wait_idle()`, `shutdown()`). זו בעיית כיבוד בבדיקה ולא בקוד המוצר, אך שווה לזכור: סגירת `MainWindow` בזמן טעינת מנוע עלולה להפיל את התהליך; **לא נבדק** אם זה קורה גם במוצר (סגירת חלון מיד אחרי פתיחה).
+
+**נבדק:** 5 בדיקות חדשות, 3 הרצות רצופות נקיות; הסוויטה המלאה 965 עוברות, 3 מדולגות (Linux, Python 3.12, PySide6 offscreen, 78 שניות). בסריקת קוד קודמת (`grep` ב-`src`) נמצאו רק מחרוזות `https://git-lfs` של זיהוי LFS, ללא שימוש ברשת.
+
+**מגבלות:** זה מגן ברמת Python. הוא לא תופס פנייה מקוד נייטיב (Qt, OpenVINO, ORT) שלא עוברת דרך מודול `socket`, ואינו תחליף לבדיקה עם Firewall אמיתי ב-Windows (משימת "בדיקת ניתוק רשת מלאה" נשארת פתוחה). לא כוסו שמירה מדיאלוג קבצים אמיתי וחבילה ארוזה.
+
+**הבא ב-M5 (לבחירה):** סקירת רישיונות לרכיבים המוכללים, בדיקות תמונות גדולות ועומס זיכרון; אריזה, חתימה ובדיקת Firewall דורשות Windows.
