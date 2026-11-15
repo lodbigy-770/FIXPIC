@@ -1,0 +1,33 @@
+[
+  {
+    "load_s": 3.47,
+    "backend": "AutoModel"
+  },
+  {
+    "size": 512,
+    "warmup_s": 7.25,
+    "first_s": 2.72,
+    "shape_ok": true,
+    "outside_mean_abs": 0.0,
+    "median_s": 2.7,
+    "peak_rss_mb": 747
+  },
+  {
+    "size": 768,
+    "warmup_s": 10.16,
+    "first_s": 6.34,
+    "shape_ok": true,
+    "outside_mean_abs": 0.0,
+    "median_s": 6.34,
+    "peak_rss_mb": 1383
+  },
+  {
+    "size": 1024,
+    "warmup_s": 18.02,
+    "first_s": 12.14,
+    "shape_ok": true,
+    "outside_mean_abs": 0.0,
+    "median_s": 11.97,
+    "peak_rss_mb": 2031
+  }
+]
