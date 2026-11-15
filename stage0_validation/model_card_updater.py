@@ -25,6 +25,8 @@ from datetime import datetime
 from pathlib import Path
 from typing import Dict, List
 
+_NOTE_PREFIX = "> אומת בשלב 0 ב-"
+
 
 # ---------------------------------------------------------------------------
 # 6.1  parse_model_card
@@ -225,7 +227,7 @@ def update_task_list(content: str, completed_tasks: List[str]) -> str:
 
 def add_verification_note(content: str, timestamp: str | None = None) -> str:
     """
-    Insert a verification note into the MODEL_CARD header blockquote.
+    Insert (or refresh) the verification note in the MODEL_CARD header blockquote.
 
     Adds a blockquote line of the form
     ``> אומת בשלב 0 ב-{timestamp}``
@@ -237,6 +239,11 @@ def add_verification_note(content: str, timestamp: str | None = None) -> str:
         timestamp: Optional ISO-like timestamp string (``YYYY-MM-DD HH:MM``).
                    If not provided, the current local time is used.
 
+    Idempotent: if the card already carries a ``> אומת בשלב 0 ב-...`` line
+    (anywhere), the first such line is updated in place with the new timestamp
+    and any further duplicates are removed, so re-running validation never
+    accumulates notes.
+
     Returns:
         Updated content string.
     """
@@ -246,6 +253,13 @@ def add_verification_note(content: str, timestamp: str | None = None) -> str:
     note_line = f"> אומת בשלב 0 ב-{timestamp}"
 
     lines = content.split('\n')
+    existing = [i for i, l in enumerate(lines) if l.startswith(_NOTE_PREFIX)]
+    if existing:
+        lines[existing[0]] = note_line
+        for i in reversed(existing[1:]):
+            del lines[i]
+        return '\n'.join(lines)
+
     for i, line in enumerate(lines):
         if line.startswith('# MODEL_CARD'):
             # Find the last consecutive blockquote line after the heading

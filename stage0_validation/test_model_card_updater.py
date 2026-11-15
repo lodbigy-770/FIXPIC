@@ -326,10 +326,33 @@ class TestVerificationNote:
         text = "אין כותרת\n> שורה\n"
         assert add_verification_note(text, "T") == text
 
-    @pytest.mark.xfail(strict=True, reason="ידוע: כל הרצה של validate_stage0.py מוסיפה הערה נוספת (אין בדיקת כפילות)")
     def test_idempotent_for_same_timestamp(self):
         once = add_verification_note(CARD, "2026-11-11 14:19")
         assert add_verification_note(once, "2026-11-11 14:19") == once
+
+    def test_rerun_refreshes_timestamp_in_place(self):
+        once = add_verification_note(CARD, "2026-11-11 14:19")
+        twice = add_verification_note(once, "2026-11-14 09:00")
+        lines = twice.split("\n")
+        assert [l for l in lines if l.startswith("> אומת בשלב 0")] == ["> אומת בשלב 0 ב-2026-11-14 09:00"]
+        assert lines.index("> אומת בשלב 0 ב-2026-11-14 09:00") == once.split("\n").index(self.NOTE)   # אותו מקום
+        assert len(lines) == len(once.split("\n"))
+
+    def test_many_reruns_keep_a_single_note(self):
+        text = CARD
+        for i in range(5):
+            text = add_verification_note(text)
+        assert text.count("> אומת בשלב 0") == 1
+
+    def test_existing_duplicates_collapse_to_one(self):
+        dup = CARD.replace("> עודכן: 2026-11-10.", "> אומת בשלב 0 ב-A\n> עודכן: 2026-11-10.\n> אומת בשלב 0 ב-B")
+        out = add_verification_note(dup, "T")
+        assert out.count("> אומת בשלב 0") == 1 and "> אומת בשלב 0 ב-T" in out and "> עודכן: 2026-11-10." in out
+
+    def test_existing_note_not_at_top_is_still_refreshed(self):
+        """הכרטיס האמיתי: השורה נמצאת ישר אחרי הכותרת, לפני שורת ריקה ובלוק blockquote נוסף."""
+        real_like = "# MODEL_CARD – X\n> אומת בשלב 0 ב-2026-11-11 14:19\n\n> עודכן: 2026-11-10.\n"
+        assert add_verification_note(real_like, "T") == "# MODEL_CARD – X\n> אומת בשלב 0 ב-T\n\n> עודכן: 2026-11-10.\n"
 
 
 # ---------------------------------------------------------------------------------------------- whole flow
@@ -355,11 +378,10 @@ class TestPipeline:
         assert [h.split(" [")[0] for h in headings(out)] == [h.split(" [")[0] for h in headings(CARD)]
         assert len(out.split("\n")) == len(CARD.split("\n")) + 1
 
-    def test_rerun_of_the_three_updaters_is_a_noop(self):
-        """הרצה שנייה של שלושת העדכונים (סעיף 1, סעיף 3, משימות) על הכרטיס המעודכן אינה משנה דבר."""
+    def test_rerun_of_the_whole_pipeline_is_a_noop(self):
+        """הרצה שנייה של כל הצינור (כולל הערת האימות, עם אותה חותמת) על הכרטיס המעודכן אינה משנה דבר."""
         first = self.run(CARD)
-        second = update_task_list(update_section_3(update_section_1(first, FILE_INFO), META), ["SHA256", "probe"])
-        assert second == first
+        assert self.run(first) == first
 
 
 # ---------------------------------------------------------------------------------------------- real card (read only)
