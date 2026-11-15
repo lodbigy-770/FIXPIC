@@ -19,7 +19,7 @@ NOTES = {
     "Milestone 1.5": "נסגר; אימות אריזה על Python 3.14 הועבר ל-M5",
     "Milestone 2": "M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש",
     "Milestone 4": "שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית עם שרביט ו-GrabCut (ללא UI) בוצעו; נשאר כל הממשק, ו-Spike המודל (AUTO-SELECT.md §7 שלבים 4–6)",
-    "Milestone 3": "M3.1-M3.5 בוצעו (קבצים, Session/History, שלד ממשק, מברשת ולולאת Inpaint, Undo/Redo והשוואה); הבא M3.6 (סגירה)",
+    "Milestone 3": "M3.1-M3.6 בוצעו בסביבת הפיתוח (קבצים, Session/History, שלד ממשק, מברשת ולולאת Inpaint, Undo/Redo והשוואה, סגירה: רענון אזורי, איכות ייצוא, גלילה); נשארו בדיקות ידניות ב-Windows (`M3-ACCEPTANCE.md`)",
 }
 
 

@@ -51,6 +51,13 @@ SCRIBBLE_NEG_COLOR = (255, 140, 0)  # משיכה מתקנת שלילית (כתו
 OVERLAY_OPACITY = 140             # 0..255 במסכה מלאה
 MIN_GESTURE_PX = 4                # מלבן קטן מזה במסך נחשב ללחיצה ולא משודר
 GESTURE_STEP_PX = 2               # מרחק מינימלי במסך בין נקודות לאסו/משיכה
+PAN_STEP = 60                     # פיקסלי מסך להזזה בגלגלת (Shift/Alt)
+
+
+def _half(a: np.ndarray, w2: int, h2: int) -> np.ndarray:
+    """הקטנה פי 2 מדויקת: כל פיקסל ברמה הבאה = ממוצע 2x2 (שורה/עמודה אחרונה אי-זוגית נחתכת). המדויקות מאפשרת עדכון
+    אזורי של הפירמידה (`Pyramid.update_region`) שזהה לבייט לבנייה מחדש."""
+    return cv2.resize(a[:h2 * 2, :w2 * 2], (w2, h2), interpolation=cv2.INTER_AREA)
 
 
 class Pyramid:
@@ -65,8 +72,26 @@ class Pyramid:
             self.levels.append(QImage(cur.data, cur.shape[1], cur.shape[0], cur.strides[0], QImage.Format_RGB888))
             if min(cur.shape[:2]) <= 512:
                 break
-            cur = cv2.resize(cur, (cur.shape[1] // 2, cur.shape[0] // 2), interpolation=cv2.INTER_AREA)
+            cur = _half(cur, cur.shape[1] // 2, cur.shape[0] // 2)
         self.w, self.h = self.levels[0].width(), self.levels[0].height()
+
+    def update_region(self, level0: np.ndarray, box: tuple[int, int, int, int]) -> None:
+        """מחליף את רמה 0 ב-`level0` (אותן מידות) ומחשב מחדש בכל רמה רק את האזור שמכסה את `box` (x0, y0, x1, y1).
+        רמות 1 ומעלה נכתבות במקום (הזיכרון שלהן שייך לפירמידה); רמה 0 נשארת משותפת עם `level0`."""
+        if level0.shape[:2] != self.arrays[0].shape[:2]:
+            raise ValueError("update_region: מידות שונות")
+        cur = np.ascontiguousarray(level0)
+        self.arrays[0] = cur
+        self.levels[0] = QImage(cur.data, cur.shape[1], cur.shape[0], cur.strides[0], QImage.Format_RGB888)
+        x0, y0, x1, y1 = box
+        for k in range(1, len(self.arrays)):
+            dst, prev = self.arrays[k], self.arrays[k - 1]
+            h2, w2 = dst.shape[:2]
+            x0, y0, x1, y1 = x0 // 2, y0 // 2, min(w2, -(-x1 // 2)), min(h2, -(-y1 // 2))
+            if x0 >= x1 or y0 >= y1:
+                break
+            dst[y0:y1, x0:x1] = cv2.resize(prev[2 * y0:2 * y1, 2 * x0:2 * x1], (x1 - x0, y1 - y0),
+                                           interpolation=cv2.INTER_AREA)
 
     def level_for(self, scale: float) -> int:
         if scale >= 1:
@@ -192,6 +217,28 @@ class Canvas(QWidget):
             on = False
         self._comparing, self._cmp_badge = on, badge
         self._apply_cursor()
+        self.update()
+
+    def update_image_region(self, rgb: np.ndarray, alpha: np.ndarray | None, box: tuple[int, int, int, int] | None) -> None:
+        """מרענן אחרי שינוי בתמונה העובדת באזור `box` בלבד (Commit/Undo/Redo): הרכבת ה-Alpha ועדכון רמות הפירמידה רק
+        שם, במקום בנייה מחדש של כל התמונה (בתמונה עם Alpha של 24MP זה ההבדל בין כ-10ms לכ-600ms). בלי `box`, או כשהמבנה
+        אינו מתאים, חוזר לבנייה מלאה. הזום וההזזה נשמרים."""
+        pyr = self.pyr
+        ok = (box is not None and pyr is not None and (pyr.w, pyr.h) == (rgb.shape[1], rgb.shape[0]))
+        if ok and alpha is not None:
+            a0 = pyr.arrays[0]
+            ok = a0.flags.writeable and a0 is not rgb
+        if not ok:
+            self.set_image(rgb, alpha, keep_view=True)
+            return
+        x0, y0, x1, y1 = box
+        if alpha is None:
+            pyr.update_region(rgb, box)
+        else:
+            a0 = pyr.arrays[0]
+            a0[y0:y1, x0:x1] = composite_on(rgb[y0:y1, x0:x1], alpha[y0:y1, x0:x1], TRANSPARENT_BG)
+            pyr.update_region(a0, box)
+        self._ov_cache = None
         self.update()
 
     def clear_compare_cache(self) -> None:
@@ -457,9 +504,17 @@ class Canvas(QWidget):
 
     # ----------------------------------------------------------------- קלט
     def wheelEvent(self, e) -> None:
-        dy = e.angleDelta().y()
-        if dy:
-            self.zoom_at(e.position(), ZOOM_STEP ** (dy / 120))
+        """גלגלת = זום סביב הסמן. Shift+גלגלת = הזזה אופקית, Alt+גלגלת = הזזה אנכית, וגלגלת אופקית (משטח מגע) מזיזה
+        אופקית. צעד הזזה: 60 פיקסלי מסך לכל "שן" (120)."""
+        d, mods = e.angleDelta(), e.modifiers()
+        if d.x():
+            self.pan_by(QPointF(d.x() / 120 * PAN_STEP, 0))
+        elif d.y() and (mods & Qt.ShiftModifier):
+            self.pan_by(QPointF(d.y() / 120 * PAN_STEP, 0))
+        elif d.y() and (mods & Qt.AltModifier):
+            self.pan_by(QPointF(0, d.y() / 120 * PAN_STEP))
+        elif d.y():
+            self.zoom_at(e.position(), ZOOM_STEP ** (d.y() / 120))
         e.accept()
 
     def _pan_button(self, e) -> bool:

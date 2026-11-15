@@ -17,6 +17,8 @@
   "action.actual_size": "גודל מלא (100%)",
   "action.zoom_in": "הגדלה",
   "action.zoom_out": "הקטנה",
+  "dialog.quality_title": "איכות ייצוא",
+  "dialog.quality_label": "איכות {fmt} (1-100):",
   "action.cancel_jobs": "ביטול עיבוד",
   "action.undo": "ביטול (Undo)",
   "action.redo": "שחזור (Redo)",

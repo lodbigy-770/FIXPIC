@@ -14,7 +14,7 @@
   בהיסטוריה; מסכה שמחכה לתור/למנוע נזרקת גם היא.
 - **Undo/Redo (M3.5):** `undo()` בזמן עיבוד או המתנה (תור/מנוע) = ביטול כל המשיכות (PARITY-SPEC §3.4 סעיף 4), בלי לבטל Commit;
   רק כשאין עבודה הוא מבטל Commit אחרון. `redo()` בזמן עיבוד נדחה. שניהם נחסמים באמצע משיכת מברשת. אחרי שינוי תמונה
-  משודר `imageChanged` (אותו אות גם אחרי Commit), והחלון מרענן את הקנבס.
+  משודר `imageChanged(box)` (אותו אות גם אחרי Commit), והחלון מרענן את הקנבס באזור ששונה בלבד.
 - מצב המנוע: `NONE` (לא הוגדר מנוע; משיכות רק מציירות מסכה, כמו בבדיקות), `LOADING`, `READY`, `FAILED`.
 """
 from __future__ import annotations
@@ -45,7 +45,7 @@ class EngineState(str, Enum):
 class EditController(QObject):
     changed = Signal()                  # המסכה/העבודות השתנו: לצייר מחדש ולעדכן כפתורים
     committed = Signal(object)          # JobOutcome עם Patch: התמונה העובדת השתנתה
-    imageChanged = Signal()             # התמונה העובדת השתנתה (Commit, Undo או Redo): לרענן את התצוגה
+    imageChanged = Signal(object)       # התמונה העובדת השתנתה (Commit/Undo/Redo); הנתון: המלבן ששונה (x0, y0, x1, y1)
     message = Signal(str)               # הודעת סטטוס
     failed = Signal(str)                # כשל בעיבוד (טקסט מלא להצגה)
     processingChanged = Signal(bool)    # מחוון עיבוד (אחרי 200ms)
@@ -239,6 +239,7 @@ class EditController(QObject):
         if self._waiting is not None:                  # מסכה שמחכה לתור/מנוע: Undo מבטל אותה כמו עיבוד
             self.cancel()
             return HistoryAction.CANCELLED_JOBS
+        patch = s.history.peek_undo()
         try:
             act = s.undo()
         except FixPicError as e:
@@ -250,7 +251,7 @@ class EditController(QObject):
             self.changed.emit()
         elif act is HistoryAction.UNDONE:
             self.message.emit(t("status.undone"))
-            self.imageChanged.emit()
+            self.imageChanged.emit(patch.box if patch is not None else None)
             self.changed.emit()
         return act
 
@@ -258,6 +259,7 @@ class EditController(QObject):
         s = self.session
         if s is None or self.stroking:
             return HistoryAction.NOTHING
+        patch = s.history.peek_redo()
         try:
             act = s.redo()
         except FixPicError as e:
@@ -265,7 +267,7 @@ class EditController(QObject):
             return HistoryAction.NOTHING
         if act is HistoryAction.REDONE:
             self.message.emit(t("status.redone"))
-            self.imageChanged.emit()
+            self.imageChanged.emit(patch.box if patch is not None else None)
             self.changed.emit()
         elif act is HistoryAction.BUSY:
             self.message.emit(t("status.redo_busy"))
@@ -308,7 +310,7 @@ class EditController(QObject):
                 self.message.emit(t("status.no_change"))
             else:
                 self.committed.emit(o)
-                self.imageChanged.emit()
+                self.imageChanged.emit(o.patch.box)
         elif o.kind is OutcomeKind.FAILED:
             log.warning("עיבוד נכשל: %s", o.error)
             self.failed.emit(str(o.error) if o.error is not None else "")

@@ -289,6 +289,7 @@ class Win:
         w._ask_discard = self._ask
         w._pick_open = lambda: self.open_pick
         w._pick_save = self._pick_save
+        w._ask_quality = lambda fmt, cur: cur
         w.show()
 
     def _ask(self):

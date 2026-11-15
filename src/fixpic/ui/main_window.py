@@ -17,6 +17,8 @@
   מלבן/לאסו/משיכה מתקנת ומשדר אותם ל-`SmartSelectController` (GrabCut ברקע), וההצעה מצוירת בירוק. Enter מאשר (מוסיף למסכה
   בצעד Undo אחד של לוח כלי המסכה, בלי להפעיל Inpaint), Esc מבטל קודם מחוות פעילה, אחר כך הצעה/קלט, ורק אחרי זה עיבוד Inpaint.
   תמונה חדשה, Commit, Undo ו-Redo של התמונה זורקים את ההצעה. מחוון "הבחירה לוקחת זמן" בשורת המצב אחרי 200ms.
+- **ייצוא:** ברזולוציה מלאה תמיד, בלי מגבלה. ב-JPG/WebP "שמירה בשם" שואלת איכות (1-100, ברירת מחדל 92, מבודד ב-`_ask_quality`);
+  Ctrl+S חוזר על האיכות והנתיב האחרונים.
 - **מנוע ההסרה** נטען ברקע רק אם ניתן `engine_factory` (`ui.app.main` נותן; בדיקות מזריקות מנוע מדומה). בלי מנוע
   משיכות רק מציירות מסכה.
 """
@@ -28,8 +30,8 @@ from typing import Callable
 
 from PySide6.QtCore import QUrl, Qt
 from PySide6.QtGui import QAction, QGuiApplication, QKeySequence
-from PySide6.QtWidgets import (QDockWidget, QFileDialog, QLabel, QMainWindow, QMessageBox, QProgressBar, QToolBar,
-                               QToolButton)
+from PySide6.QtWidgets import (QDockWidget, QFileDialog, QInputDialog, QLabel, QMainWindow, QMessageBox, QProgressBar,
+                               QToolBar, QToolButton)
 
 from ..errors import FixPicError, InvalidInputError
 from ..imgio import LoadedImage, SaveResult, image_from_array, load_image, save_image
@@ -48,6 +50,8 @@ log = logging.getLogger("fixpic.ui")
 
 _EXT_BY_FILTER = {"filter.png": ".png", "filter.jpg": ".jpg", "filter.webp": ".webp"}
 _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
+_LOSSY = {".jpg", ".jpeg", ".webp"}
+DEFAULT_QUALITY = 92
 
 
 class MainWindow(QMainWindow):
@@ -61,6 +65,7 @@ class MainWindow(QMainWindow):
         self._error_open = False
         self._cmp_toggle = False
         self._cmp_hold = False
+        self.save_quality = DEFAULT_QUALITY       # איכות JPG/WebP; נשאלת ב"שמירה בשם" ונשמרת ל-Ctrl+S
         self._runner = BackgroundRunner(self)
         self.canvas = Canvas(self)
         self.controller = EditController(self)
@@ -283,6 +288,11 @@ class MainWindow(QMainWindow):
         filters = ";;".join(t(k) for k in _EXT_BY_FILTER)
         return QFileDialog.getSaveFileName(self, t("dialog.save_title"), suggested, filters, selected_filter)
 
+    def _ask_quality(self, fmt: str, current: int) -> int | None:
+        """איכות ייצוא (1-100) ל-JPG/WebP. None = ביטול."""
+        v, ok = QInputDialog.getInt(self, t("dialog.quality_title"), t("dialog.quality_label", fmt=fmt), current, 1, 100, 1)
+        return int(v) if ok else None
+
     def _report(self, key: str, e: BaseException) -> None:
         if isinstance(e, FixPicError):
             self._error(key, detail=str(e))
@@ -323,11 +333,11 @@ class MainWindow(QMainWindow):
         if self.controller.indicator_on:
             self._show_processing_text()
 
-    def _image_changed(self) -> None:
-        """התמונה העובדת השתנתה (Commit, Undo, Redo): מרענן את הקנבס בלי לאבד זום והזזה."""
+    def _image_changed(self, box=None) -> None:
+        """התמונה העובדת השתנתה (Commit, Undo, Redo): מרענן את הקנבס באזור `box` בלבד, בלי לאבד זום והזזה."""
         s = self.session
         if s is not None:
-            self.canvas.set_image(s.rgb, s.alpha, keep_view=True)
+            self.canvas.update_image_region(s.rgb, s.alpha, box)
         self._refresh()
 
     # ------------------------------------------------------------ בחירה חכמה
@@ -565,16 +575,22 @@ class MainWindow(QMainWindow):
         p = Path(path)
         if not p.suffix:
             p = p.with_suffix(next((e for k, e in _EXT_BY_FILTER.items() if t(k) == chosen), ".png"))
+        if p.suffix.lower() in _LOSSY:
+            q = self._ask_quality(p.suffix.lstrip(".").upper().replace("JPEG", "JPG"), self.save_quality)
+            if q is None:
+                return
+            self.save_quality = q
         self._start_save(p, then)
 
     def _start_save(self, path: Path, then: Callable[[], None] | None) -> None:
         s = self.session
         rgb, alpha, icc, exif = s.rgb, s.alpha, s.icc_profile, s.exif   # בלתי-משתנים (קריאה-בלבד)
         state_id = s.history.current_id                                  # מצב שנשמר בפועל
+        quality = self.save_quality
         self._set_busy(True, t("status.saving"))
 
         def work() -> SaveResult:
-            return save_image(path, rgb, alpha, icc_profile=icc, exif=exif)
+            return save_image(path, rgb, alpha, icc_profile=icc, exif=exif, quality=quality)
 
         def done(res: SaveResult) -> None:
             self.save_path = path
