@@ -17,7 +17,7 @@ from pathlib import Path
 import cv2
 import numpy as np
 
-from .engine import JobScheduler, JobState
+from .engine import JobScheduler
 from .errors import (CancelledError, EmptyMaskError, FixPicError, InferenceError, InvalidInputError,
                      ModelLoadError, OutOfMemoryError)
 from .models import ModelManager

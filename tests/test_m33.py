@@ -21,7 +21,7 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from fixpic import strings  # noqa: E402
 from fixpic.errors import InvalidInputError  # noqa: E402
-from fixpic.imgio import image_from_array, load_image, save_image  # noqa: E402
+from fixpic.imgio import load_image, save_image  # noqa: E402
 from fixpic.pipeline import InpaintResult  # noqa: E402
 from fixpic.pipeline.roi import RoiPlan  # noqa: E402
 from fixpic.ui.app import create_app  # noqa: E402

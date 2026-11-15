@@ -240,7 +240,7 @@ class InpaintModel(Protocol):
 - **פתוח:** צורה דינמית ומטמון compile (`CACHE_DIR`) טרם נמדדו; התנהגות על מעבדים שאינם Intel טרם נבדקה.
 - **סטטוס:** מאושר (2026-11-12). המשתמש אישר במפורש ("4 מאשר", בשיחה B), לאחר שקודם ענה בהערת זיכרון בלבד (8GB כרגע, 16GB בדרך כלל).
 
-## 13. ספריות ומבנה קוד מוצע (הצעה, טרם מומש)
+## 13. ספריות ומבנה קוד (מומש בעיקרו; מעודכן 2026-11-15)
 
 | תחום | ספרייה | הערה |
 |------|--------|------|
@@ -254,16 +254,18 @@ class InpaintModel(Protocol):
 
 ```
 src/fixpic/
-  app.py            נקודת כניסה
-  ui/               חלון ראשי, Canvas, סרגל כלים (RTL); שלד ב-M3.3, מברשת ולולאת Inpaint ב-M3.4, Undo/Redo והשוואה ב-M3.5
+  app.py, __main__.py  נקודות כניסה (ממשק; `python -m fixpic` = CLI)
+  cli.py            שורת פקודה; מומש ב-M2.7
+  errors.py         היררכיית FixPicError
+  ui/               חלון ראשי, Canvas, סרגל כלים (RTL); שלד ב-M3.3, מברשת ולולאת Inpaint ב-M3.4, Undo/Redo והשוואה ב-M3.5, לוח כלי מסכה ב-M4
   strings/          he.json ו-t(); מומש ב-M3.3
-  engine/           InpaintEngine, Job Scheduler, ROI/Tiling
-  pipeline/         Pre/Post, מיזוג, פעולות מסכה
-  models/           Model Manager, מימוש ONNX
+  engine/           Job Scheduler, Warm-up; מומש ב-M2.6
+  pipeline/         ROI/Tiling, Pre/Post, הרחבת מסכה, Feathering, מיזוג; מומש ב-M2
+  models/           InpaintModel, OvModel, OrtModel, AutoModel, ModelManager; מומש ב-M2
   history/          Undo/Redo (Patches); מומש ב-M3.2
-  session/          Session, MaskLayer, מדיניות Alpha; מומש ב-M3.2
+  session/          Session, MaskLayer, MaskHistory, פעולות מסכה, מדיניות Alpha; מומש ב-M3.2 וב-M4
+  select/           בחירה אוטומטית (שרביט, GrabCut, משיכה → נקודות, SelectionService); M4, ראו AUTO-SELECT.md
   imgio/            טעינה/שמירה (נתיבי Unicode); לא נקרא io כדי לא להצל על ה-stdlib (מומש ב-M3.1)
-  strings/          he.json (מחרוזות עברית)
 tests/
-tools/poc/          ה-PoC הקיים; נקודת התחלה למנוע
+tools/              m1/ m3/ m4/ (מדידות וסקריפטים להרצה אצל המשתמש), poc/ (ה-PoC הקיים; נשמר להיסטוריה)
 ```

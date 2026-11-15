@@ -20,10 +20,9 @@ from PySide6.QtWidgets import QApplication  # noqa: E402
 
 from fixpic.imgio import image_from_array  # noqa: E402
 from fixpic.session import HistoryAction  # noqa: E402
-from test_engine import FILL, FakeModel, rnd  # noqa: E402
+from test_engine import rnd  # noqa: E402
 from test_m34 import (EWin, app, drag, grab_rgb, scr, wait_until, ew, ew_gate, ew_noengine, T,  # noqa: E402,F401
                       _close_canvases)  # noqa: F401
-from test_scheduler import GateModel  # noqa: E402
 
 pytestmark = pytest.mark.usefixtures("_close_canvases")
 

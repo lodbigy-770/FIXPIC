@@ -12,7 +12,6 @@ from fixpic.errors import (EmptyMaskError, FixPicError, InferenceError, InvalidI
                            QueueFullError)
 from fixpic.history import History, Patch
 from fixpic.imgio import image_from_array, load_image
-from fixpic.models import ModelInfo
 from fixpic.pipeline import InpaintResult, Pipeline, PipelineConfig
 from fixpic.pipeline.roi import RoiPlan
 from fixpic.session import HistoryAction, MaskLayer, OutcomeKind, Session, fill_alpha

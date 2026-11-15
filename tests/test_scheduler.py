@@ -1,10 +1,9 @@
 import threading
-import time
 
 import numpy as np
 import pytest
 
-from fixpic.engine import Job, JobScheduler, JobState, WarmupState
+from fixpic.engine import JobScheduler, JobState, WarmupState
 from fixpic.errors import (CancelledError, EmptyMaskError, InferenceError, QueueFullError, SchedulerClosedError)
 from fixpic.models import ModelConfig, ModelInfo
 from fixpic.pipeline import Pipeline, PipelineConfig

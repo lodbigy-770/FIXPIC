@@ -34,7 +34,7 @@ from ..strings import t
 from .brush_panel import BrushPanel
 from .canvas import Canvas
 from .convert import qimage_to_array
-from .edit_loop import EditController, EngineState
+from .edit_loop import EditController
 from .mask_panel import MaskToolsPanel
 from .workers import BackgroundRunner
 

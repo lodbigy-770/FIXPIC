@@ -1259,3 +1259,21 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 
 **הבא:** הרצת המדידה אצל המשתמש; לפי התוצאות, שלב 6 (`ModelProvider`) והחלטת ADR, או הישארות ברמה 0.
 
+## 2026-11-15 – ריויו וניקוי קוד ישן (ללא שינוי התנהגות)
+
+**שיטה:** חיפוש עם `grep`/`sed` בלבד: (1) כל `def`/`class` ב-`src` שמופיע בהם פעם אחת בלבד; (2) כל שם מיובא (כולל בלוקים מרובי-שורות) שמופיע בקובץ פעם אחת בלבד, ב-`src`, `tools` ו-`tests`; (3) TODO/FIXME, `print` ב-`src`, קוד בהערות, `except` ריק; (4) הפניות לקבצי מדידה בשורש הריפו.
+
+**הוסר:** ייבוא `JobState` מ-`cli.py`; ייבוא `EngineState` מ-`ui/main_window.py` (שניהם לא בשימוש; הבדיקות מייבאות את `EngineState` ישירות מ-`edit_loop`). בבדיקות: `Path` (`test_m31`), `ModelInfo` (`test_m32`), `cv2` (`test_m24`, `test_m4_stroke`), `image_from_array` (`test_m33`), `FILL`/`FakeModel`/`GateModel` (`test_m35`), `FILL` (`test_m29`), `Job` ו-`time` (`test_scheduler`). **טעות שנתפסה בדרך:** בהסרה הראשונה הוצא גם `FakeModel` מ-`test_m29`, שבו הוא בשימוש; הכשל (`NameError` באיסוף) נתפס בהרצה והוחזר.
+
+**עודכן:** `ARCHITECTURE.md` §13 הציג מבנה "מוצע, טרם מומש" ושורת `strings/` כפולה, בלי `select/`, `cli.py` ו-`errors.py`, ועם `InpaintEngine` ו-ROI תחת `engine/`; עתה תואם את הקוד בפועל (ללא שינוי החלטות).
+
+**נבדק ונשאר בכוונה:** `all_keys`, `context_keys`, `has_image`, `image_to_view`, `invalidate_overlay`, `recording`, `take`, `wait_idle`, `wait_warmup` מוגדרים ב-`src` ומשמשים רק בבדיקות. אלה גישות ציבוריות קטנות (חלקן נדרשות לחיווט ה-UI של שלב 4), והסרתן לא חוסכת דבר. מטפלי אירועי Qt (`dropEvent` וכו') הם דריסות ולא קוד מת. אין TODO, קוד בהערות או `except` ריק.
+
+**לא נמחק, ממתין לאישור המשתמש (קבצים במעקב, הבקשה הקודמת למחיקה דרשה אישור):** `latency_results.json`, `openvino_results.json`, `openvino_dynamic.json` בשורש ו-`m1_out/`, `m4_out/`: מוזכרים ב-`MODEL_CARD.md` וב-`ROADMAP.md` כראיות למספרים מאומתים (`[אומת]`), ולכן מחיקה תשבור הפניות. אפשר להעביר ל-`docs/measurements/` ולעדכן את ההפניות, אם רוצים לנקות את השורש. `tools/poc/` (PoC ראשוני; נשמר, מסומן בהיסטורי) ו-`.kiro/` (מפרט של KIRO לשלב 0) לא נגעתי.
+
+**אימות:** 729 עוברות, 3 מדולגות (Linux, Python 3.12, PySide6 6.12 ו-openvino 2026.4.1 הותקנו בסביבת Claude לצורך זה, `QT_QPA_PLATFORM=offscreen`; 707 לפני שלב 5 + 22 חדשות). זו הרצה מלאה ראשונה בסביבה שלי שכוללת את בדיקות הממשק וה-OpenVINO.
+
+**לא נבדק:** Windows, Python 3.14, i5-6500T (הניקוי נוגע בייבואים בלבד, אך לא הורץ שם); `test_real_model.py` מדולג כאן (המודל האמיתי הוא LFS pointer). הניתוח הוא grep ולכן שם שנעשה בו שימוש דינמי בלבד (`getattr`, מחרוזת) לא היה נתפס כ"בשימוש"; לא נמצא כזה בשמות שהוסרו.
+
+**הבא:** כמו קודם (M3.6, או הרצת מדידת ה-Spike אצל המשתמש).
+

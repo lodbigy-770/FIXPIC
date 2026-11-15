@@ -15,7 +15,7 @@ from fixpic.errors import (CancelledError, EmptyMaskError, FixPicError, Inferenc
 from fixpic.models import AutoModel, ModelConfig, ModelManager
 from fixpic.pipeline import Pipeline, PipelineConfig
 from test_backends import tiny  # noqa: F401  (fixture)
-from test_engine import FILL, FakeModel, rnd
+from test_engine import FakeModel, rnd
 from test_m24 import blocks  # noqa: F401
 
 T = 10.0
