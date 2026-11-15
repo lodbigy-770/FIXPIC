@@ -231,6 +231,36 @@ class Pipeline:
             out.append(GroupPlan(g.box, int((g.mask > 0).sum()), kind, eff, (p.width, p.height), windows))
         return PlanReport(size, r, float(brush_px or 0.0), int((m > 0).sum()), out)
 
+    def tile_seams(self, mask: np.ndarray, size: int | None = None, brush_px: float | None = None,
+                   min_run: int = 16) -> list[tuple[str, int, int, int]]:
+        """קווי התפר בין אריחים (M3.7.4), בפורמט של `quality.seam_ratio`: `("v", x, y0, y1)` ו-`("h", y, x0, x1)`.
+        רק קטעים שבהם המסכה האפקטיבית מכסה את שני צדי הקו (שם באמת נוצר תפר) ואורכם לפחות `min_run`. בלי הרצת מודל;
+        ריק כשאין אריחים. משתמש באותו תכנון כמו `run`/`plan`."""
+        size = size or self.cfg.default_size
+        m, _r, _b = self._prepare_mask(mask, brush_px)
+        hw = m.shape
+        lines: list[tuple[str, int, int, int]] = []
+
+        def runs(ok: np.ndarray, off: int) -> list[tuple[int, int]]:
+            d = np.diff(np.concatenate(([0], ok.astype(np.int8), [0])))
+            return [(off + int(a), off + int(b)) for a, b in zip(np.nonzero(d == 1)[0], np.nonzero(d == -1)[0])
+                    if b - a >= min_run]
+
+        for g in group_mask(m, size, self.cfg.margin_ratio, self.cfg.min_margin):
+            _p, cores, _ts = self._strategy(g, size, hw)
+            if cores is None:
+                continue
+            gx0, gy0, gx1, gy1 = g.box
+            for x in sorted({c[0] for c in cores} | {c[2] for c in cores}):
+                if gx0 < x < gx1:
+                    both = (m[gy0:gy1, x - 1] > 0) & (m[gy0:gy1, x] > 0)
+                    lines += [("v", x, a, b) for a, b in runs(both, gy0)]
+            for y in sorted({c[1] for c in cores} | {c[3] for c in cores}):
+                if gy0 < y < gy1:
+                    both = (m[y - 1, gx0:gx1] > 0) & (m[y, gx0:gx1] > 0)
+                    lines += [("h", y, a, b) for a, b in runs(both, gx0)]
+        return lines
+
     def _count(self, g: Group, size: int, hw) -> int:
         """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
         _, cores, _ts = self._strategy(g, size, hw)
