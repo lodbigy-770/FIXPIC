@@ -16,6 +16,7 @@ from .dilate import dilate_radius, estimate_brush_px
 from .feather import feather_alpha
 from .grouping import Group, group_mask
 from .roi import RoiPlan, plan_roi_bbox, tile_cores, tile_plan, tile_window
+from .texture import restore_texture
 
 log = logging.getLogger("fixpic.pipeline")
 STRIP = 128   # שורות בכל פעימת מיזוג: מונע מערכי float בגודל החלון כולו
@@ -55,6 +56,14 @@ class PipelineConfig:
     # bucket של המעבר הגס בלבד (חייב להיות ב-`sizes`); None = אותו bucket של האריחים. גדול יותר = פחות הקטנה ויותר הקשר.
     # בניסיון חוזר אחרי OOM חוזרים ל-bucket של האריחים.
     coarse_size: int | None = 768
+    # M3.7.8 (שחזור טקסטורה): אחרי מילוי קבוצה שהמודל ראה אותה מוקטנת מתחת ל-`texture_max_scale`, מוסיפים בתוך המסכה גרעין
+    # תדר-גבוה שמותאם מקומית לאנרגיית הסביבה (`pipeline/texture.py`), רק היכן שחסרה טקסטורה. `texture_guard`: אם יחס
+    # הטקסטורה (פנים/סביבה) כבר לפחות כך, לא נוגעים. כבוי כברירת מחדל (ADR-012 נשאר בלי טקסטורה) עד בדיקה בעין על Big LaMa. ערכים זמניים.
+    texture_restore: bool = False
+    texture_strength: float = 1.0
+    texture_max_scale: float = 0.75
+    texture_guard: float = 0.85
+    texture_seed: int = 0
     max_tiles: int = 64          # מעל זה חוזרים להקטנה (תקרת זמן)
     memory_limit_mb: int | None = None   # תקרת זיכרון להערכה מראש (כולל המודל); None = ללא בדיקה
     model_overhead_mb: int = 1600        # שיא תהליך של OpenVINO נמדד ב-M1.5: 1.51GB; ערך מעוגל כלפי מעלה
@@ -93,6 +102,7 @@ class InpaintResult:
     dilate_px: int = 0           # רדיוס ההרחבה שבוצעה בפועל
     brush_px: float = 0.0        # קוטר המברשת ששימש לחישובה (0 = הרחבה קבועה, לא נדרש)
     feather_px: int = 0          # רוחב ה-Feathering שבו נעשה שימוש (כולל עקיפה לפי עבודה)
+    texture_groups: int = 0      # M3.7.8: כמה קבוצות קיבלו גרעין
 
 
 @dataclass(frozen=True)
@@ -140,6 +150,8 @@ class Pipeline:
                 or (c.mask_dilate_px is not None and c.mask_dilate_px < 0)
                 or not 0 <= c.native_margin_ratio <= c.margin_ratio):
             raise InvalidInputError("פרמטרי הרחבה/הקשר לא תקינים")
+        if c.texture_strength < 0 or c.texture_max_scale <= 0 or c.texture_guard <= 0:
+            raise InvalidInputError("פרמטרי שחזור הטקסטורה לא תקינים")
         for s in self.cfg.sizes:
             if s % model.info.multiple or not model.info.min_size <= s <= model.info.max_size:
                 raise InvalidInputError(f"גודל bucket לא תקף למודל: {s}")
@@ -205,12 +217,18 @@ class Pipeline:
         rois: list[RoiPlan] = []
         st = _State(progress, sum(self._count(g, size, hw) for g in groups))
         used = size
+        tex = 0
         for g in groups:
             cancel.raise_if_cancelled()
             used = self._run_group_with_retry(image, result, m, g, size, cancel, rois, st, hw, feather)
+            if c.texture_restore and self._fill_scale(g, size, used, hw) < c.texture_max_scale:
+                info = restore_texture(result, m, g.box, g.mask, strength=c.texture_strength, guard=c.texture_guard,
+                                       seed=c.texture_seed, cancel=cancel)
+                tex += int(info.applied)
+                log.debug("שחזור טקסטורה: %s", info)
         st.emit("done")
         return InpaintResult(result, m, rois[0], rois, len(groups), len(rois), used, st.retries, r,
-                             float(brush_px or 0.0), feather)
+                             float(brush_px or 0.0), feather, tex)
 
     def _prepare_mask(self, mask: np.ndarray, brush_px: float | None) -> tuple[np.ndarray, int, float | None]:
         """מסכה בינארית אחרי הרחבה: (m, רדיוס ההרחבה, brush_px בפועל)."""
@@ -376,6 +394,19 @@ class Pipeline:
             if ts is not None and (ts > p.scale or c.large_strategy == "tile"):
                 return p, tile_cores(g.box, size, c.tile_overlap, ts), ts
         return p, None, p.scale
+
+    def _fill_scale(self, g: Group, size: int, used: int, hw) -> float:
+        """קנה המידה שבו המודל ראה את פנים הקבוצה (1.0 = מקורי): חלון יחיד, אריחים, או, במגס-לדק, המעבר הגס
+        (ב-`coarse_size` אם הוגדר ולא היה ניסיון חוזר אחרי OOM)."""
+        c = self.cfg
+        p, cores, ts = self._strategy(g, used, hw)
+        if cores is None:
+            return p.scale
+        if c.coarse_fine:
+            if c.coarse_size and used == size and c.coarse_size != used:
+                p = plan_roi_bbox(g.box, hw, c.coarse_size, c.margin_ratio, c.min_margin, c.native_margin_ratio)
+            return p.scale
+        return ts
 
     def _run_group(self, result, m, g: Group, size, cancel, rois, st, feather, coarse_size=None) -> None:
         hw = result.shape[:2]

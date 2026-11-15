@@ -269,7 +269,7 @@ src/fixpic/
   ui/               חלון ראשי, Canvas, סרגל כלים (RTL); שלד ב-M3.3, מברשת ולולאת Inpaint ב-M3.4, Undo/Redo והשוואה ב-M3.5, רענון אזורי ב-M3.6, לוח כלי מסכה ב-M4
   strings/          he.json ו-t(); מומש ב-M3.3
   engine/           Job Scheduler, Warm-up; מומש ב-M2.6
-  pipeline/         ROI/Tiling, Pre/Post, הרחבת מסכה, Feathering, מיזוג; מומש ב-M2
+  pipeline/         ROI/Tiling, Pre/Post, הרחבת מסכה, Feathering, מיזוג; מומש ב-M2. `texture.py`: שחזור טקסטורה לאזור מולא מוקטן (M3.7.8)
   models/           InpaintModel, OvModel, OrtModel, AutoModel, ModelManager; מומש ב-M2
   history/          Undo/Redo (Patches); מומש ב-M3.2
   session/          Session, MaskLayer, MaskHistory, פעולות מסכה, מדיניות Alpha; מומש ב-M3.2 וב-M4
