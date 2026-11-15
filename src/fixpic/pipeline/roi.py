@@ -74,19 +74,31 @@ def plan_roi_bbox(box, img_hw, size: int, margin_ratio: float = 0.25, min_margin
     return RoiPlan(x0, y0, x0 + ww, y0 + wh, scale, size, in_w, in_h)
 
 
-def tile_plan(x0: int, y0: int, x1: int, y1: int, img_hw, size: int) -> RoiPlan:
-    """חלון S×S בקנה מידה מקורי (מוצמד לתמונה) סביב ליבת אריח."""
+def tile_window(size: int, scale: float) -> int:
+    """צלע חלון האריח בפיקסלי מקור כשהקלט למודל S והאריחים בקנה מידה `scale` (1.0 = מקורי)."""
+    return size if scale >= 1.0 else math.ceil(size / scale)
+
+
+def tile_plan(x0: int, y0: int, x1: int, y1: int, img_hw, size: int, scale: float = 1.0) -> RoiPlan:
+    """חלון אריח מוצמד לתמונה סביב ליבה: S×S בקנה מידה מקורי, או חלון גדול יותר שמוקטן ל-S (`scale` < 1)."""
     img_h, img_w = img_hw
-    ww, wh = min(size, img_w), min(size, img_h)
+    win = tile_window(size, scale)
+    ww, wh = min(win, img_w), min(win, img_h)
     wx = int(np.clip((x0 + x1) // 2 - ww // 2, 0, img_w - ww))
     wy = int(np.clip((y0 + y1) // 2 - wh // 2, 0, img_h - wh))
-    return RoiPlan(wx, wy, wx + ww, wy + wh, 1.0, size, ww, wh)
+    if scale >= 1.0:
+        return RoiPlan(wx, wy, wx + ww, wy + wh, 1.0, size, ww, wh)
+    return RoiPlan(wx, wy, wx + ww, wy + wh, scale, size, max(1, min(size, round(ww * scale))),
+                   max(1, min(size, round(wh * scale))))
 
 
-def tile_cores(box, size: int, overlap: int):
-    """ליבות אריחים שמכסות את ה-box; כל ליבה + overlap מכל צד נכנסת בחלון S×S."""
+def tile_cores(box, size: int, overlap: int, scale: float = 1.0):
+    """ליבות אריחים שמכסות את ה-box; כל ליבה + הקשר (`overlap` פיקסלי קלט למודל מכל צד) נכנסת בחלון האריח.
+    ב-`scale` < 1 החלון והחפיפה במקור גדלים פי 1/scale."""
     x0, y0, x1, y1 = box
-    step = max(1, size - 2 * overlap)
+    win = tile_window(size, scale)
+    ov = overlap if scale >= 1.0 else math.ceil(overlap / scale)
+    step = max(1, win - 2 * ov)
     nx, ny = -(-(x1 - x0) // step), -(-(y1 - y0) // step)
     xs = np.linspace(x0, x1, nx + 1).round().astype(int)
     ys = np.linspace(y0, y1, ny + 1).round().astype(int)

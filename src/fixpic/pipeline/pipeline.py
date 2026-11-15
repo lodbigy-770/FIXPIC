@@ -14,7 +14,7 @@ from ..models.base import CancelToken, InpaintModel
 from .dilate import dilate_radius, estimate_brush_px
 from .feather import feather_alpha
 from .grouping import Group, group_mask
-from .roi import RoiPlan, plan_roi_bbox, tile_cores, tile_plan
+from .roi import RoiPlan, plan_roi_bbox, tile_cores, tile_plan, tile_window
 
 log = logging.getLogger("fixpic.pipeline")
 STRIP = 128   # שורות בכל פעימת מיזוג: מונע מערכי float בגודל החלון כולו
@@ -215,11 +215,11 @@ class Pipeline:
         hw = m.shape
         out = []
         for g in group_mask(m, size, c.margin_ratio, c.min_margin):
-            p, cores = self._strategy(g, size, hw)
+            p, cores, ts = self._strategy(g, size, hw)
             if cores is not None:
                 bx, by = g.box[0], g.box[1]
                 runs = sum(1 for x0, y0, x1, y1 in cores if g.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any())
-                kind, eff, windows = "tile", 1.0, runs
+                kind, eff, windows = "tile", ts, runs
             elif p.downscaled:
                 kind, eff, windows = "downscale", p.scale, 1
             else:
@@ -229,7 +229,7 @@ class Pipeline:
 
     def _count(self, g: Group, size: int, hw) -> int:
         """מספר החלונות שהקבוצה תדרוש, לצורך total בדיווח התקדמות."""
-        _, cores = self._strategy(g, size, hw)
+        _, cores, _ts = self._strategy(g, size, hw)
         if cores is None:
             return 1
         bx, by = g.box[0], g.box[1]
@@ -258,19 +258,37 @@ class Pipeline:
         raise AssertionError("unreachable")
 
     # ---------------------------------------------------------------- group
+    def _tile_scale(self, box, size: int, floor: float) -> float | None:
+        """קנה המידה הגדול ביותר (עד 1.0 = מקורי) שבו אריחים מכסים את `box` בלא יותר מ-`max_tiles` הרצות, או None אם
+        גם ב-`floor` (קנה המידה של חלון יחיד) זה לא מתקיים. מספר האריחים אינו עולה כשהקנה קטן, ולכן חיפוש בינארי.
+        כך שאזור גדול מאוד מוקטן בהדרגה, ולא ב"מצוק" מקנה מידה מקורי להקטנה פי 16 בחלון אחד (M3.7.6)."""
+        c = self.cfg
+        n = lambda s: len(tile_cores(box, size, c.tile_overlap, s))      # noqa: E731
+        if n(1.0) <= c.max_tiles:
+            return 1.0
+        if n(floor) > c.max_tiles:
+            return None
+        lo, hi = floor, 1.0                                            # n(lo) <= max < n(hi)
+        for _ in range(24):
+            mid = (lo + hi) / 2
+            lo, hi = (mid, hi) if n(mid) <= c.max_tiles else (lo, mid)
+        return lo
+
     def _strategy(self, g: Group, size: int, hw):
-        """(תוכנית ה-ROI, ליבות אריחים או None)."""
+        """(תוכנית ה-ROI, ליבות אריחים או None, קנה מידה של האריחים).
+        `downscale`: חלון יחיד מוקטן. `tile`: אריחים (מקוריים אם נכנסים ב-`max_tiles`, אחרת מוקטנים כמה שצריך).
+        `auto`: חלון יחיד כל עוד קנה המידה שלו לפחות `min_scale`; אחרת אריחים, ובלבד שקנה המידה שלהם טוב מזה של חלון יחיד."""
         c = self.cfg
         p = plan_roi_bbox(g.box, hw, size, c.margin_ratio, c.min_margin, c.native_margin_ratio)
-        if p.downscaled and c.large_strategy != "downscale":
-            cores = tile_cores(g.box, size, c.tile_overlap)
-            if len(cores) <= c.max_tiles and (c.large_strategy == "tile" or p.scale < c.min_scale):
-                return p, cores
-        return p, None
+        if p.downscaled and c.large_strategy != "downscale" and (c.large_strategy == "tile" or p.scale < c.min_scale):
+            ts = self._tile_scale(g.box, size, p.scale)
+            if ts is not None and (ts > p.scale or c.large_strategy == "tile"):
+                return p, tile_cores(g.box, size, c.tile_overlap, ts), ts
+        return p, None, p.scale
 
     def _run_group(self, result, m, g: Group, size, cancel, rois, st, feather) -> None:
         hw = result.shape[:2]
-        p, cores = self._strategy(g, size, hw)
+        p, cores, ts = self._strategy(g, size, hw)
         if cores is None:
             self._infer(result, m, g, p, g.box, cancel, rois, feather)
             st.step()
@@ -282,7 +300,7 @@ class Pipeline:
             x0, y0, x1, y1 = core
             if not gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx].any():
                 continue
-            self._infer(result, m, gm, tile_plan(x0, y0, x1, y1, hw, size), core, cancel, rois, feather)
+            self._infer(result, m, gm, tile_plan(x0, y0, x1, y1, hw, size, ts), core, cancel, rois, feather)
             gm.mask[y0 - by:y1 - by, x0 - bx:x1 - bx] = 0
             st.step()
 

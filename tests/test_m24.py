@@ -84,11 +84,14 @@ def test_auto_strategy_downscale_vs_tile():
     assert r2.model_calls > 1 and not r2.rois[0].downscaled
 
 
-def test_max_tiles_cap_falls_back_to_downscale():
+def test_max_tiles_cap_shrinks_tiles_gradually_instead_of_cliff():
+    """M3.7.6: מעל `max_tiles` האריחים מוקטנים כמה שצריך (ולא נופלים להקטנה בחלון יחיד פי 8)."""
     img = rnd(2000, 3000)
     huge = blocks(2000, 3000, (100, 1900, 100, 2900))
+    single = Pipeline(FakeModel(), PipelineConfig(large_strategy="downscale")).run(img, huge, 512)
     r = Pipeline(FakeModel(), PipelineConfig(large_strategy="tile", max_tiles=4)).run(img, huge, 512)
-    assert r.model_calls == 1 and r.rois[0].downscaled
+    assert 1 < r.model_calls <= 4 and r.rois[0].downscaled
+    assert r.rois[0].scale > 2 * single.rois[0].scale and r.rois[0].scale < 1.0
 
 
 def test_tiles_see_previously_filled_context():

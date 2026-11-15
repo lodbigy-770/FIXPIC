@@ -64,13 +64,42 @@ def test_plan_validates_like_run():
         pipe.plan(np.zeros((5, 5, 3), np.uint8))
 
 
-def test_plan_reports_the_cliff_for_large_regions():
-    """אזור גדול: ב-bucket 384 עוברים מעל תקרת האריחים ומוקטנים בחדות; ב-512 האריחים בקנה מידה מקורי (מקרה boy_large)."""
+def test_large_region_has_no_cliff_anymore():
+    """M3.7.6, מקרה boy_large: ב-384 אריחים מוקטנים מעט (ולא חלון יחיד פי 16); ב-512 אריחים מקוריים."""
     mask = mk(5184, 3456, (1785, 886, 3208, 5045))
     pipe = Pipeline(FakeModel(), PipelineConfig())
     r384, r512 = pipe.plan(mask, 384, 100.0), pipe.plan(mask, 512, 100.0)
-    assert r384.groups[0].kind == "downscale" and r384.min_scale < 0.1
+    g = r384.groups[0]
+    assert g.kind == "tile" and 0.5 < g.scale < 1.0 and g.windows <= PipelineConfig().max_tiles
     assert r512.groups[0].kind == "tile" and r512.min_scale == 1.0
+
+
+def test_scale_degrades_gradually_with_region_size():
+    pipe = Pipeline(FakeModel(), PipelineConfig())
+    scales = []
+    for side in (300, 800, 1500, 2500, 4000, 6000, 9000):
+        rep = pipe.plan(mk(9500, 9500, (100, 100, 100 + side, 100 + side)), 384, 60.0)
+        assert rep.runs <= PipelineConfig().max_tiles or rep.groups[0].kind != "tile"
+        scales.append(rep.min_scale)
+    assert all(a >= b - 1e-9 for a, b in zip(scales, scales[1:]))                      # לא עולה כשהאזור גדל
+    assert all(a - b < 0.5 for a, b in zip(scales, scales[1:]))                        # ואין קפיצה (מצוק)
+    assert scales[-1] > 0.15
+
+
+def test_downscaled_tiles_fill_mask_only_and_progress_matches():
+    h, w = 1800, 1400
+    mask = mk(h, w, (100, 100, 1300, 1700))
+    img = rnd(h, w, 9)
+    events = []
+    pipe = Pipeline(FakeModel(), PipelineConfig(max_tiles=6, feather_px=0))
+    rep = pipe.plan(mask, 256, 40.0)
+    assert rep.groups[0].kind == "tile" and rep.groups[0].scale < 1.0 and rep.runs <= 6
+    res = pipe.run(img, mask, 256, brush_px=40.0, progress=lambda p: events.append(p))
+    eff = res.effective_mask > 0
+    assert np.array_equal(res.image[~eff], img[~eff])                                   # מחוץ למסכה: זהה לבייט
+    assert (res.image[eff] != img[eff]).any(axis=1).mean() > 0.95                     # כל המסכה מולאה (FakeModel מוסיף 7)
+    assert res.model_calls == rep.runs and events[-1].done == events[-1].total == rep.runs
+    assert all(r.scale == rep.groups[0].scale for r in res.rois)
 
 
 @pytest.mark.skipif(not (REPO / "cases").exists(), reason="cases/ לא קיים")
