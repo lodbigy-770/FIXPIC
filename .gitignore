@@ -13,3 +13,6 @@ build/fixpic/PYZ-00.toc
 build/fixpic/warn-fixpic.txt
 build/fixpic/xref-fixpic.html
 dist/fixpic.exe
+
+# נוצר בכל הרצה של validate_stage0.py (גיבוי MODEL_CARD)
+docs/architecture/cleanup-ai/MODEL_CARD.md.bak

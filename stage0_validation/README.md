@@ -147,5 +147,7 @@ Before writing any changes, the script copies the original MODEL_CARD to:
 docs/architecture/cleanup-ai/MODEL_CARD.md.bak
 ```
 
+הקובץ נוצר מחדש בכל הרצה ומופיע ב-`.gitignore` (אין להעלות אותו לריפו).
+
 The `.bak` file is overwritten on every run. If you need to keep multiple
 snapshots, copy it manually before re-running.

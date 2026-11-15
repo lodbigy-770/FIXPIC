@@ -174,7 +174,7 @@
     - בדיקות ל-extract_input/output_metadata()
     - בדיקות ל-identify_tensor_roles() עם צורות שונות
   
-  - [ ]* 12.3 כתיבת test_model_card_updater.py
+  - [x]* 12.3 כתיבת test_model_card_updater.py
     - בדיקות ל-update_section() לוודא שמירת מבנה
     - בדיקות ל-update_markers() עם סימונים שונים
     - בדיקות ל-add_verification_note() לוודא פורמט נכון

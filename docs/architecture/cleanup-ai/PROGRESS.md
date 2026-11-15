@@ -44,9 +44,9 @@
 ## שאלות פתוחות
 
 1. ~~האם `validate_stage0.py` הסתיים בקוד 0?~~ נענה: כן, פעמיים. (ייתכן שאצל המשתמש נשארו שינויים מקומיים ב-`model_card_updater.py` ו-`_tmp_test_model_card.py` שטרם נדחפו; לבדוק עם `git status`.)
-2. מחיקת קבצים מיותרים: `_tmp_test_model_card.py`, `MODEL_CARD.md.bak`, `models/big-lama/LICENSE (2)`, `models/big-lama/README (3).md`. נשארו כי לא אושרה מחיקה.
+2. ~~מחיקת קבצים מיותרים~~ נענה: אושר ובוצע (2026-11-14): `_tmp_test_model_card.py`, `MODEL_CARD.md.bak`, `models/big-lama/LICENSE (2)`, `models/big-lama/README (3).md` נמחקו (כולם נשארים בהיסטוריית git). `MODEL_CARD.md.bak` נוסף ל-`.gitignore`, כי כל הרצה של `validate_stage0.py` יוצרת אותו מחדש.
 3. האם ליצור `CHANGELOG.md` ו-`UNIFY-PLAN.md`? הם מוזכרים בנוהל העבודה אך לא קיימים, ותוכנם המצופה לא ידוע.
-4. האם לכתוב `test_model_card_updater.py` אמיתי (משימה 12.3) במקום הסקריפט הזמני?
+4. ~~האם לכתוב `test_model_card_updater.py` אמיתי (משימה 12.3)?~~ נענה: כן, נכתב (49 בדיקות + xfail אחד; ראו DEVELOPMENT_LOG 2026-11-14). **פתוח (באג ידוע):** כל הרצה של `validate_stage0.py` מוסיפה לכרטיס שורת "אומת בשלב 0" נוספת (אין בדיקת כפילות); להחליט אם לתקן.
 
 ## הצעד הבא – שתי שיחות במקביל
 
