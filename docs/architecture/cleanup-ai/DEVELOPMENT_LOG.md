@@ -1801,3 +1801,7 @@ linux, Python 3.12.3, זיכרון פיזי 3992MB, תקציב 2795MB, מודל:
 **אצל המשתמש:** `python tools/m5/third_party_notices.py` (10 חבילות, 945KB, אזהרה רק על flatbuffers) ו-`python tools/m5/license_audit.py --md out.md --check` (11 חבילות). **ממצאים:** הסגור זהה ל-Linux (אותן 11 חבילות, כולל `openvino-telemetry` שמוחרגת באריזה ובהודעות); אין Copyleft חזק או רישיון לא מזוהה; הגרסאות שונות (PySide6 6.10.2, onnxruntime 1.31.1, pillow 12.1.1, numpy 2.5.2); ב-Windows חבילות PySide6_Essentials ו-shiboken6 כוללות קובץ רישיון (ב-Linux לא). האזכורים של GPL/LGPL בקובצי הרישיון של numpy/onnxruntime/opencv/openvino/pillow זהים ל-Linux.
 
 **מגבלות:** לא הודבק קוד היציאה של `--check` (לא הודפסו "בעיות", ולכן סביר שהיה 0); לא נבדק תוכן קובצי הרישיון של PySide6 ב-Windows ולא ה-dist הארוז (PyInstaller לא הורץ). לא נעשה שינוי בקוד.
+
+## REMAINING.md – סיכום שלבים נותרים והרצות אצל המשתמש (2026-11-16)
+
+נוסף `docs/architecture/cleanup-ai/REMAINING.md` (תיעוד בלבד, בלי שינוי קוד): טבלת שלבים שנשארו (M3.7.11, חלקיים ב-M3.7, Windows/RTL ב-M3, ממשק ו-Spike ב-M4, שלב 0) ורשימת הרצות מסודרת אצל המשתמש עם פקודות מדויקות (M3.7.11 סט נוסף, M3.7.12, בדיקה ידנית ב-Windows, `model_spike.py`, `memory_stress.py`, `license_audit.py`). **לא נבדק:** הפקודות של `model_spike.py` ו-`memory_stress.py` על Windows/Big LaMa (נלקחו מכותרות הסקריפטים); אין עדיין הוראות אריזה/ביצועים/Offline אמיתי.

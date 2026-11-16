@@ -70,3 +70,5 @@
 **M3.7.11 (2026-11-16) – ערכת הקבלה מוכנה, הקבלה עצמה ממתינה למשתמש:** `python tools/m3/acceptance.py cases/boy_large cases/paris_chair cases/table_camera --out m3_accept`, ולאחר מכן 3-5 מקרים חדשים (`make_case.py`, ראו `M3-ACCEPTANCE.md`) ו-`--out m3_accept_new`; להחזיר את התיקיות. 1004 בדיקות. אחרי ההחזרה: מילוי `ACCEPT.md`, החלטה על `coarse_size`/טקסטורה, וסגירת M3.7.
 
 **M3.7.11, שלב 1 הוחזר (2026-11-16):** `paris_chair` ו-`table_camera` דומים לייחוס (5.5s/3.0s). `boy_large` 12.9s: בלי שרידים, אך מרוח וחסר מבנה (צמח, דשא, גדר) מול Cleanup.pictures, גם בגודל 682x1024; **לא עובר איכות**. קנה המידה כנראה אינו הסיבה (`coarse_size=1024` נתן מראה דומה). נדרשת החלטה (ראו DEVELOPMENT_LOG, M3.7.11).
+
+**מסמך מצב תפעולי (2026-11-16):** `REMAINING.md`: השלבים שנשארו (חוץ מ-M5) והפקודות להרצה אצל המשתמש, לפי סדר.
