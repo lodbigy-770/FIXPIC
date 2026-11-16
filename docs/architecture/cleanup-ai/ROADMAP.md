@@ -17,7 +17,7 @@
 | Milestone 3 – Editing Interface | בעבודה | 7 | 1 | 1 | M3.1-M3.6 בוצעו בסביבת הפיתוח (קבצים, Session/History, שלד ממשק, מברשת ולולאת Inpaint, Undo/Redo והשוואה, סגירה: רענון אזורי, איכות ייצוא, גלילה); נשארו בדיקות ידניות ב-Windows (`M3-ACCEPTANCE.md`) |
 | Milestone 3.7 – איכות הסרה באזורים גדולים | בוצע בעיקרו | 5 | 7 | 0 | נפתח מתוצאות הבדיקה הידנית: הסרה של אזור גדול משאירה צל מטושטש; 11 שלבים קטנים, חלקם דורשים הרצה על Big LaMa אצל המשתמש |
 | Milestone 4 – Advanced Editing | בוצע | 6 | 0 | 0 | שירותי מסכה, בחירה אוטומטית (שרביט ו-GrabCut) וכלי הממשק בוצעו; נשארו אימות ידני ב-Windows, הרצת Spike המודל (שלב 5) ו-`ModelProvider` (שלב 6) (AUTO-SELECT.md §7) |
-| Milestone 5 – Production | בעבודה | 1 | 4 | 7 |  |
+| Milestone 5 – Production | בעבודה | 1 | 5 | 6 |  |
 <!-- STATUS:END -->
 
 ## שלב 0 – קליטת מודל ומחקר (קדם-תנאי ל-M1)
@@ -205,7 +205,7 @@
 **תלות:** M4.
 
 **משימות**
-- [ ] בדיקות ביצועים על חומרת יעד (16GB, CPU), כולל עמידה בתקציב ה-Latency שנקבע ב-M1.5.
+- [~] בדיקות ביצועים על חומרת יעד (16GB, CPU), כולל עמידה בתקציב ה-Latency שנקבע ב-M1.5. **כלי מוכן (2026-11-16):** `tools/m5/latency_budget.py` (Latency חם של `Pipeline.run` מקצה לקצה, buckets 256/384/512 מול 0.8/2/4s ו-768 בלי תקציב, משיכה קטנה ואזור, ריצה נזרקת + חציון, Warm-up בנפרד, JSON/MD, קוד יציאה 1 בחריגה), `tests/test_m5_latency_budget.py` (13 בדיקות, מודלים סינתטיים); **ההרצה על i5-6500T עם Big LaMa טרם בוצעה.**
 - [~] בדיקת Offline: האפליקציה רצה עם חסימת רשת מלאה (Firewall) ואינה מנסה לפתוח חיבורים. **בוצע בסביבת הפיתוח (Linux, 2026-11-15) ברמת Python בלבד:** `tests/test_m5_offline.py` (5 בדיקות) חוסם `socket` (connect, connect_ex, sendto, sendmsg, DNS, create_connection; AF_UNIX מקומי מותר), רושם כל ניסיון, ומריץ CLI מקצה לקצה עם נתיבים עבריים, Pipeline ו-Scheduler, ו-`MainWindow` עם טעינת מנוע מהדיסק; אין ניסיון רשת ואף מודול רשת (requests, urllib3, httpx, aiohttp, QtNetwork, webbrowser) לא נטען. **לא נבדק:** Firewall אמיתי ב-Windows, פניות נייטיב שאינן עוברות דרך `socket` של Python (Qt, OpenVINO, ORT), שמירה מדיאלוג אמיתי, חבילה ארוזה. נשאר ל-"בדיקת ניתוק רשת מלאה".
 - [ ] שיקולי רישוי ושם מוצר (`PARITY-SPEC.md` §7).
 - [ ] בדיקות איכות (סט תמונות ייחוס).

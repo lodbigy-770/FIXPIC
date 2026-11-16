@@ -46,7 +46,7 @@ python tools\m4\model_spike.py --candidate mobilesam C:\models\enc.onnx C:\model
 ### 5. M5 (במקביל)
 - זיכרון בתמונות גדולות: `python tools\m5\memory_stress.py --model big-lama --threads 3 --json mem.json --md mem.md` (אפשר להגביל עם `--budget-mb`; ברירת מחדל 70% מהזיכרון). להחזיר `mem.json`/`mem.md`.
 - רישיונות על Windows: `python tools\m5\license_audit.py --check --md lic_win.md`. להחזיר `lic_win.md`.
-- ביצועים על חומרת היעד (תקציב Latency), בדיקת Offline עם Firewall אמיתי, ואריזה (`fixpic.spec`, PyInstaller, Python 3.14 עם PySide6/OpenVINO/ORT/OpenCV): **אין עדיין סקריפט הרצה מוכן אצלך**; יוגדרו בשלבי M5 הבאים.
+- **ביצועים על חומרת היעד (תקציב Latency): `python tools\m5\latency_budget.py --model big-lama --threads 4 --json latency_budget.json --md latency_budget.md`** (אחר כך גם `--threads 3`, ברירת המחדל של המוצר); להחזיר `latency_budget.json/md`. קוד יציאה 1 = חריגה מהתקציב. בדיקת Offline עם Firewall אמיתי, ואריזה (`fixpic.spec`, PyInstaller, Python 3.14 עם PySide6/OpenVINO/ORT/OpenCV): **אין עדיין סקריפט הרצה מוכן אצלך**; יוגדרו בשלבי M5 הבאים.
 
 ## ג. הערות
 - הטוקן לריפו נחשף בשיחות רבות (גם בזו); מומלץ להחליף אותו, והוא אינו שמור בקובץ בריפו.
