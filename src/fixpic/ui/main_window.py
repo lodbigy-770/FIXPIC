@@ -135,6 +135,7 @@ class MainWindow(QMainWindow):
         self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
         self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
         self.act_save_case = self._action("action.save_case", self.save_case)
+        self.act_about = self._action("action.about", self.show_about)
         mb = self.menuBar()
         m = mb.addMenu(t("menu.file"))
         for a in (self.act_open, self.act_save, self.act_save_as, self.act_paste):
@@ -154,6 +155,8 @@ class MainWindow(QMainWindow):
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
             v.addAction(a)
+        hm = mb.addMenu(t("menu.help"))
+        hm.addAction(self.act_about)
         tb = QToolBar(t("toolbar.main"), self)
         tb.setMovable(False)
         for a in (self.act_open, self.act_save, self.act_paste, self.act_undo, self.act_redo, self.act_fit,
@@ -308,6 +311,11 @@ class MainWindow(QMainWindow):
 
     def _pick_dir(self) -> str:
         return QFileDialog.getExistingDirectory(self, t("dialog.case_title"))
+
+    def show_about(self) -> None:
+        """M5: אודות והודעות רישיון של רכיבי צד שלישי."""
+        from .about_dialog import AboutDialog
+        AboutDialog(self).exec()
 
     def save_case(self) -> None:
         """שומר את הקלט של המשיכה האחרונה (תמונה לפני, מסכה, פרמטרים) והתוצאה הנוכחית בתיקייה, כמקרה בדיקה איכות

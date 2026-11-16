@@ -43,6 +43,8 @@
 
 **הרצה על Windows/Python 3.14.3 (2026-11-16, סביבת המשתמש, `license_audit.py --md out.md --check`):** 11 חבילות, **אותו סגור כמו ב-Linux** (אין תלות ייחודית ל-Windows), בלי סימון Copyleft חזק או רישיון לא מזוהה (לא הודפסו "בעיות"; קוד היציאה לא הודבק). הגרסאות שם: PySide6_Essentials ו-shiboken6 6.10.2, numpy 2.5.2, onnxruntime 1.31.1, opencv-python-headless 5.0.0.93, openvino 2026.4.1, pillow 12.1.1, packaging 26.0, protobuf 7.36.2, flatbuffers 25.12.19, openvino-telemetry 2025.2.0. **הבדל מ-Linux:** ב-Windows ל-PySide6_Essentials ול-shiboken6 יש קובץ רישיון אחד כל אחד בתוך החבילה (ב-Linux אין), ולכן ב-`THIRD_PARTY_NOTICES.txt` של Windows (10 חבילות, 945KB, בלי `openvino-telemetry`) רק flatbuffers בלי קובץ רישיון. האזכורים של GPL/LGPL בקובצי הרישיון של numpy, onnxruntime, opencv, openvino ו-pillow זהים לאלה שב-Linux (ממצא 1), כלומר ממצא 1 תקף גם ב-Windows. **לא נבדק:** תוכן הקבצים הארוזים של PySide6 ב-Windows (איזה רישיון הם מכילים), וה-dist הארוז.
 
+**עדכון (2026-11-16, אריזה):** `THIRD_PARTY_NOTICES.txt` נארז באריזה (`fixpic-app.spec`) ומוצג בעזרה > אודות; בדיקת אריזה ב-Linux/3.12 (`check_dist.py`) אישרה שרכיבי PySide6/OpenVINO שהוחרגו לא נארזו (לפי שמות קבצים). לא אומת ב-Windows.
+
 **נשאר:**
 - הרצה חוזרת של הכלי **על סביבת Windows/Python 3.14 שבה תיארז האפליקציה** (ועל תיקיית ה-dist הארוזה, כדי לראות מה באמת נארז).
 - הכללת `THIRD_PARTY_NOTICES.txt` בפועל בתיקיית האריזה והצגתו באפליקציה ("אודות"); המחולל אינו מתפרס על חבילות ללא קובץ רישיון (PySide6_Essentials, shiboken6, flatbuffers מדווחות באזהרה; הרישיון שלהן נכלל מהטקסטים ב-`licenses/` או במטא-דאטה בלבד).

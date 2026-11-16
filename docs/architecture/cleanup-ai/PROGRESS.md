@@ -72,3 +72,5 @@
 **M3.7.11, שלב 1 הוחזר (2026-11-16):** `paris_chair` ו-`table_camera` דומים לייחוס (5.5s/3.0s). `boy_large` 12.9s: בלי שרידים, אך מרוח וחסר מבנה (צמח, דשא, גדר) מול Cleanup.pictures, גם בגודל 682x1024; **לא עובר איכות**. קנה המידה כנראה אינו הסיבה (`coarse_size=1024` נתן מראה דומה). נדרשת החלטה (ראו DEVELOPMENT_LOG, M3.7.11).
 
 **מסמך מצב תפעולי (2026-11-16):** `REMAINING.md`: השלבים שנשארו (חוץ מ-M5) והפקודות להרצה אצל המשתמש, לפי סדר.
+
+**M5 אריזה ואודות (2026-11-16):** `fixpic-app.spec` (PyInstaller onedir), `tools/m5/check_dist.py`, ותפריט עזרה > אודות עם `THIRD_PARTY_NOTICES.txt` (`ui/about_dialog.py`); `tests/test_m5_about.py` (7) ו-`tests/test_m5_check_dist.py` (9); 1052 בדיקות עוברות (Linux, Essentials). אריזה אמיתית ב-Linux/3.12: 624MB, הודעות נארזו, רכיבים מוחרגים לא נארזו, האפליקציה חיה 12s ב-offscreen. **לא נבדק:** Windows/3.14, עיבוד תמונה מהאריזה, מחשב נקי, זמן עלייה, Defender, חתימה. פקודות ההרצה אצל המשתמש ב-`DEVELOPMENT_LOG.md`.
