@@ -241,6 +241,19 @@ class EditController(QObject):
         s = self.session
         return s is not None and not self.stroking and not s.busy and s.history.can_redo
 
+    def reset_all(self) -> bool:
+        """איפוס הכל (תמונה, מסכה, היסטוריה, עבודות). False בלי תמונה או באמצע משיכה. אין Undo לפעולה."""
+        s = self.session
+        if s is None or self.stroking:
+            return False
+        self._waiting = None
+        did = s.reset_all()
+        self._sync_indicator()
+        self.message.emit(t("status.reset_done"))
+        self.imageChanged.emit(None)
+        self.changed.emit()
+        return did
+
     def undo(self) -> HistoryAction:
         s = self.session
         if s is None or self.stroking:

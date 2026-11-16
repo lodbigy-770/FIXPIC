@@ -31,6 +31,7 @@
   "dialog.quality_title": "איכות ייצוא",
   "dialog.quality_label": "איכות {fmt} (1-100):",
   "action.cancel_jobs": "ביטול עיבוד",
+  "action.reset_all": "איפוס הכל",
   "action.undo": "ביטול (Undo)",
   "action.redo": "שחזור (Redo)",
   "action.compare_toggle": "הצגת המקור (מתג)",
@@ -71,6 +72,10 @@
   "filter.jpg": "JPEG (*.jpg *.jpeg)",
   "filter.webp": "WebP (*.webp)",
 
+  "msg.reset_title": "איפוס הכל",
+  "msg.reset_text": "כל השינויים בתמונה, המסכה והגדרות המברשת יבוטלו, והתמונה תחזור למצב שנפתחה. אי אפשר יהיה לבטל את האיפוס. להמשיך?",
+  "msg.reset_yes": "איפוס",
+  "status.reset_done": "הכל אופס: התמונה חזרה למצב שנפתחה",
   "msg.discard_title": "שינויים שלא נשמרו",
   "msg.discard_text": "בתמונה יש שינויים שלא נשמרו. מה לעשות?",
   "msg.save": "שמירה",

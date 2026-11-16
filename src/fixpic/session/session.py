@@ -259,6 +259,21 @@ class Session:
         self.history.mark_redone()
         return HistoryAction.REDONE
 
+    def reset_all(self) -> bool:
+        """איפוס הכל: מבטל עיבוד פעיל, מחזיר את התמונה למצב הטעינה (RGB ו-Alpha), מרוקן את ההיסטוריה (גם Redo) ואת המסכה.
+        אינו ניתן לביטול ב-Undo. `modified` נקבע מחדש לפי הקובץ השמור (אחרי שמירה ואיפוס: שונה; בלי שמירה: לא שונה).
+        מחזיר True אם משהו השתנה (תמונה, היסטוריה, מסכה או עבודה שבוטלה)."""
+        did = self.cancel_pending()
+        did = did or self.history.can_undo or self.history.can_redo or not self.mask.empty
+        if self._rgb is not self._orig_rgb or self._alpha is not self._orig_alpha:
+            self._epoch += 1
+            self._swap(self._orig_rgb, self._orig_alpha)
+            did = True
+        self.history.clear()
+        self.mask.clear()
+        self.last_submission = None
+        return did
+
     # ----------------------------------------------------------------- פנימי
     def _apply_history(self, patch: Patch, *, forward: bool) -> None:
         try:

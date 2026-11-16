@@ -116,6 +116,7 @@ class MainWindow(QMainWindow):
         self.act_undo = self._action("action.undo", self._undo, QKeySequence.Undo)
         self.act_redo = self._action("action.redo", self._redo, QKeySequence.Redo)
         self.act_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
+        self.act_reset = self._action("action.reset_all", self.reset_all, "Ctrl+Shift+R")
         self.act_compare = self._action("action.compare_toggle", lambda: None, "C")
         self.act_compare.setCheckable(True)
         self.act_compare.toggled.connect(self._compare_toggled)
@@ -145,7 +146,7 @@ class MainWindow(QMainWindow):
         m.addSeparator()
         m.addAction(self.act_quit)
         ed = mb.addMenu(t("menu.edit"))
-        for a in (self.act_undo, self.act_redo, self.act_cancel, self.act_erase, self.act_brush_bigger,
+        for a in (self.act_undo, self.act_redo, self.act_reset, self.act_cancel, self.act_erase, self.act_brush_bigger,
                   self.act_brush_smaller, self.act_compare):
             ed.addAction(a)
         ed.addSeparator()
@@ -159,7 +160,7 @@ class MainWindow(QMainWindow):
         hm.addAction(self.act_about)
         tb = QToolBar(t("toolbar.main"), self)
         tb.setMovable(False)
-        for a in (self.act_open, self.act_save, self.act_paste, self.act_undo, self.act_redo, self.act_fit,
+        for a in (self.act_open, self.act_save, self.act_paste, self.act_undo, self.act_redo, self.act_reset, self.act_fit,
                   self.act_actual, self.act_cancel, self.act_compare):
             tb.addAction(a)
         self.btn_hold = QToolButton()                         # החזקה בעכבר: לחיצה מציגה את המקור, שחרור מחזיר
@@ -256,6 +257,7 @@ class MainWindow(QMainWindow):
         self.act_undo.setEnabled(has and not self.busy and (c.can_undo or self._mask_can(False)))
         self.act_redo.setEnabled(has and not self.busy and (c.can_redo or self._mask_can(True)))
         self.act_compare.setEnabled(has)
+        self.act_reset.setEnabled(has and not self.busy)      # תמיד זמין כשיש תמונה (גם בזמן עיבוד)
         self.btn_hold.setEnabled(has)
         painting = has and not self.busy and not self._comparing
         if painting != self.canvas.painting:
@@ -504,6 +506,37 @@ class MainWindow(QMainWindow):
             self._refresh()
         else:
             self.controller.redo()
+
+    def _ask_reset(self) -> bool:
+        box = QMessageBox(QMessageBox.Warning, t("msg.reset_title"), t("msg.reset_text"), parent=self)
+        yes = box.addButton(t("msg.reset_yes"), QMessageBox.DestructiveRole)
+        cancel = box.addButton(t("msg.cancel"), QMessageBox.RejectRole)
+        box.setDefaultButton(cancel)
+        box.exec()
+        return box.clickedButton() is yes
+
+    def reset_all(self) -> None:
+        """איפוס הכל: תמונה למצב הטעינה, מסכה, היסטוריה, בחירה, השוואה והגדרות מברשת. שואל אישור רק אם יש מה לאבד."""
+        s = self.session
+        if s is None or self.busy or self.canvas.gesture_active:
+            return
+        c = self.controller
+        at_risk = (s.history.can_undo or s.history.can_redo or not s.mask.empty or s.busy or c.waiting is not None
+                   or self.select_ctl.has_input or self.select_ctl.has_proposal)
+        if at_risk and not self._ask_reset():
+            return
+        self.select_ctl.cancel()
+        c.reset_all()
+        self.mask_panel.bind(s.mask)                      # היסטוריית מסכה חדשה (ריקה)
+        self._reset_compare()
+        self.select_panel.set_tool("brush")
+        bp = self.brush_panel
+        bp.configure_for_image(*s.size)
+        bp.set_erase(False)
+        bp.chk_feather_auto.setChecked(True)
+        self.canvas.invalidate_overlay()
+        self.canvas.fit()
+        self._refresh()
 
     @property
     def _comparing(self) -> bool:
