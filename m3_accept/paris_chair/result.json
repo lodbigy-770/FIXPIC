@@ -1,0 +1,30 @@
+{
+  "case": "paris_chair",
+  "size": [
+    533,
+    800
+  ],
+  "mask_pct": 10.2,
+  "kinds": "downscale",
+  "planned_runs": 1,
+  "scale": 0.79,
+  "reference_size": [
+    533,
+    800
+  ],
+  "seconds": 5.54,
+  "model_calls": 1,
+  "peak_rss_mb": 1297,
+  "texture_ratio": 0.7169087550848006,
+  "texture_rms_inside": 5.762504577636719,
+  "texture_rms_ring": 8.13670825958252,
+  "stripe_score": 147.2916717529297,
+  "boundary_color_diff": 10.381490707397461,
+  "boundary_color_diff_p95": 29.459300994873047,
+  "reference_texture_ratio": 0.8550468738755831,
+  "reference_texture_rms_inside": 6.605482578277588,
+  "reference_texture_rms_ring": 7.767668724060059,
+  "reference_stripe_score": 134.9423828125,
+  "reference_boundary_color_diff": 9.427074432373047,
+  "reference_boundary_color_diff_p95": 24.34839630126953
+}

@@ -1,0 +1,36 @@
+{
+  "case": "boy_large",
+  "size": [
+    3456,
+    5184
+  ],
+  "mask_pct": 18.1,
+  "kinds": "coarse",
+  "planned_runs": 1,
+  "scale": 0.148,
+  "reference_size": [
+    682,
+    1024
+  ],
+  "seconds": 12.93,
+  "model_calls": 1,
+  "peak_rss_mb": 1250,
+  "texture_ratio": 0.3019265851000261,
+  "texture_rms_inside": 0.5102750062942505,
+  "texture_rms_ring": 2.2680790424346924,
+  "stripe_score": 16.291105270385742,
+  "boundary_color_diff": 6.190351486206055,
+  "boundary_color_diff_p95": 21.036245346069336,
+  "reference_texture_ratio": 1.0556002099313793,
+  "reference_texture_rms_inside": 6.614093780517578,
+  "reference_texture_rms_ring": 6.2525506019592285,
+  "reference_stripe_score": 12.797372817993164,
+  "reference_boundary_color_diff": 7.695777416229248,
+  "reference_boundary_color_diff_p95": 27.333171844482422,
+  "ref_texture_ratio": 0.5574564798962002,
+  "ref_texture_rms_inside": 3.637167453765869,
+  "ref_texture_rms_ring": 6.723042011260986,
+  "ref_stripe_score": 7.887138366699219,
+  "ref_boundary_color_diff": 8.907892227172852,
+  "ref_boundary_color_diff_p95": 36.51195526123047
+}

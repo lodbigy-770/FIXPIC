@@ -1,0 +1,30 @@
+{
+  "case": "table_camera",
+  "size": [
+    800,
+    600
+  ],
+  "mask_pct": 8.0,
+  "kinds": "native",
+  "planned_runs": 2,
+  "scale": 1.0,
+  "reference_size": [
+    800,
+    600
+  ],
+  "seconds": 2.96,
+  "model_calls": 2,
+  "peak_rss_mb": 1303,
+  "texture_ratio": 0.452644845260728,
+  "texture_rms_inside": 5.145177364349365,
+  "texture_rms_ring": 11.669228553771973,
+  "stripe_score": 24.1707763671875,
+  "boundary_color_diff": 24.014251708984375,
+  "boundary_color_diff_p95": 58.74330520629883,
+  "reference_texture_ratio": 0.4540832930145957,
+  "reference_texture_rms_inside": 4.660245895385742,
+  "reference_texture_rms_ring": 10.563535690307617,
+  "reference_stripe_score": 4.663387298583984,
+  "reference_boundary_color_diff": 17.77437400817871,
+  "reference_boundary_color_diff_p95": 58.8038330078125
+}
