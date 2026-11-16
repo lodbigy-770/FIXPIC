@@ -96,8 +96,6 @@
   "mask.min_area": "שטח מינימלי:",
   "mask.remove_small": "מחיקת כתמים קטנים",
   "mask.clear": "ניקוי המסכה",
-  "mask.undo": "ביטול (מסכה)",
-  "mask.redo": "שחזור (מסכה)",
 
   "error.title": "שגיאה",
   "error.load": "לא ניתן לפתוח את הקובץ:\n{detail}",

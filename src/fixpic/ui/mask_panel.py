@@ -46,8 +46,6 @@ class MaskToolsPanel(QWidget):
         self.btn_shrink = QPushButton(t("mask.shrink"))
         self.btn_small = QPushButton(t("mask.remove_small"))
         self.btn_clear = QPushButton(t("mask.clear"))
-        self.btn_undo = QPushButton(t("mask.undo"))
-        self.btn_redo = QPushButton(t("mask.redo"))
         g = QGridLayout(self)
         g.addWidget(QLabel(t("mask.amount")), 0, 0)
         g.addWidget(self.spin_px, 0, 1)
@@ -57,15 +55,11 @@ class MaskToolsPanel(QWidget):
         g.addWidget(self.spin_area, 2, 1)
         g.addWidget(self.btn_small, 3, 0, 1, 2)
         g.addWidget(self.btn_clear, 4, 0, 1, 2)
-        g.addWidget(self.btn_undo, 5, 0)
-        g.addWidget(self.btn_redo, 5, 1)
-        g.setRowStretch(6, 1)
+        g.setRowStretch(5, 1)
         self.btn_grow.clicked.connect(lambda _c=False: self.grow())
         self.btn_shrink.clicked.connect(lambda _c=False: self.shrink())
         self.btn_small.clicked.connect(lambda _c=False: self.remove_small())
         self.btn_clear.clicked.connect(lambda _c=False: self.clear())
-        self.btn_undo.clicked.connect(lambda _c=False: self.undo())
-        self.btn_redo.clicked.connect(lambda _c=False: self.redo())
         self.refresh()
 
     # ------------------------------------------------------------------ חיבור
@@ -89,8 +83,6 @@ class MaskToolsPanel(QWidget):
         h = self.history
         for b in (self.btn_grow, self.btn_shrink, self.btn_small, self.btn_clear):
             b.setEnabled(has)
-        self.btn_undo.setEnabled(on and h is not None and h.can_undo)
-        self.btn_redo.setEnabled(on and h is not None and h.can_redo)
         for s in (self.spin_px, self.spin_area):
             s.setEnabled(on)
 

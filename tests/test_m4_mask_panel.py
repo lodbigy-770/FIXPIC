@@ -44,7 +44,7 @@ def panel_for(layer):
 def test_unbound_is_inert(app):
     p = MaskToolsPanel()
     assert not p.active
-    assert not any(b.isEnabled() for b in (p.btn_grow, p.btn_shrink, p.btn_small, p.btn_clear, p.btn_undo, p.btn_redo))
+    assert not any(b.isEnabled() for b in (p.btn_grow, p.btn_shrink, p.btn_small, p.btn_clear))
     assert p.grow() is None and p.undo() is None and p.clear() is None
 
 
@@ -52,7 +52,7 @@ def test_empty_mask_disables_edit_buttons(app):
     p = panel_for(MaskLayer(50, 50))
     assert p.active
     assert not p.btn_grow.isEnabled() and not p.btn_clear.isEnabled()
-    assert p.spin_px.isEnabled() and not p.btn_undo.isEnabled()
+    assert p.spin_px.isEnabled() and not p.history.can_undo
 
 
 def test_grow_and_shrink_emit_rect_and_undo(app):
@@ -62,7 +62,7 @@ def test_grow_and_shrink_emit_rect_and_undo(app):
     p = panel_for(layer)
     rect = p.grow(4)
     assert rect is not None and layer.pixel_count > n0
-    assert p.changes == [rect] and p.btn_undo.isEnabled()
+    assert p.changes == [rect] and p.history.can_undo
     grown = layer.snapshot()
     p.shrink(2)
     assert layer.pixel_count < grown.sum() and len(p.changes) == 2
@@ -70,7 +70,7 @@ def test_grow_and_shrink_emit_rect_and_undo(app):
     assert np.array_equal(layer.snapshot(), grown)
     p.undo()
     assert np.array_equal(layer.snapshot(), before)
-    assert not p.btn_undo.isEnabled() and p.btn_redo.isEnabled()
+    assert not p.history.can_undo and p.history.can_redo
     p.redo()
     assert np.array_equal(layer.snapshot(), grown)
 
@@ -91,7 +91,7 @@ def test_noop_does_not_emit_or_record(app):
     layer = MaskLayer(50, 50)
     p = panel_for(layer)
     assert p.grow(3) is None and p.remove_small(10) is None and p.clear() is None
-    assert p.changes == [] and not p.btn_undo.isEnabled()
+    assert p.changes == [] and not p.history.can_undo
 
 
 def test_remove_small_keeps_big_component(app):
@@ -142,24 +142,24 @@ def test_external_change_makes_history_stale(app):
     layer = painted()
     p = panel_for(layer)
     p.grow(2)
-    assert p.btn_undo.isEnabled()
+    assert p.history.can_undo
     layer.paint([(10, 10)], 4)             # שינוי מבחוץ (למשל submit_stroke)
     p.refresh()
-    assert not p.btn_undo.isEnabled()
+    assert not p.history.can_undo
 
 
 def test_bind_new_layer_resets_history(app):
     p = panel_for(painted())
     p.grow(2)
     p.bind(painted())
-    assert not p.btn_undo.isEnabled()
+    assert not p.history.can_undo
     p.bind(None)
     assert not p.active
 
 
 def test_strings_exist(app):
     for k in ("dock.mask", "mask.amount", "mask.grow", "mask.shrink", "mask.min_area",
-              "mask.remove_small", "mask.clear", "mask.undo", "mask.redo"):
+              "mask.remove_small", "mask.clear"):
         assert strings.t(k).strip()
 
 
@@ -181,7 +181,7 @@ def test_window_has_dock_and_binds_session(app):
     w.mask_panel.refresh()
     assert w.mask_panel.btn_grow.isEnabled()
     w.mask_panel.grow(3)
-    assert w.mask_panel.btn_undo.isEnabled()
+    assert w.mask_panel.history.can_undo
     w.close()
 
 
@@ -195,3 +195,21 @@ def test_window_busy_disables_panel(app):
     assert w.mask_panel.active
     w.close()
     QApplication.processEvents()
+
+
+def test_panel_has_no_undo_redo_buttons_ctrl_z_covers_mask_edits(qapp=None):
+    """הכפתורים הוסרו (כפולים ל-Undo/Redo בסרגל ול-Ctrl+Z/Y); הפעולות `undo()`/`redo()` נשארות, וההיסטוריה מתעדת."""
+    from PySide6.QtWidgets import QApplication
+    QApplication.instance() or QApplication([])
+    from fixpic.session import MaskLayer
+    from fixpic.ui.mask_panel import MaskToolsPanel
+    p = MaskToolsPanel()
+    p.bind(MaskLayer(40, 40))
+    p.set_enabled_for_work(True)
+    assert not hasattr(p, "btn_undo") and not hasattr(p, "btn_redo")
+    p.layer.paint([(20, 20)], 10)
+    p.history.begin(); p.history.end()
+    p.grow(2)
+    assert p.history.can_undo
+    p.undo()
+    assert p.history.can_redo
