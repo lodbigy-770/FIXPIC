@@ -1860,3 +1860,7 @@ linux, Python 3.12.3, זיכרון פיזי 3992MB, תקציב 2795MB, מודל:
 **לא נבדק:** כל מדידה אמיתית: i5-6500T, Big LaMa, Python 3.14, Windows. הזמנים בסביבת הפיתוח הם של מודל סינתטי ואינם אומרים דבר על Inference.
 
 **נדרש מהמשתמש:** `git pull`, ואז `python tools/m5/latency_budget.py --model big-lama --threads 4 --json latency_budget.json --md latency_budget.md` (ואחר כך `--threads 3`); להחזיר את הקבצים. חריגה תחייב החלטה: להחמיר את ברירות המחדל, או לעדכן את התקציב.
+
+## M3: סגירת סימון "ממשק בעברית (RTL)" (2026-11-16)
+
+הפריט נשאר פתוח ב-ROADMAP אף שמומש. אומת בקוד: `strings/he.json` ו-`strings.t` (בדיקת מפתחות חסרים/מתים ב-`tests/test_m33.py`), `create_app` קובע `Qt.RightToLeft` (ובדיקה שהאפליקציה והחלון הראשי ב-RTL, `test_m33.py` שורה 332), וקיצורי אותיות עבריות (`_HEBREW_KEY`, `HOLD_KEYS`). הסימון שונה ל-`[x]` והטבלה נוצרה מחדש. **לא נבדק:** מראה RTL בעין ב-Windows. לא שונה קוד.
