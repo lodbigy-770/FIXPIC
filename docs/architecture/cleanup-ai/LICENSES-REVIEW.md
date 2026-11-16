@@ -37,10 +37,12 @@
 5. **המודל (Big LaMa):** Apache-2.0, Copyright 2021 Samsung Research (`MODEL_CARD.md` §1; קובץ `LICENSE` נבדק בשלב 0). חובות הפצה: לצרף את הרישיון ולשמור הודעות שיוך (קיימים ב-`models/big-lama/`). `MODEL_CARD.md` מציין שנתוני האימון לא נבדקו משפטית; זה פתוח.
 6. **אין מידע על:** רישיון הפונט/אייקונים של הממשק (לא נבדקו), `onnx` (תלות פיתוח בלבד, לא נארזת), וכלי האריזה/מתקין (PyInstaller: GPL עם חריג לתוכנה שנארזת; Inno Setup: רישיון משלו). אלה לא נסרקו.
 
-## 3. מה נשאר (לפי ROADMAP M5)
+## 3. מה בוצע אחרי הסקירה (2026-11-16) ומה נשאר
 
-- החלטה על החלפת `PySide6` ב-`PySide6-Essentials` (ממצא 3) והחרגת הטלמטריה (ממצא 4).
+**בוצע (אישור המשתמש):** (א) `pyproject.toml` ו-`requirements-dev.txt`: `PySide6` הוחלף ב-`PySide6-Essentials`; ב-venv נקי עם Essentials בלבד כל החבילה עוברת (1024 עוברות, 3 מדולגות; Linux/3.12), והסגור ירד מ-15 ל-10-11 חבילות. (ב) `fixpic.spec`: `excludes` ל-`openvino_telemetry`, ל-`openvino.tools` ולרכיבי PySide6 שאינם בשימוש (WebEngine, Pdf, Quick, Qml, 3D, Multimedia). נבדק רק ברמת הייבוא: עם `openvino_telemetry` ו-`openvino.tools` חסומים `import openvino`, `openvino.Core()` ו-`tests/test_backends.py` + `tests/test_m5_offline.py` (12) עוברים. **לא נבדק:** שהאריזה בפועל (PyInstaller) מכבדת את ה-excludes, ושהבינארי הארוז עובד. (ג) `tools/m5/third_party_notices.py` + `licenses/LGPL-3.0.txt` ו-`licenses/GPL-3.0.txt` (הטקסטים הקנוניים של GNU מ-Debian `common-licenses`): מייצר `build/THIRD_PARTY_NOTICES.txt` עם קובצי הרישיון המלאים של הסגור, רישיון המודל ו-LGPL/GPL של PySide6 (ב-Linux: כ-935KB, 10 חבילות).
+
+**נשאר:**
 - הרצה חוזרת של הכלי **על סביבת Windows/Python 3.14 שבה תיארז האפליקציה** (ועל תיקיית ה-dist הארוזה, כדי לראות מה באמת נארז).
-- קובץ `THIRD_PARTY_NOTICES` שנאסף מקובצי הרישיון של הסגור המלא, כולל LGPL-3.0 ו-GPL-3.0 של PySide6 והודעות OpenCV/OpenVINO/numpy; יצירה אוטומטית והכללה באריזה.
+- הכללת `THIRD_PARTY_NOTICES.txt` בפועל בתיקיית האריזה והצגתו באפליקציה ("אודות"); המחולל אינו מתפרס על חבילות ללא קובץ רישיון (PySide6_Essentials, shiboken6, flatbuffers מדווחות באזהרה; הרישיון שלהן נכלל מהטקסטים ב-`licenses/` או במטא-דאטה בלבד).
 - בירור איזה רכיב LGPL נארז ב-OpenCV (קריאה של `LICENSE-3RD-PARTY.txt` המלא) והאם אפשר להסתפק בהודעה.
 - קריאת תנאי השימוש של האתר ובדיקה משפטית אם ההפצה תורחב מעבר לשימוש אישי.

@@ -13,7 +13,7 @@ dependencies = [
     "pillow",                       # fixpic.imgio: טעינה/שמירה, EXIF/ICC
     "onnxruntime>=1.30",            # backend גיבוי (ADR-011)
     "openvino",                     # backend ראשי (ADR-011); בלעדיו המנוע עובד על ORT
-    "PySide6",                      # ממשק (fixpic.ui); בבדיקות: QT_QPA_PLATFORM=offscreen
+    "PySide6-Essentials",           # ממשק (fixpic.ui: QtCore/QtGui/QtWidgets בלבד); בלי WebEngine/Addons (M5); בבדיקות: QT_QPA_PLATFORM=offscreen
 ]
 
 [project.optional-dependencies]

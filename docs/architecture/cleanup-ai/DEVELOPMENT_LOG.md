@@ -1744,3 +1744,11 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 **בדיקות:** `tests/test_m3711.py` (3: קבצים ומדדים ו-ACCEPT.md עם ובלי ייחוס; כשל מדווח; ברירות מחדל), סך 1004 עוברות, 3 מדולגות.
 
 **לא נבדק (דורש את המשתמש):** הקבלה עצמה: הרצה על Big LaMa, מראה בעין מול Cleanup.pictures, זמן וזיכרון על i5-6500T, והסט הנוסף (לא קיים עדיין). בלי זה M3.7.11 **לא סגור**.
+
+## M5 - יישום החלטות הרישיונות ומחולל THIRD_PARTY_NOTICES (2026-11-16)
+
+**לפי אישור המשתמש** ("כן, כן") על שתי ההמלצות של `LICENSES-REVIEW.md`: (1) `PySide6` -> `PySide6-Essentials` ב-`pyproject.toml` וב-`requirements-dev.txt`. נבדק ב-venv נקי עם Essentials בלבד (numpy, opencv-python-headless, pillow, onnxruntime, openvino, pytest, onnx): **1024 בדיקות עוברות, 3 מדולגות** (Linux, Python 3.12.3, `QT_QPA_PLATFORM=offscreen`, כולל בדיקות הממשק). (2) `fixpic.spec`: `excludes` ל-`openvino_telemetry`, `openvino.tools` ורכיבי PySide6 שאינם בשימוש. **אימות חלקי:** עם `openvino_telemetry` ו-`openvino.tools` חסומים (`sys.modules[...] = None`) `import openvino`, `Core()` ו-`tests/test_backends.py` + `tests/test_m5_offline.py` (12) עוברים. לא הורץ PyInstaller בפועל, ולכן לא ידוע שה-excludes נשמרים באריזה.
+
+**נבנה:** `tools/m5/third_party_notices.py` (משתמש בסגור של `license_audit.py`; לכל חבילה כל קובצי הרישיון/NOTICE/THIRD-PARTY שבה; טקסט זהה מודפס פעם אחת עם הפניה; בסוף רישיון Big LaMa ו-LGPL-3.0 ו-GPL-3.0; `--exclude` ברירת מחדל `openvino-telemetry`; פלט `build/THIRD_PARTY_NOTICES.txt`, ב-.gitignore), `licenses/LGPL-3.0.txt` ו-`licenses/GPL-3.0.txt` (טקסטים קנוניים של GNU, מ-`/usr/share/common-licenses` ב-Ubuntu 24), ו-`tests/test_m5_third_party_notices.py` (5 בדיקות). בהרצה ב-Linux: 10 חבילות, כ-935KB; אזהרות על חבילות בלי קובץ רישיון: PySide6_Essentials, shiboken6, flatbuffers.
+
+**מגבלות:** סביבת Linux/3.12 ולא Windows/3.14; רק מה שמתועד בקובצי הרישיון של החבילות; לא נבדק שה-.exe הארוז עובד; הכללת הקובץ באריזה ובממשק ("אודות") טרם נעשתה. לא ייעוץ משפטי.

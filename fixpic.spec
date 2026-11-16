@@ -10,7 +10,9 @@ a = Analysis(
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=[],
+    # M5 (LICENSES-REVIEW.md): לא לארוז טלמטריה של Intel וכלי המרת מודלים; בלי רכיבי PySide6 שאינם בשימוש (WebEngine ועוד).
+    excludes=['openvino_telemetry', 'openvino.tools', 'PySide6.QtWebEngineCore', 'PySide6.QtWebEngineWidgets', 'PySide6.QtWebEngineQuick',
+              'PySide6.QtPdf', 'PySide6.QtPdfWidgets', 'PySide6.QtQuick', 'PySide6.QtQml', 'PySide6.Qt3DCore', 'PySide6.QtMultimedia'],
     noarchive=False,
     optimize=0,
 )
