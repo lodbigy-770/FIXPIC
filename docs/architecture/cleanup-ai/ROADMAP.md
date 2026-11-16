@@ -16,8 +16,8 @@
 | Milestone 2 – Core Inpainting Engine | בוצע | 10 | 0 | 0 | M2.1–M2.9 בוצעו על מודל סינתטי; אימות איכות וזמנים על Big LaMa אצל המשתמש |
 | Milestone 3 – Editing Interface | בעבודה | 7 | 1 | 1 | M3.1-M3.6 בוצעו בסביבת הפיתוח (קבצים, Session/History, שלד ממשק, מברשת ולולאת Inpaint, Undo/Redo והשוואה, סגירה: רענון אזורי, איכות ייצוא, גלילה); נשארו בדיקות ידניות ב-Windows (`M3-ACCEPTANCE.md`) |
 | Milestone 3.7 – איכות הסרה באזורים גדולים | בוצע בעיקרו | 5 | 7 | 0 | נפתח מתוצאות הבדיקה הידנית: הסרה של אזור גדול משאירה צל מטושטש; 11 שלבים קטנים, חלקם דורשים הרצה על Big LaMa אצל המשתמש |
-| Milestone 4 – Advanced Editing | בוצע | 6 | 0 | 0 | שירותי מסכה (ללא UI) ותכנון בחירה אוטומטית עם שרביט ו-GrabCut (ללא UI) בוצעו; נשאר כל הממשק, ו-Spike המודל (AUTO-SELECT.md §7 שלבים 4–6) |
-| Milestone 5 – Production | בעבודה | 1 | 3 | 8 |  |
+| Milestone 4 – Advanced Editing | בוצע | 6 | 0 | 0 | שירותי מסכה, בחירה אוטומטית (שרביט ו-GrabCut) וכלי הממשק בוצעו; נשארו אימות ידני ב-Windows, הרצת Spike המודל (שלב 5) ו-`ModelProvider` (שלב 6) (AUTO-SELECT.md §7) |
+| Milestone 5 – Production | בעבודה | 1 | 4 | 7 |  |
 <!-- STATUS:END -->
 
 ## שלב 0 – קליטת מודל ומחקר (קדם-תנאי ל-M1)
