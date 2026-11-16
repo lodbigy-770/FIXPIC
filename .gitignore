@@ -21,4 +21,5 @@ docs/architecture/cleanup-ai/MODEL_CARD.md.bak
 # מועמדי Spike המודל (tools/m4/fetch_spike_models.py): קבצים גדולים, לא נכנסים ל-git
 models/spike/
 dist/FixPic/
+dist/installer/
 build/pyi/

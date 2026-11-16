@@ -1864,3 +1864,42 @@ linux, Python 3.12.3, זיכרון פיזי 3992MB, תקציב 2795MB, מודל:
 ## M3: סגירת סימון "ממשק בעברית (RTL)" (2026-11-16)
 
 הפריט נשאר פתוח ב-ROADMAP אף שמומש. אומת בקוד: `strings/he.json` ו-`strings.t` (בדיקת מפתחות חסרים/מתים ב-`tests/test_m33.py`), `create_app` קובע `Qt.RightToLeft` (ובדיקה שהאפליקציה והחלון הראשי ב-RTL, `test_m33.py` שורה 332), וקיצורי אותיות עבריות (`_HEBREW_KEY`, `HOLD_KEYS`). הסימון שונה ל-`[x]` והטבלה נוצרה מחדש. **לא נבדק:** מראה RTL בעין ב-Windows. לא שונה קוד.
+
+## M5: מתקין EXE יחיד (Inno Setup) וכלי שחרור גרסה (2026-11-16)
+
+בעקבות שאלת המשתמש על אריזת המודל והצפנתו: הוסבר שאין מניעה עקרונית (כל מה שרץ מקומית בר-פענוח), ושבכל מקרה המודל
+(Big LaMa ONNX) הוא Apache-2.0 וגלוי ב-Hugging Face `smile-forge/big-lama-onnx` עם אותו hash, כך שאין כאן סוד להגן עליו.
+המשתמש ביקש במקום זאת שה-EXE הסופי יהיה קובץ אחד כולל המודל, בלי הכנסה ידנית, ושחרור ל-Release עם תג.
+
+**הוסבר ונבחר:** לא `PyInstaller --onefile` (מחלץ את עצמו לתיקייה זמנית בכל הפעלה — עם מודל של כ-200MB זה פוגע משמעותית
+בזמן עלייה גם אחרי הראשונה, ומעלה סימני שאלה לגבי קישור דינמי ל-Qt תחת LGPL ולגבי חשד אנטי-וירוס ל-bootloader), אלא
+`PyInstaller onedir` (כבר קיים, `fixpic-app.spec`) עטוף ב-Inno Setup למתקין EXE יחיד — בדיוק אותה חוויית "קובץ אחד"
+למשתמש הקצה, בלי מחיר הביצועים.
+
+**נבנה:** `packaging/fixpic.iss` — לוקח את `dist/FixPic` (תוצר `fixpic-app.spec`) ועוטף ל-`dist/installer/FixPicSetup-X.Y.Z.exe`;
+`PrivilegesRequired=lowest`, מתקין ל-`%LOCALAPPDATA%\Programs\FixPic` (עקבי עם תיקיית הלוגים הקיימת ב-`fixpic/diagnostics.py`,
+בלי UAC), קיצור שולחן עבודה אופציונלי (`Tasks`), קיצור הסרת התקנה בתפריט ההתחלה, `AppVersion`/שם הקובץ דרך `/DMyAppVersion=...`
+בשורת הפקודה (כך שהגרסה נקבעת בזמן בנייה ולא מקודדת בתוך הסקריפט). ספריות Qt נשארות קבצים נפרדים בתוך `{app}` (לא מוטמעות),
+עקבי עם מה שכבר נבדק ב-`check_dist.py` לגבי קישור דינמי תחת LGPL.
+
+`tools/m5/make_release.py` — כלי לשחרור: `git tag -a vX.Y.Z` על ה-HEAD הנוכחי, `git push` לתג, יצירת GitHub Release דרך
+ה-REST API (`POST /repos/{repo}/releases`) והעלאת קובץ המתקין כנספח (`POST` ל-`upload_url` עם `Content-Type: application/octet-stream`).
+טוקן מגיע ממשתנה סביבה (ברירת מחדל `GITHUB_TOKEN`) ואף פעם לא נכתב לקובץ/ללוג. רק ספריית התקן (`subprocess`, `urllib.request`) —
+בלי תלויות נוספות. `--dry-run` מדפיס את הפעולות המתוכננות בלי לגעת ב-git או ברשת (שימושי לבדיקה לפני שחרור אמיתי). נכשל אם התג
+כבר קיים מקומית (לא דורס שחרורים קיימים).
+
+**נבדק:** `tests/test_m5_make_release.py` (11 בדיקות): אימות פורמט גרסה (`tag_name`), בניית ה-`upload_url` מתבנית ה-RFC6570
+שמחזיר GitHub, ה-payload של יצירת Release, שליחת הנספח כ-`application/octet-stream`, ושלוש התנהגויות `--dry-run` (בלי קריאה
+ל-`run_git`/`github_request` בכלל — נאכף ב-mock שזורק `AssertionError` אם כן נקראים), דחיית גרסה לא תקינה, קובץ מתקין חסר,
+טוקן חסר, ותג קיים. חבילה מלאה: 1142 עוברות, 3 מדולגות (Linux, Python 3.12, PySide6 ו-OpenVINO, offscreen) — ללא רגרסיה.
+
+**לא נבדק:** קומפילציה בפועל עם `iscc` (Inno Setup לא מותקן בסביבת Claude, והוא כלי Windows); הרצה אמיתית (לא `--dry-run`)
+של `make_release.py` מול GitHub האמיתי; הגרסה שתוצג בפועל ב-About/EXE (`fixpic-app.spec` לא עודכן למשוך `version` מ-`pyproject.toml`
+לתוך משאב הגרסה של ה-EXE — לא התבקש, ונשאר פתוח אם ירצו); האם Inno Setup v6 קורא כשורה את קובצי ה-`.iss` בקידוד UTF-8 (המחרוזות
+העבריות ב-`[Tasks]`/`[Icons]` לא עברו עין אנושית בפועל על Windows).
+
+**נדרש מהמשתמש:** `git pull`, לבנות `dist/FixPic` כרגיל, להתקין Inno Setup (https://jrsoftware.org/isinfo.php), להריץ
+`iscc /DMyAppVersion=<גרסה> packaging\fixpic.iss`, ולהריץ את המתקין שייווצר ב-`dist\installer\` כדי לוודא שהוא עולה ומתקין
+נכון (כולל בדיקת קיצורים ותפריט הסרת התקנה). מספר הגרסה הראשון טרם נבחר (תלוי בהחלטת שם מוצר/רישוי, עדיין פתוחה ב-ROADMAP);
+כש-יוחלט, להריץ `python tools/m5/make_release.py <גרסה> --installer dist\installer\FixPicSetup-<גרסה>.exe --notes "..."`
+עם `GITHUB_TOKEN` מוגדר (טוקן אישי עם הרשאת `repo`, לא זה ששימש ל-`git push` הרגיל כאן).
