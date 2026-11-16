@@ -57,3 +57,32 @@ def test_defaults_are_used(tmp_path):
     rows = acc.run_all(FakeModel(), [c], tmp_path / "o", size=384, log=lambda s: None)
     assert rows[0]["kinds"] in {"coarse", "downscale", "native", "tile"}
     assert PipelineConfig().coarse_belt_px == 0
+
+
+def test_make_case_accepts_smaller_site_result_with_same_aspect(tmp_path):
+    import subprocess
+    import sys
+
+    import cv2
+
+    from fixpic.casefile import load_case
+    from fixpic.imgio import save_image
+
+    base = rnd(400, 300, seed=3)
+    edited_full = base.copy()
+    edited_full[100:300, 80:220] = 30                      # אזור "שהוסר"
+    small = cv2.resize(edited_full, (150, 200), interpolation=cv2.INTER_AREA)
+    save_image(tmp_path / "o.png", base)
+    save_image(tmp_path / "site.png", small)
+    tool = Path(__file__).resolve().parents[1] / "tools" / "m3" / "make_case.py"
+    r = subprocess.run([sys.executable, str(tool), str(tmp_path / "o.png"), str(tmp_path / "site.png"), "-o", str(tmp_path / "c"),
+                        "--reference", str(tmp_path / "site.png")], capture_output=True, text=True, encoding="utf-8")
+    assert r.returncode == 0, r.stderr
+    case = load_case(tmp_path / "c")
+    assert case["mask"].shape == (400, 300) and case["reference"].shape[:2] == (200, 150)
+    assert (case["mask"][150:250, 100:200] > 0).all()
+    bad = rnd(300, 300, seed=4)
+    save_image(tmp_path / "b.png", bad)
+    r2 = subprocess.run([sys.executable, str(tool), str(tmp_path / "o.png"), str(tmp_path / "b.png"), "-o", str(tmp_path / "c2")],
+                        capture_output=True, text=True, encoding="utf-8")
+    assert r2.returncode != 0 and "יחס" in (r2.stderr + r2.stdout)

@@ -12,10 +12,23 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "src"))
 
+import cv2  # noqa: E402
 import numpy as np  # noqa: E402
 
 from fixpic.casefile import derive_mask, save_case  # noqa: E402
 from fixpic.imgio import load_image, save_image  # noqa: E402
+
+
+def fit_edited(orig: np.ndarray, edited: np.ndarray, tol: float = 0.01) -> np.ndarray:
+    """M3.7.11: תוצאת אתר היא לרוב קטנה מהמקור (למשל 682x1024 מול 3456x5184). אם יחס הגובה-רוחב זהה (עד `tol`), מגדילים
+    את התוצאה לגודל המקור (cubic) לצורך חישוב המסכה בלבד; `--reference` נשמר בגודלו המקורי. אחרת: שגיאה ברורה."""
+    if edited.shape[:2] == orig.shape[:2]:
+        return edited
+    (h, w), (eh, ew) = orig.shape[:2], edited.shape[:2]
+    if abs((w / h) / (ew / eh) - 1) > tol:
+        raise SystemExit(f"יחס הגובה-רוחב שונה: מקור {w}x{h}, תוצאה {ew}x{eh}. ודא שזו אותה תמונה (בלי חיתוך/סיבוב; ב-EXIF הכלי מתקן כיוון).")
+    print(f"התוצאה ({ew}x{eh}) הוגדלה ל-{w}x{h} לחישוב המסכה בלבד")
+    return cv2.resize(edited, (w, h), interpolation=cv2.INTER_CUBIC)
 
 
 def main() -> None:
@@ -29,6 +42,7 @@ def main() -> None:
     ap.add_argument("--threshold", type=int, default=18)
     a = ap.parse_args()
     orig, edited = load_image(a.original).rgb, load_image(a.edited).rgb
+    edited = fit_edited(orig, edited)
     mask = derive_mask(orig, edited, threshold=a.threshold)
     out = Path(a.out)
     ref = load_image(a.reference).rgb if a.reference else None

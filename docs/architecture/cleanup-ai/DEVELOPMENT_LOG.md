@@ -1752,3 +1752,9 @@ PNG `compress_level` 1/3/6 כמעט ללא הבדל בזמן על התמונה �
 **נבנה:** `tools/m5/third_party_notices.py` (משתמש בסגור של `license_audit.py`; לכל חבילה כל קובצי הרישיון/NOTICE/THIRD-PARTY שבה; טקסט זהה מודפס פעם אחת עם הפניה; בסוף רישיון Big LaMa ו-LGPL-3.0 ו-GPL-3.0; `--exclude` ברירת מחדל `openvino-telemetry`; פלט `build/THIRD_PARTY_NOTICES.txt`, ב-.gitignore), `licenses/LGPL-3.0.txt` ו-`licenses/GPL-3.0.txt` (טקסטים קנוניים של GNU, מ-`/usr/share/common-licenses` ב-Ubuntu 24), ו-`tests/test_m5_third_party_notices.py` (5 בדיקות). בהרצה ב-Linux: 10 חבילות, כ-935KB; אזהרות על חבילות בלי קובץ רישיון: PySide6_Essentials, shiboken6, flatbuffers.
 
 **מגבלות:** סביבת Linux/3.12 ולא Windows/3.14; רק מה שמתועד בקובצי הרישיון של החבילות; לא נבדק שה-.exe הארוז עובד; הכללת הקובץ באריזה ובממשק ("אודות") טרם נעשתה. לא ייעוץ משפטי.
+
+## M3.7.11 – תיקון `make_case.py` לתוצאת אתר קטנה (2026-11-16)
+
+**תקלה (דווחה על ידי המשתמש):** הפקודה בהוראות הוקלדה עם המציינים `ORIGINAL`/`EDITED`/`NAME` ככתבם (ההוראות לא הבהירו שיש להחליף), וגם עם נתיבים נכונים היא הייתה נכשלת על תוצאת אתר קטנה מהמקור, כי `derive_mask` דורש מידות זהות.
+
+**תיקון:** `fit_edited` ב-`tools/m3/make_case.py`: אם יחס הגובה-רוחב זהה (סבילות 1%), התוצאה מוגדלת (cubic) לגודל המקור לחישוב המסכה בלבד, ו-`--reference` נשמר בגודלו המקורי; אחרת שגיאה ברורה על יחס שונה. ההוראות ב-`M3-ACCEPTANCE.md` נוסחו מחדש עם דוגמת Windows. בדיקה חדשה ב-`tests/test_m3711.py` (4 בסך הכול בקובץ). לא נבדק: תמונות EXIF אמיתיות שבהן האתר שומר כיוון אחר.
