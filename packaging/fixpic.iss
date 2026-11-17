@@ -35,6 +35,7 @@ OutputBaseFilename=FixPicSetup-{#MyAppVersion}
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
+SetupIconFile=..\src\fixpic\ui\assets\fixpic.ico
 UninstallDisplayIcon={app}\{#MyAppExeName}
 ArchitecturesInstallIn64BitMode=x64compatible
 ; המודל (כ-200MB) כבר דחוס; דחיסה כפולה לא עוזרת אך לא פוגעת, והושארה לאחידות עם שאר הקבצים.
