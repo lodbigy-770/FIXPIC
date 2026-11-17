@@ -1918,3 +1918,7 @@ linux, Python 3.12.3, זיכרון פיזי 3992MB, תקציב 2795MB, מודל:
 ## תיקון: model.json חסר בהרצת ה-EXE (2026-11-17)
 
 **דיווח המשתמש:** "model.json חסר ב-...\dist\FixPic\models\big-lama". **סיבה:** `cli.DEFAULT_MODELS` חושב מ-`__file__` (`parents[2]`), ובאריזת PyInstaller 6 (onedir) הנתונים נמצאים ב-`_internal` (`sys._MEIPASS`), לא ליד ה-exe. **תיקון:** `cli.default_models_dir()` מחזיר `sys._MEIPASS/models` בהרצה מארוזה; `check_dist.py` בודק גם ש-`model.json` נארז; `tests/test_m5_models_dir.py` (2). **לא נבדק:** ה-EXE עצמו (Windows); צריך לבנות מחדש ולהריץ.
+
+## קבלה על 4 המקרים החדשים מהאתר (2026-11-17, Big LaMa, Windows)
+
+`acceptance.py` על `kids_dough`, `carousel`, `man_baby`, `arcade_boy` (480x720 ו-720x480, מסכות 5-18%). זמנים 1.6-6.9s. texture מולנו/ייחוס: 0.28/0.30, 0.71/0.75, 0.32/0.65, 1.07/1.16; boundary_color_diff דומה לייחוס (פרט ל-`man_baby`: 16.5 מול 11.3). **בעין:** `kids_dough` ו-`arcade_boy` נקיים ושווים לאתר; `carousel` שווה לאתר (שארית אדמדמה קלה בפינה); `man_baby` נקי משארית העניבה שהאתר משאיר, אך עם אותה דעיכה אפורה ו-texture נמוך. **מסקנה:** בתמונות קטנות (עד כ-0.4MP) איכות הכלי ברמת האתר; הפער נשאר רק בתמונות גדולות (`boy_large`). המדדים לא נפרדים מהעין (ראו הערה ב-`ACCEPT.md`).

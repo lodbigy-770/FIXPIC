@@ -27,13 +27,6 @@ python tools\m3\acceptance.py cases\photo1 cases\photo2 cases\photo3 --out m3_ac
 ```
 **להחזיר:** `m3_accept_new` ו-`cases\photo*`. אחר כך ממלאים "ממצא בעין" ב-`ACCEPT.md`. פירוט: `M3-ACCEPTANCE.md` (סעיף M3.7.11).
 
-### 1א. מקרים חדשים מהאתר (כבר בריפו)
-```
-git pull
-python tools\m3\acceptance.py cases\kids_dough cases\carousel cases\man_baby cases\arcade_boy --out m3_accept_new
-```
-**להחזיר:** `m3_accept_new`. (המקרים נוצרו מהזוגות ב-`m3_bench/NEW TEST`.)
-
 ### 2. M3.7.12: הרחבת מסכה (אם רוצים לחקור את `boy_large`)
 ```
 python tools\m3\quality_bench.py cases\boy_large --out m3_bench --sizes 384 --strategies auto --min-scales 0.5 --blends 32 --coarses 1 --coarse-sizes 768 --belt-px 0 --dilates auto,60,100,m8,m12
