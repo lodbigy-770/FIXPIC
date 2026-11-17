@@ -1865,7 +1865,7 @@ linux, Python 3.12.3, זיכרון פיזי 3992MB, תקציב 2795MB, מודל:
 
 הפריט נשאר פתוח ב-ROADMAP אף שמומש. אומת בקוד: `strings/he.json` ו-`strings.t` (בדיקת מפתחות חסרים/מתים ב-`tests/test_m33.py`), `create_app` קובע `Qt.RightToLeft` (ובדיקה שהאפליקציה והחלון הראשי ב-RTL, `test_m33.py` שורה 332), וקיצורי אותיות עבריות (`_HEBREW_KEY`, `HOLD_KEYS`). הסימון שונה ל-`[x]` והטבלה נוצרה מחדש. **לא נבדק:** מראה RTL בעין ב-Windows. לא שונה קוד.
 
-## M5: מתקין EXE יחיד (Inno Setup) וכלי שחרור גרסה (2026-11-16)
+## M5: מתקין EXE יחיד (Inno Setup) וכלי שחרור גרסה (2026-11-17)
 
 בעקבות שאלת המשתמש על אריזת המודל והצפנתו: הוסבר שאין מניעה עקרונית (כל מה שרץ מקומית בר-פענוח), ושבכל מקרה המודל
 (Big LaMa ONNX) הוא Apache-2.0 וגלוי ב-Hugging Face `smile-forge/big-lama-onnx` עם אותו hash, כך שאין כאן סוד להגן עליו.
@@ -1940,3 +1940,31 @@ GrabCut (`GrabCutProvider`) מייצר הצעת אובייקט; `Session.remove_
 ## שקיפות והחלה ידנית (2026-11-17)
 
 `Session`: ליבה משותפת `_apply_alpha_factor(factor)`; `remove_background` (גורם = משקל האובייקט), `make_transparent` (גורם = 255-משקל), `make_transparent_from_mask` (מסכה נוכחית, Feathering 3). `EditController`: `transparent_mode` (שחרור = שקיפות מיידית, בלי Inpaint), `manual_apply` (שחרור לא מגיש; `submit` בלחיצה; `cancel` זורק מסכה שנצברה). `BrushPanel`: שלוש תיבות הדדיות (שחזור/שקיפות/החלה ידנית); מחיקה מהמסכה מתאימה רק להחלה ידנית/רגיל; כפתור `btn_apply` פעיל כשיש מסכה במצב ידני. מעבר לשחזור/שקיפות עם מסכה שנצברה: המסכה נזרקת (הודעה), כדי שלא תיכלל בפעולה המיידית. **לא נבדק:** הגשת Inpaint אמיתית מכפתור "החל" (דורש מנוע; הנתיב הוא `controller.submit` הקיים), Windows.
+## M5: שחרור אוטומטי ב-GitHub Actions כשנדחף תג (2026-11-17)
+
+לבקשת המשתמש: שכל שרשרת השחרור (בנייה, Inno Setup, Release) תרוץ אוטומטית ב-GitHub ברגע שנדחף תג, בלי צורך בהרצה ידנית
+של `make_release.py` עם מתקין שנבנה מראש.
+
+**נבנה:** `.github/workflows/release.yml` — טריגר `push: tags: v*`. רץ על `windows-latest` (Inno Setup הוא כלי Windows):
+(1) `actions/checkout` עם `lfs: true` כדי לקבל את קובץ המודל האמיתי ולא pointer; (2) `actions/setup-python` עם 3.14
+(ADR-002); (3) שליפת מספר הגרסה מתוך שם התג (`github.ref_name`, בלי ה-`v` המוביל) לפלט `steps.ver.outputs.version`;
+(4) בדיקת שפיות שהמודל גדול מ-1MB (לא pointer) — נכשל עם הודעה ברורה אם לא, לפני שממשיכים; (5) התקנת תלויות (`pip install -e .[dev]`
+ו-`pyinstaller`); (6) `pytest -q` עם `QT_QPA_PLATFORM=offscreen`; (7) `tools/m5/third_party_notices.py`; (8) `pyinstaller
+fixpic-app.spec`; (9) `tools/m5/check_dist.py`; (10) התקנת Inno Setup דרך `choco`; (11) קומפילציית `packaging/fixpic.iss`
+עם `/DMyAppVersion=<גרסה>`; (12) העלאת המתקין כ-workflow artifact (גיבוי, גם אם שלב ה-Release נכשל); (13) `gh release create`
+עם המתקין כנספח ו-`--generate-notes`, באמצעות `secrets.GITHUB_TOKEN` המובנה של GitHub Actions — בלי טוקן אישי.
+
+**יחס ל-`tools/m5/make_release.py`:** נשאר ללא שינוי, כנתיב גיבוי ידני בלבד (אם ה-workflow נכשל, או לשחרור חריג). בתהליך
+הרגיל, אחרי ה-workflow הזה, מספיק `git tag -a vX.Y.Z -m "..." && git push origin vX.Y.Z` בלי שום פקודה נוספת.
+
+**נבדק:** תחביר YAML (`yaml.safe_load`, 13 שלבים, טריגר וההרשאות נקראים נכון). עודכנו PROGRESS/ROADMAP.
+
+**לא נבדק (ולא ניתן מסביבת Claude — אין כאן ריצת GitHub Actions אמיתית):** שה-workflow אכן רץ בהצלחה מקצה לקצה על
+runner אמיתי; זמינות בפועל של Python 3.14 ו-Inno Setup (`choco install innosetup`) על `windows-latest`; שהתגית הנכונה
+של ISCC (`C:\Program Files (x86)\Inno Setup 6\ISCC.exe`) תואמת את מה ש-Chocolatey מתקין בפועל; **הכי חשוב:** שקובץ
+`models/big-lama/inpainter.onnx` אכן נשמר ב-Git LFS האמיתי של הריפו ב-GitHub (לא רק pointer) — אם לא בוצע מעולם
+`git lfs push`, שלב בדיקת השפיות ב-workflow ייכשל בכוונה עם הודעה ברורה, במקום לארוז בטעות pointer של 134 בייט.
+
+**נדרש מהמשתמש:** לוודא ש-`git lfs push` בוצע פעם אחת לריפו (או `git lfs install && git add/commit/push` רגיל אם המודל
+כבר נוסף כך); ואז פשוט `git tag -a v<גרסה> -m "..."` ו-`git push origin v<גרסה>` כדי לבדוק שה-workflow אכן רץ ומייצר
+Release עם המתקין. אם הוא נכשל, ה-artifact שהועלה (שלב 12) עוזר לאבחון בלי לחכות לשלב ה-Release.

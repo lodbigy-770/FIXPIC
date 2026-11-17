@@ -1,0 +1,96 @@
+# M5: שחרור אוטומטי. כשנדחף תג בתבנית v* (למשל v0.1.0, ראו tools/m5/make_release.py):
+# בונה את dist/FixPic (PyInstaller onedir) על Windows, עוטף ב-Inno Setup (packaging/fixpic.iss)
+# למתקין FixPicSetup-X.Y.Z.exe יחיד, ויוצר GitHub Release עם המתקין כנספח.
+#
+# הערה: צריך windows-latest (Inno Setup הוא כלי Windows). כדי שהמודל ב-models/big-lama/inpainter.onnx
+# ייפרש כקובץ אמיתי ולא כ-pointer של Git LFS, הריפו ב-GitHub חייב להכיל את תוכן ה-LFS בפועל
+# (lfs: true ב-checkout בלבד לא מספיק אם לא בוצע git lfs push מתישהו).
+#
+# שימוש: git tag -a v0.1.0 -m "..." && git push origin v0.1.0  — זה כל מה שצריך; השאר אוטומטי.
+# (tools/m5/make_release.py עדיין קיים כנתיב גיבוי ידני, למקרה שה-workflow נכשל.)
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout (כולל Git LFS, לקבלת המודל האמיתי)
+        uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - name: Setup Python 3.14 (ADR-002)
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+          cache: "pip"
+
+      - name: גרסה מתוך שם התג (בלי 'v' מוביל)
+        id: ver
+        shell: pwsh
+        run: |
+          $v = "${{ github.ref_name }}" -replace '^v',''
+          "version=$v" >> $env:GITHUB_OUTPUT
+
+      - name: אימות שהמודל אמיתי ולא pointer של Git LFS
+        shell: pwsh
+        run: |
+          $size = (Get-Item models/big-lama/inpainter.onnx).Length
+          if ($size -lt 1000000) {
+            Write-Error "models/big-lama/inpainter.onnx הוא $size בייט בלבד - נראה כמו Git LFS pointer, לא המודל האמיתי. בדוק ש-git lfs push בוצע לריפו."
+            exit 1
+          }
+          Write-Host "גודל המודל: $size בייט"
+
+      - name: התקנת תלויות Python
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e .[dev]
+          pip install pyinstaller
+
+      - name: הרצת הבדיקות
+        env:
+          QT_QPA_PLATFORM: offscreen
+        run: pytest -q
+
+      - name: THIRD_PARTY_NOTICES
+        run: python tools/m5/third_party_notices.py
+
+      - name: בנייה (PyInstaller onedir, fixpic-app.spec)
+        run: pyinstaller fixpic-app.spec --noconfirm --distpath dist --workpath build/pyi
+
+      - name: בדיקת תיקיית האריזה
+        run: python tools/m5/check_dist.py dist/FixPic --json dist-check.json
+
+      - name: התקנת Inno Setup
+        run: choco install innosetup --no-progress -y
+
+      - name: קומפילציית המתקין (Inno Setup)
+        shell: pwsh
+        run: |
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ steps.ver.outputs.version }}" packaging\fixpic.iss
+
+      - name: העלאת המתקין כ-artifact (גיבוי, גם אם שלב ה-Release נכשל)
+        uses: actions/upload-artifact@v4
+        with:
+          name: FixPicSetup-${{ steps.ver.outputs.version }}
+          path: dist/installer/FixPicSetup-*.exe
+          if-no-files-found: error
+
+      - name: יצירת GitHub Release עם המתקין כנספח
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release create "${{ github.ref_name }}" "dist/installer/FixPicSetup-${{ steps.ver.outputs.version }}.exe" `
+            --title "FixPic ${{ steps.ver.outputs.version }}" `
+            --generate-notes
