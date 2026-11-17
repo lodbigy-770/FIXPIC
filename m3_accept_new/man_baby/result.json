@@ -1,0 +1,30 @@
+{
+  "case": "man_baby",
+  "size": [
+    517,
+    720
+  ],
+  "mask_pct": 17.6,
+  "kinds": "downscale",
+  "planned_runs": 1,
+  "scale": 0.655,
+  "reference_size": [
+    517,
+    720
+  ],
+  "seconds": 1.58,
+  "model_calls": 1,
+  "peak_rss_mb": 700,
+  "texture_ratio": 0.3161336686853668,
+  "texture_rms_inside": 1.7651258707046509,
+  "texture_rms_ring": 6.124284267425537,
+  "stripe_score": 62.16566848754883,
+  "boundary_color_diff": 16.535207748413086,
+  "boundary_color_diff_p95": 98.93659210205078,
+  "reference_texture_ratio": 0.6529610263180575,
+  "reference_texture_rms_inside": 2.9290950298309326,
+  "reference_texture_rms_ring": 4.618736267089844,
+  "reference_stripe_score": 41.61041259765625,
+  "reference_boundary_color_diff": 11.307711601257324,
+  "reference_boundary_color_diff_p95": 44.65494155883789
+}

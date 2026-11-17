@@ -1,0 +1,30 @@
+{
+  "case": "carousel",
+  "size": [
+    480,
+    720
+  ],
+  "mask_pct": 8.3,
+  "kinds": "downscale,native",
+  "planned_runs": 2,
+  "scale": 0.723,
+  "reference_size": [
+    480,
+    720
+  ],
+  "seconds": 3.31,
+  "model_calls": 2,
+  "peak_rss_mb": 694,
+  "texture_ratio": 0.7080631173168374,
+  "texture_rms_inside": 11.125517845153809,
+  "texture_rms_ring": 15.815683364868164,
+  "stripe_score": 27.202350616455078,
+  "boundary_color_diff": 24.1709041595459,
+  "boundary_color_diff_p95": 75.8579330444336,
+  "reference_texture_ratio": 0.7518356161389076,
+  "reference_texture_rms_inside": 11.951714515686035,
+  "reference_texture_rms_ring": 15.979231834411621,
+  "reference_stripe_score": 21.096590042114258,
+  "reference_boundary_color_diff": 26.96371841430664,
+  "reference_boundary_color_diff_p95": 72.70085144042969
+}

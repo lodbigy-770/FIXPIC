@@ -1,0 +1,30 @@
+{
+  "case": "kids_dough",
+  "size": [
+    480,
+    720
+  ],
+  "mask_pct": 10.6,
+  "kinds": "native",
+  "planned_runs": 2,
+  "scale": 1.0,
+  "reference_size": [
+    480,
+    720
+  ],
+  "seconds": 6.93,
+  "model_calls": 2,
+  "peak_rss_mb": 675,
+  "texture_ratio": 0.278087750878497,
+  "texture_rms_inside": 2.0323643684387207,
+  "texture_rms_ring": 7.957353115081787,
+  "stripe_score": 21.813913345336914,
+  "boundary_color_diff": 6.162877082824707,
+  "boundary_color_diff_p95": 29.389001846313477,
+  "reference_texture_ratio": 0.30364814986006716,
+  "reference_texture_rms_inside": 2.080594301223755,
+  "reference_texture_rms_ring": 7.425312042236328,
+  "reference_stripe_score": 27.346525192260742,
+  "reference_boundary_color_diff": 5.636753082275391,
+  "reference_boundary_color_diff_p95": 45.86241149902344
+}

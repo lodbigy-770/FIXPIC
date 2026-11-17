@@ -1,0 +1,122 @@
+[
+  {
+    "case": "kids_dough",
+    "size": [
+      480,
+      720
+    ],
+    "mask_pct": 10.6,
+    "kinds": "native",
+    "planned_runs": 2,
+    "scale": 1.0,
+    "reference_size": [
+      480,
+      720
+    ],
+    "seconds": 6.93,
+    "model_calls": 2,
+    "peak_rss_mb": 675,
+    "texture_ratio": 0.278087750878497,
+    "texture_rms_inside": 2.0323643684387207,
+    "texture_rms_ring": 7.957353115081787,
+    "stripe_score": 21.813913345336914,
+    "boundary_color_diff": 6.162877082824707,
+    "boundary_color_diff_p95": 29.389001846313477,
+    "reference_texture_ratio": 0.30364814986006716,
+    "reference_texture_rms_inside": 2.080594301223755,
+    "reference_texture_rms_ring": 7.425312042236328,
+    "reference_stripe_score": 27.346525192260742,
+    "reference_boundary_color_diff": 5.636753082275391,
+    "reference_boundary_color_diff_p95": 45.86241149902344
+  },
+  {
+    "case": "carousel",
+    "size": [
+      480,
+      720
+    ],
+    "mask_pct": 8.3,
+    "kinds": "downscale,native",
+    "planned_runs": 2,
+    "scale": 0.723,
+    "reference_size": [
+      480,
+      720
+    ],
+    "seconds": 3.31,
+    "model_calls": 2,
+    "peak_rss_mb": 694,
+    "texture_ratio": 0.7080631173168374,
+    "texture_rms_inside": 11.125517845153809,
+    "texture_rms_ring": 15.815683364868164,
+    "stripe_score": 27.202350616455078,
+    "boundary_color_diff": 24.1709041595459,
+    "boundary_color_diff_p95": 75.8579330444336,
+    "reference_texture_ratio": 0.7518356161389076,
+    "reference_texture_rms_inside": 11.951714515686035,
+    "reference_texture_rms_ring": 15.979231834411621,
+    "reference_stripe_score": 21.096590042114258,
+    "reference_boundary_color_diff": 26.96371841430664,
+    "reference_boundary_color_diff_p95": 72.70085144042969
+  },
+  {
+    "case": "man_baby",
+    "size": [
+      517,
+      720
+    ],
+    "mask_pct": 17.6,
+    "kinds": "downscale",
+    "planned_runs": 1,
+    "scale": 0.655,
+    "reference_size": [
+      517,
+      720
+    ],
+    "seconds": 1.58,
+    "model_calls": 1,
+    "peak_rss_mb": 700,
+    "texture_ratio": 0.3161336686853668,
+    "texture_rms_inside": 1.7651258707046509,
+    "texture_rms_ring": 6.124284267425537,
+    "stripe_score": 62.16566848754883,
+    "boundary_color_diff": 16.535207748413086,
+    "boundary_color_diff_p95": 98.93659210205078,
+    "reference_texture_ratio": 0.6529610263180575,
+    "reference_texture_rms_inside": 2.9290950298309326,
+    "reference_texture_rms_ring": 4.618736267089844,
+    "reference_stripe_score": 41.61041259765625,
+    "reference_boundary_color_diff": 11.307711601257324,
+    "reference_boundary_color_diff_p95": 44.65494155883789
+  },
+  {
+    "case": "arcade_boy",
+    "size": [
+      720,
+      480
+    ],
+    "mask_pct": 5.0,
+    "kinds": "native",
+    "planned_runs": 1,
+    "scale": 1.0,
+    "reference_size": [
+      720,
+      480
+    ],
+    "seconds": 1.78,
+    "model_calls": 1,
+    "peak_rss_mb": 700,
+    "texture_ratio": 1.0732564175703678,
+    "texture_rms_inside": 9.92995548248291,
+    "texture_rms_ring": 9.23511028289795,
+    "stripe_score": 49.30012130737305,
+    "boundary_color_diff": 7.617447376251221,
+    "boundary_color_diff_p95": 29.894874572753906,
+    "reference_texture_ratio": 1.1586761090347428,
+    "reference_texture_rms_inside": 9.961037635803223,
+    "reference_texture_rms_ring": 8.562676429748535,
+    "reference_stripe_score": 31.6824893951416,
+    "reference_boundary_color_diff": 7.508834362030029,
+    "reference_boundary_color_diff_p95": 32.248470306396484
+  }
+]

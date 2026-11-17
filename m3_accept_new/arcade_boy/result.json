@@ -1,0 +1,30 @@
+{
+  "case": "arcade_boy",
+  "size": [
+    720,
+    480
+  ],
+  "mask_pct": 5.0,
+  "kinds": "native",
+  "planned_runs": 1,
+  "scale": 1.0,
+  "reference_size": [
+    720,
+    480
+  ],
+  "seconds": 1.78,
+  "model_calls": 1,
+  "peak_rss_mb": 700,
+  "texture_ratio": 1.0732564175703678,
+  "texture_rms_inside": 9.92995548248291,
+  "texture_rms_ring": 9.23511028289795,
+  "stripe_score": 49.30012130737305,
+  "boundary_color_diff": 7.617447376251221,
+  "boundary_color_diff_p95": 29.894874572753906,
+  "reference_texture_ratio": 1.1586761090347428,
+  "reference_texture_rms_inside": 9.961037635803223,
+  "reference_texture_rms_ring": 8.562676429748535,
+  "reference_stripe_score": 31.6824893951416,
+  "reference_boundary_color_diff": 7.508834362030029,
+  "reference_boundary_color_diff_p95": 32.248470306396484
+}
