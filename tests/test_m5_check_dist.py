@@ -25,6 +25,7 @@ def make_dist(root: Path, *, notices=20_000, model=2_000_000, extra=(), exe=True
         w("_internal/THIRD_PARTY_NOTICES.txt", notices)
     if model is not None:
         w("_internal/models/big-lama/inpainter.onnx", model)
+        w("_internal/models/big-lama/model.json", 300)
     if qt:
         w("_internal/PySide6/Qt/lib/libQt6Core.so.6", 500)
     for e in extra:
@@ -38,7 +39,7 @@ def status(rep, name):
 
 def test_good_dist_all_ok(tmp_path):
     rep = cd.inspect_dist(make_dist(tmp_path))
-    assert [c["status"] for c in rep["checks"]] == ["ok"] * 5 and rep["files"] == 4
+    assert [c["status"] for c in rep["checks"]] == ["ok"] * 6 and rep["files"] == 5
 
 
 def test_missing_or_tiny_notices_fail(tmp_path):
@@ -67,7 +68,7 @@ def test_no_exe_or_no_qt_fails(tmp_path):
 def test_main_exit_codes_and_json(tmp_path):
     good = make_dist(tmp_path / "g")
     out = tmp_path / "o.json"
-    assert cd.main([str(good), "--json", str(out)]) == 0 and json.loads(out.read_text(encoding="utf-8"))["files"] == 4
+    assert cd.main([str(good), "--json", str(out)]) == 0 and json.loads(out.read_text(encoding="utf-8"))["files"] == 5
     assert cd.main([str(make_dist(tmp_path / "b", model=1))]) == 1
     assert cd.main([str(tmp_path / "nope")]) == 2
 

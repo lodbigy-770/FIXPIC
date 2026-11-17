@@ -1914,3 +1914,7 @@ linux, Python 3.12.3, זיכרון פיזי 3992MB, תקציב 2795MB, מודל:
 - `m3_bench/NEW TEST`: 4 זוגות, ב-480x720 ובסביבתם; מהשוואת הקבצים הקובץ שבו האובייקט הוסר הוא תוצאת האתר והשני המקור (בזוג 9968 הסדר הפוך). האתר נקי ב-`kids_dough` ו-`arcade_boy`, אך ב-`man_baby` משאיר דעיכה אפורה ושארית עניבה, וב-`carousel` מריחה בירוק/אדום בפינה. נוצרו 4 מקרים עם `make_case.py` (מסכות נבדקו בעין ב-`mask_preview.jpg`; גודל המקור הוא של ייצוא האתר, לא המקור המלא).
 
 **לא נבדק:** ריצת הכלי על המקרים החדשים (דורשת Big LaMa).
+
+## תיקון: model.json חסר בהרצת ה-EXE (2026-11-17)
+
+**דיווח המשתמש:** "model.json חסר ב-...\dist\FixPic\models\big-lama". **סיבה:** `cli.DEFAULT_MODELS` חושב מ-`__file__` (`parents[2]`), ובאריזת PyInstaller 6 (onedir) הנתונים נמצאים ב-`_internal` (`sys._MEIPASS`), לא ליד ה-exe. **תיקון:** `cli.default_models_dir()` מחזיר `sys._MEIPASS/models` בהרצה מארוזה; `check_dist.py` בודק גם ש-`model.json` נארז; `tests/test_m5_models_dir.py` (2). **לא נבדק:** ה-EXE עצמו (Windows); צריך לבנות מחדש ולהריץ.

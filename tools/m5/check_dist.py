@@ -70,6 +70,9 @@ def inspect_dist(root: Path) -> dict:
     else:
         add("מודל", "ok", f"{models[0][0]} ({models[0][1] // 2**20}MB)")
 
+    mj = [r for r, _ in files if r.endswith("models/big-lama/model.json")]
+    add("model.json", "ok" if mj else "fail", mj[0] if mj else "model.json לא נארז")
+
     exe = find_exe(root)
     qt_libs = [r for r, _ in files if any(q in r.lower().rsplit("/", 1)[-1] for q in QT_CORE)]
     if exe is None:

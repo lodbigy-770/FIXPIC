@@ -24,7 +24,18 @@ from .models import ModelManager
 from .models.ort_model import OrtModel
 from .pipeline import Pipeline, PipelineConfig
 
-DEFAULT_MODELS = Path(__file__).resolve().parents[2] / "models"
+
+
+def default_models_dir() -> Path:
+    """תיקיית המודלים. באריזת PyInstaller (6+) הנתונים נמצאים ב-`sys._MEIPASS` (`_internal`), לא ליד ה-exe;
+    בפיתוח: `models/` בשורש הריפו."""
+    meipass = getattr(sys, "_MEIPASS", None)
+    if meipass:
+        return Path(meipass) / "models"
+    return Path(__file__).resolve().parents[2] / "models"
+
+
+DEFAULT_MODELS = default_models_dir()
 EXIT_OK, EXIT_OTHER, EXIT_INPUT, EXIT_MODEL, EXIT_EMPTY, EXIT_RUN, EXIT_CANCEL = 0, 1, 2, 3, 4, 5, 130
 
 
