@@ -18,6 +18,7 @@ a = Analysis(
     datas=[
         (str(ROOT / 'models'), 'models'),
         (str(ROOT / 'src' / 'fixpic' / 'strings' / 'he.json'), 'fixpic/strings'),
+        (str(ROOT / 'src' / 'fixpic' / 'ui' / 'assets'), 'fixpic/ui/assets'),
         (str(ROOT / 'licenses'), 'licenses'),
         (str(notices), '.'),
     ],
@@ -49,5 +50,6 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
+    icon=str(ROOT / 'src' / 'fixpic' / 'ui' / 'assets' / 'fixpic.ico'),
 )
 coll = COLLECT(exe, a.binaries, a.datas, strip=False, upx=False, name='FixPic')

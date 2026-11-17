@@ -10,14 +10,17 @@ from ..diagnostics import install_crash_handlers, setup_logging
 from ..strings import t
 from .crash_dialog import CrashNotifier
 from .engine import default_engine_factory
+from .icon import app_icon, set_windows_app_id
 from .main_window import MainWindow
 
 
 def create_app(argv: list[str] | None = None) -> QApplication:
     """QApplication קיים או חדש, עם כיוון RTL ושם האפליקציה (עברית בלבד, PARITY-SPEC §2)."""
+    set_windows_app_id()
     app = QApplication.instance() or QApplication(argv if argv is not None else sys.argv)
     app.setLayoutDirection(Qt.RightToLeft)
     app.setApplicationName(t("app.name"))
+    app.setWindowIcon(app_icon())           # אייקון לכל החלונות והדיאלוגים, וסרגל המשימות
     return app
 
 

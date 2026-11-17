@@ -33,3 +33,4 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 "fixpic.strings" = ["*.json"]
+"fixpic.ui" = ["assets/*.png", "assets/*.ico"]
