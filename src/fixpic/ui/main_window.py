@@ -269,6 +269,8 @@ class MainWindow(QMainWindow):
         for a in (self.act_erase, self.act_brush_bigger, self.act_brush_smaller):
             a.setEnabled(has)
         self.brush_panel.setEnabled(has)
+        self.brush_panel.set_apply_enabled(has and not self.busy and self.controller.manual_apply
+                                           and not self.session.mask.empty)
         mod = t("title.modified") if has and self.session.modified else ""
         name = self.display_name or t("title.untitled")
         self.setWindowTitle(f"{name}{mod} - {t('app.name')}" if has else t("app.name"))
@@ -374,6 +376,10 @@ class MainWindow(QMainWindow):
         self.brush_panel.diameterChanged.connect(self._brush_changed)
         self.brush_panel.eraseChanged.connect(self._erase_changed)
         self.select_panel.removeBackgroundRequested.connect(self._remove_background)
+        self.select_panel.makeTransparentRequested.connect(self._make_selected_transparent)
+        self.brush_panel.transparentChanged.connect(self._transparent_changed)
+        self.brush_panel.manualChanged.connect(self._manual_changed)
+        self.brush_panel.applyRequested.connect(self._apply_now)
         self.brush_panel.restoreChanged.connect(self._restore_changed)
         self.brush_panel.featherChanged.connect(lambda px: setattr(self.controller, "feather_px", px))
         c.changed.connect(self._edit_changed)
@@ -395,10 +401,33 @@ class MainWindow(QMainWindow):
         self.canvas.erase_mode = on
         self.canvas.update()
 
+    def _drop_pending_mask(self) -> None:
+        """מעבר למצב "פעולה מיידית" (שחזור/שקיפות) עם מסכה שנצברה בהחלה ידנית: המסכה נזרקת (הודעה)."""
+        s = self.session
+        if s is not None and not s.mask.empty:
+            s.mask.clear()
+            self.statusBar().showMessage(t("status.pending_mask_dropped"))
+            self.canvas.invalidate_overlay()
+
     def _restore_changed(self, on: bool) -> None:
         self.controller.restore_mode = on
         self.canvas.restore_mode = on
+        if on:
+            self._drop_pending_mask()
         self.canvas.update()
+        self._refresh()
+
+    def _transparent_changed(self, on: bool) -> None:
+        self.controller.transparent_mode = on
+        self.canvas.transparent_mode = on
+        if on:
+            self._drop_pending_mask()
+        self.canvas.update()
+        self._refresh()
+
+    def _manual_changed(self, on: bool) -> None:
+        self.controller.manual_apply = on
+        self._refresh()
 
     def _edit_changed(self) -> None:
         self.canvas.update()
@@ -500,22 +529,35 @@ class MainWindow(QMainWindow):
         self.canvas.invalidate_overlay()
         self.controller.submit()
 
-    def _remove_background(self) -> None:
-        """הסרת רקע: האובייקט המסומן (הצעה ירוקה) נשאר, כל השאר שקוף. צעד Undo אחד, בלי Inpaint."""
+    def _alpha_from_proposal(self, keep: bool) -> None:
+        """הצעת הבחירה (ירוק) משנה שקיפות: keep=True: האובייקט נשאר והשאר שקוף (הסרת רקע); False: הנבחר הופך שקוף.
+        צעד Undo אחד, בלי Inpaint."""
         s, ctl = self.session, self._active_ctl
         if s is None or self.busy or ctl.proposal is None:
             return
         prop = ctl.proposal
         try:
-            patch = s.remove_background(prop.rect, prop.window)
+            fn = s.remove_background if keep else s.make_transparent
+            patch = fn(prop.rect, prop.window)
         except FixPicError as e:
             self._error("error.unexpected", detail=str(e))
             return
         if patch is None:
             self.statusBar().showMessage(t("status.bg_nochange"))
             return
-        self.statusBar().showMessage(t("status.bg_removed"))
+        self.statusBar().showMessage(t("status.bg_removed") if keep else t("status.transparent_done"))
         self.controller.imageChanged.emit(patch.box)      # מנקה את ההצעה ומרענן את הקנבס
+
+    def _remove_background(self) -> None:
+        self._alpha_from_proposal(True)
+
+    def _make_selected_transparent(self) -> None:
+        self._alpha_from_proposal(False)
+
+    def _apply_now(self) -> None:
+        """החלה ידנית: מגיש את המסכה שנצברה כ-Inpaint (הסרה)."""
+        if self.session is not None and not self.busy:
+            self.controller.submit()
 
     def _select_accept(self) -> None:
         if self.session is not None and not self.busy:
@@ -585,6 +627,8 @@ class MainWindow(QMainWindow):
         bp.configure_for_image(*s.size)
         bp.set_erase(False)
         bp.set_restore(False)
+        bp.set_transparent(False)
+        bp.set_manual(False)
         bp.chk_feather_auto.setChecked(True)
         self.canvas.invalidate_overlay()
         self.canvas.fit()

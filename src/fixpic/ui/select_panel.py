@@ -25,6 +25,7 @@ class SelectPanel(QWidget):
     cancelRequested = Signal()
     toleranceChanged = Signal(int)
     removeBackgroundRequested = Signal()
+    makeTransparentRequested = Signal()
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
@@ -66,12 +67,15 @@ class SelectPanel(QWidget):
         self.btn_cancel = QPushButton(t("select.cancel"))
         self.btn_bg = QPushButton(t("select.remove_bg"))
         lay.addWidget(self.btn_accept)
+        self.btn_tr = QPushButton(t("select.make_transparent"))
         lay.addWidget(self.btn_bg)
+        lay.addWidget(self.btn_tr)
         lay.addWidget(self.btn_cancel)
         lay.addStretch(1)
         self.btn_accept.clicked.connect(lambda _c=False: self.acceptRequested.emit())
         self.btn_cancel.clicked.connect(lambda _c=False: self.cancelRequested.emit())
         self.btn_bg.clicked.connect(lambda _c=False: self.removeBackgroundRequested.emit())
+        self.btn_tr.clicked.connect(lambda _c=False: self.makeTransparentRequested.emit())
         self.set_state(False, False)
 
     # ------------------------------------------------------------------ מצב
@@ -114,6 +118,7 @@ class SelectPanel(QWidget):
         self.setEnabled(self._work_ok)
         self.btn_accept.setEnabled(has_proposal)
         self.btn_bg.setEnabled(has_proposal)
+        self.btn_tr.setEnabled(has_proposal)
         self.btn_cancel.setEnabled(has_input or has_proposal)
         self.slider.setEnabled(self._tool == "wand")
         self.spin.setEnabled(self._tool == "wand")

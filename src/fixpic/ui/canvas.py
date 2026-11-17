@@ -133,6 +133,7 @@ class Canvas(QWidget):
         self.painting = False                 # מצב ציור (M3.4)
         self.erase_mode = False               # כפתור שמאלי מוחק (במקום לצייר)
         self.restore_mode = False             # מברשת שחזור: המסכה מוצגת בירוק
+        self.transparent_mode = False         # מברשת שקיפות: המסכה מוצגת בכתום
         self.brush_diameter = 20.0            # פיקסלי תמונה, לעיגול המברשת בלבד
         self.mask_layer = None                # MaskLayer | None
         self._pending_source: Callable[[], list[np.ndarray]] | None = None
@@ -155,7 +156,8 @@ class Canvas(QWidget):
         self._pend_cache: tuple | None = None # (refs, union)
         self._tables = {MASK_COLOR: _color_table(MASK_COLOR, OVERLAY_OPACITY),
                         PENDING_COLOR: _color_table(PENDING_COLOR, OVERLAY_OPACITY),
-                        SELECT_COLOR: _color_table(SELECT_COLOR, OVERLAY_OPACITY)}
+                        SELECT_COLOR: _color_table(SELECT_COLOR, OVERLAY_OPACITY),
+                        SCRIBBLE_NEG_COLOR: _color_table(SCRIBBLE_NEG_COLOR, OVERLAY_OPACITY)}
         self.setMinimumSize(320, 240)
         self.setFocusPolicy(Qt.StrongFocus)
         self.setMouseTracking(True)
@@ -320,7 +322,7 @@ class Canvas(QWidget):
         prop = self._proposal
         if (layer is None or layer.empty) and pend is None and prop is None:
             return []
-        key = (layer.version if layer is not None else -1, id(pend), id(prop), self.restore_mode, self.scale, self.offset.x(),
+        key = (layer.version if layer is not None else -1, id(pend), id(prop), self.restore_mode, self.transparent_mode, self.scale, self.offset.x(),
                self.offset.y(), self.width(), self.height())
         if self._ov_cache is not None and self._ov_cache["key"] == key:
             return self._ov_cache["items"]
@@ -328,7 +330,8 @@ class Canvas(QWidget):
         prop_origin = (prop.rect[0], prop.rect[1]) if prop is not None else (0, 0)
         for arr, color, origin in ((pend, PENDING_COLOR, (0, 0)),
                                    (None if layer is None or layer.empty else layer.array,
-                                    SELECT_COLOR if self.restore_mode else MASK_COLOR, (0, 0)),
+                                    (SELECT_COLOR if self.restore_mode else SCRIBBLE_NEG_COLOR if self.transparent_mode else MASK_COLOR),
+                                    (0, 0)),
                                    (prop.window if prop is not None else None, SELECT_COLOR, prop_origin)):
             if arr is None:
                 continue

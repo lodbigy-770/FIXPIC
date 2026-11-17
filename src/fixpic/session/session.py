@@ -271,13 +271,8 @@ class Session:
         self.history.push(patch)
         return patch
 
-    def remove_background(self, rect: tuple[int, int, int, int], window: np.ndarray, feather_px: int = 2) -> Patch | None:
-        """הסרת רקע (GrabCut מינימלי): האובייקט הוא `window` (uint8, 0/255) בגודל `rect`; כל השאר הופך שקוף.
-        הקצה מוחלק (טשטוש גאוסי של המסכה, `feather_px` 0..16). RGB אינו משתנה, רק Alpha (נוצר מלא אם לא היה, כך ש-Undo של
-        צעדים קודמים בלי Alpha ממשיך לעבוד). צעד Undo אחד; None אם לא השתנה דבר. **עלות:** ה-Patch שומר את פיקסלי הרקע
-        (עד כ-8 בייט לפיקסל), ולכן בתמונת 24MP ורקע גדול הוא כבד (עד כ-150MB מתקרת ההיסטוריה)."""
-        if self._pending:
-            raise InvalidInputError("אי אפשר להסיר רקע בזמן עיבוד")
+    def _soft_window(self, rect: tuple[int, int, int, int], window: np.ndarray, feather_px: int) -> np.ndarray:
+        """משקל רך (uint8 0..255, בגודל התמונה) של אובייקט `window` בתוך `rect`: טשטוש גאוסי של המסכה, 0 מחוץ לשוליים."""
         h, w = self._rgb.shape[:2]
         x0, y0, x1, y1 = (int(v) for v in rect)
         if (not isinstance(window, np.ndarray) or window.ndim != 2 or window.shape != (y1 - y0, x1 - x0)
@@ -293,8 +288,14 @@ class Session:
         wt = cv2.GaussianBlur(core, (2 * f + 1, 2 * f + 1), max(f / 2.0, 0.5)) if f > 0 else core
         w8 = np.zeros((h, w), np.uint8)
         w8[py0:py1, px0:px1] = np.rint(wt * 255).astype(np.uint8)
+        return w8
+
+    def _apply_alpha_factor(self, factor: np.ndarray) -> Patch | None:
+        """מכפיל את ה-Alpha (נוצר מלא אם לא היה) ב-`factor` (uint8 0..255, בגודל התמונה). RGB אינו משתנה. צעד Undo אחד;
+        None אם לא השתנה דבר. **עלות:** ה-Patch שומר את הפיקסלים ששונו (עד כ-8 בייט לפיקסל)."""
+        h, w = self._rgb.shape[:2]
         a_before_full = self._alpha if self._alpha is not None else np.full((h, w), 255, np.uint8)
-        a_after_full = ((a_before_full.astype(np.uint16) * w8 + 127) // 255).astype(np.uint8)
+        a_after_full = ((a_before_full.astype(np.uint16) * factor + 127) // 255).astype(np.uint8)
         diff = a_after_full != a_before_full
         if not diff.any():
             return None
@@ -307,9 +308,43 @@ class Session:
                                  a_before_full[y:y + bh, x:x + bw][sub], a_after_full[y:y + bh, x:x + bw][sub])
             new_rgb, new_alpha = patch.apply(self._rgb, a_before_full, forward=True)
         except MemoryError as e:
-            raise OutOfMemoryError(f"נגמר הזיכרון בהסרת הרקע: {e}") from e
+            raise OutOfMemoryError(f"נגמר הזיכרון בשינוי השקיפות: {e}") from e
         self._swap(new_rgb, new_alpha)
         self.history.push(patch)
+        return patch
+
+    def _check_idle(self) -> None:
+        if self._pending:
+            raise InvalidInputError("אי אפשר לשנות שקיפות בזמן עיבוד")
+
+    def remove_background(self, rect: tuple[int, int, int, int], window: np.ndarray, feather_px: int = 2) -> Patch | None:
+        """הסרת רקע (GrabCut מינימלי): האובייקט הוא `window` (uint8, 0/255) בגודל `rect`; כל השאר הופך שקוף.
+        הקצה מוחלק (טשטוש גאוסי של המסכה, `feather_px` 0..16). RGB אינו משתנה, רק Alpha (נוצר מלא אם לא היה, כך ש-Undo של
+        צעדים קודמים בלי Alpha ממשיך לעבוד). צעד Undo אחד; None אם לא השתנה דבר."""
+        self._check_idle()
+        return self._apply_alpha_factor(self._soft_window(rect, window, feather_px))
+
+    def make_transparent(self, rect: tuple[int, int, int, int], window: np.ndarray, feather_px: int = 2) -> Patch | None:
+        """ההפך מ-`remove_background`: האזור `window` (בתוך `rect`) הופך שקוף והשאר נשאר."""
+        self._check_idle()
+        return self._apply_alpha_factor(255 - self._soft_window(rect, window, feather_px))
+
+    def make_transparent_from_mask(self, feather_px: int | None = None) -> Patch | None:
+        """מברשת שקיפות: אזור המסכה הנוכחית הופך שקוף (Feathering כמו בשחזור, ברירת מחדל 3). המסכה מתרוקנת תמיד."""
+        self._check_idle()
+        if self.mask.empty:
+            raise EmptyMaskError("לא סומן אזור")
+        m = (self.mask.snapshot() > 0).astype(np.uint8)
+        x, y, bw, bh = cv2.boundingRect(m)
+        f = 3 if feather_px is None else max(0, min(int(feather_px), 16))
+        h, w = m.shape
+        pad = 2 * f + 1
+        x0, y0, x1, y1 = max(0, x - pad), max(0, y - pad), min(w, x + bw + pad), min(h, y + bh + pad)
+        core = m[y0:y1, x0:x1]
+        try:
+            patch = self._apply_alpha_factor(255 - self._soft_window((x0, y0, x1, y1), core * np.uint8(255), f))
+        finally:
+            self.mask.clear()
         return patch
 
     # ------------------------------------------------------------- Undo / Redo

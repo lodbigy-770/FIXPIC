@@ -10,7 +10,7 @@ Feathering (M4): תיבת סימון "לפי ברירת מחדל" (מסומנת 
 from __future__ import annotations
 
 from PySide6.QtCore import Qt, Signal
-from PySide6.QtWidgets import QCheckBox, QGridLayout, QLabel, QSlider, QSpinBox, QWidget
+from PySide6.QtWidgets import QCheckBox, QPushButton, QGridLayout, QLabel, QSlider, QSpinBox, QWidget
 
 from ..strings import t
 
@@ -34,6 +34,9 @@ class BrushPanel(QWidget):
     diameterChanged = Signal(int)
     eraseChanged = Signal(bool)
     restoreChanged = Signal(bool)
+    transparentChanged = Signal(bool)
+    manualChanged = Signal(bool)
+    applyRequested = Signal()
     featherChanged = Signal(object)         # None (ברירת מחדל) | int
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -43,6 +46,10 @@ class BrushPanel(QWidget):
         self.spin.setSuffix(" px")
         self.chk_erase = QCheckBox(t("brush.erase"))
         self.chk_restore = QCheckBox(t("brush.restore"))
+        self.chk_transparent = QCheckBox(t("brush.transparent"))
+        self.chk_manual = QCheckBox(t("brush.manual"))
+        self.btn_apply = QPushButton(t("brush.apply"))
+        self.btn_apply.setEnabled(False)
         self.chk_feather_auto = QCheckBox(t("brush.feather_auto"))
         self.chk_feather_auto.setChecked(True)
         self.feather_slider = QSlider(Qt.Horizontal)
@@ -61,11 +68,14 @@ class BrushPanel(QWidget):
         g.addWidget(self.slider, 1, 0, 1, 2)
         g.addWidget(self.chk_erase, 2, 0, 1, 2)
         g.addWidget(self.chk_restore, 3, 0, 1, 2)
-        g.addWidget(QLabel(t("brush.feather")), 4, 0)
-        g.addWidget(self.feather_spin, 4, 1)
-        g.addWidget(self.feather_slider, 5, 0, 1, 2)
-        g.addWidget(self.chk_feather_auto, 6, 0, 1, 2)
-        g.setRowStretch(7, 1)
+        g.addWidget(self.chk_transparent, 4, 0, 1, 2)
+        g.addWidget(self.chk_manual, 5, 0, 1, 2)
+        g.addWidget(self.btn_apply, 6, 0, 1, 2)
+        g.addWidget(QLabel(t("brush.feather")), 7, 0)
+        g.addWidget(self.feather_spin, 7, 1)
+        g.addWidget(self.feather_slider, 8, 0, 1, 2)
+        g.addWidget(self.chk_feather_auto, 9, 0, 1, 2)
+        g.setRowStretch(10, 1)
         self.feather_slider.valueChanged.connect(self.set_feather)
         self.feather_spin.valueChanged.connect(self.set_feather)
         self.chk_feather_auto.toggled.connect(self._feather_auto_toggled)
@@ -73,8 +83,14 @@ class BrushPanel(QWidget):
         self.spin.valueChanged.connect(self._from_spin)
         self.chk_erase.toggled.connect(self.eraseChanged)
         self.chk_restore.toggled.connect(self.restoreChanged)
-        self.chk_restore.toggled.connect(lambda on: on and self.chk_erase.setChecked(False))
-        self.chk_erase.toggled.connect(lambda on: on and self.chk_restore.setChecked(False))
+        self.chk_transparent.toggled.connect(self.transparentChanged)
+        self.chk_manual.toggled.connect(self.manualChanged)
+        self.btn_apply.clicked.connect(lambda _c=False: self.applyRequested.emit())
+        # מצבי "פעולה מיידית" (שחזור/שקיפות) ו"החלה ידנית" אינם פעילים יחד; מחיקה מהמסכה מתאימה רק להחלה ידנית/רגיל
+        for chk in (self.chk_restore, self.chk_transparent, self.chk_manual):
+            chk.toggled.connect(lambda on, me=chk: on and self._exclusive(me))
+        self.chk_erase.toggled.connect(
+            lambda on: on and (self.chk_restore.setChecked(False), self.chk_transparent.setChecked(False)))
 
     # ----------------------------------------------------------------- מצב
     @property
@@ -145,6 +161,30 @@ class BrushPanel(QWidget):
 
     def set_restore(self, on: bool) -> None:
         self.chk_restore.setChecked(on)
+
+    def _exclusive(self, me: QCheckBox) -> None:
+        for chk in (self.chk_restore, self.chk_transparent, self.chk_manual):
+            if chk is not me:
+                chk.setChecked(False)
+        if me is not self.chk_manual:
+            self.chk_erase.setChecked(False)
+
+    @property
+    def transparent(self) -> bool:
+        return self.chk_transparent.isChecked()
+
+    @property
+    def manual(self) -> bool:
+        return self.chk_manual.isChecked()
+
+    def set_transparent(self, on: bool) -> None:
+        self.chk_transparent.setChecked(on)
+
+    def set_manual(self, on: bool) -> None:
+        self.chk_manual.setChecked(on)
+
+    def set_apply_enabled(self, on: bool) -> None:
+        self.btn_apply.setEnabled(on)
 
     def set_erase(self, on: bool) -> None:
         self.chk_erase.setChecked(on)
