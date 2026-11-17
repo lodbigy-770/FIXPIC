@@ -373,6 +373,7 @@ class MainWindow(QMainWindow):
         cv.strokeEnded.connect(c.end_stroke)
         self.brush_panel.diameterChanged.connect(self._brush_changed)
         self.brush_panel.eraseChanged.connect(self._erase_changed)
+        self.brush_panel.restoreChanged.connect(self._restore_changed)
         self.brush_panel.featherChanged.connect(lambda px: setattr(self.controller, "feather_px", px))
         c.changed.connect(self._edit_changed)
         c.imageChanged.connect(self._image_changed)
@@ -391,6 +392,11 @@ class MainWindow(QMainWindow):
     def _erase_changed(self, on: bool) -> None:
         self.controller.erase_mode = on
         self.canvas.erase_mode = on
+        self.canvas.update()
+
+    def _restore_changed(self, on: bool) -> None:
+        self.controller.restore_mode = on
+        self.canvas.restore_mode = on
         self.canvas.update()
 
     def _edit_changed(self) -> None:
@@ -560,6 +566,7 @@ class MainWindow(QMainWindow):
         bp = self.brush_panel
         bp.configure_for_image(*s.size)
         bp.set_erase(False)
+        bp.set_restore(False)
         bp.chk_feather_auto.setChecked(True)
         self.canvas.invalidate_overlay()
         self.canvas.fit()

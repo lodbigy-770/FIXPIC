@@ -33,6 +33,7 @@ def brush_range_for(width: int, height: int) -> tuple[int, int]:
 class BrushPanel(QWidget):
     diameterChanged = Signal(int)
     eraseChanged = Signal(bool)
+    restoreChanged = Signal(bool)
     featherChanged = Signal(object)         # None (ברירת מחדל) | int
 
     def __init__(self, parent: QWidget | None = None) -> None:
@@ -41,6 +42,7 @@ class BrushPanel(QWidget):
         self.spin = QSpinBox()
         self.spin.setSuffix(" px")
         self.chk_erase = QCheckBox(t("brush.erase"))
+        self.chk_restore = QCheckBox(t("brush.restore"))
         self.chk_feather_auto = QCheckBox(t("brush.feather_auto"))
         self.chk_feather_auto.setChecked(True)
         self.feather_slider = QSlider(Qt.Horizontal)
@@ -58,17 +60,21 @@ class BrushPanel(QWidget):
         g.addWidget(self.spin, 0, 1)
         g.addWidget(self.slider, 1, 0, 1, 2)
         g.addWidget(self.chk_erase, 2, 0, 1, 2)
-        g.addWidget(QLabel(t("brush.feather")), 3, 0)
-        g.addWidget(self.feather_spin, 3, 1)
-        g.addWidget(self.feather_slider, 4, 0, 1, 2)
-        g.addWidget(self.chk_feather_auto, 5, 0, 1, 2)
-        g.setRowStretch(6, 1)
+        g.addWidget(self.chk_restore, 3, 0, 1, 2)
+        g.addWidget(QLabel(t("brush.feather")), 4, 0)
+        g.addWidget(self.feather_spin, 4, 1)
+        g.addWidget(self.feather_slider, 5, 0, 1, 2)
+        g.addWidget(self.chk_feather_auto, 6, 0, 1, 2)
+        g.setRowStretch(7, 1)
         self.feather_slider.valueChanged.connect(self.set_feather)
         self.feather_spin.valueChanged.connect(self.set_feather)
         self.chk_feather_auto.toggled.connect(self._feather_auto_toggled)
         self.slider.valueChanged.connect(self._from_slider)
         self.spin.valueChanged.connect(self._from_spin)
         self.chk_erase.toggled.connect(self.eraseChanged)
+        self.chk_restore.toggled.connect(self.restoreChanged)
+        self.chk_restore.toggled.connect(lambda on: on and self.chk_erase.setChecked(False))
+        self.chk_erase.toggled.connect(lambda on: on and self.chk_restore.setChecked(False))
 
     # ----------------------------------------------------------------- מצב
     @property
@@ -132,6 +138,13 @@ class BrushPanel(QWidget):
         if new == cur:
             new = cur + (1 if factor > 1 else -1)
         self.set_diameter(new)
+
+    @property
+    def restore(self) -> bool:
+        return self.chk_restore.isChecked()
+
+    def set_restore(self, on: bool) -> None:
+        self.chk_restore.setChecked(on)
 
     def set_erase(self, on: bool) -> None:
         self.chk_erase.setChecked(on)

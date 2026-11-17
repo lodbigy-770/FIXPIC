@@ -226,6 +226,51 @@ class Session:
         self.history.push(patch)
         return patch
 
+    def restore_from_original(self, feather_px: int | None = None) -> Patch | None:
+        """מברשת שחזור: מחזיר את אזור המסכה מהתמונה המקורית (גם אם אינו המשיכה האחרונה), כצעד Undo אחד.
+        הקצה מוחלק (`feather_px`, ברירת מחדל 3; בפנים המסכה המשקל מלא). כולל Alpha. המסכה מתרוקנת בכל מקרה.
+        None אם לא השתנה דבר. `InvalidInputError` בזמן עיבוד; `EmptyMaskError` בלי מסכה."""
+        if self._pending:
+            raise InvalidInputError("אי אפשר לשחזר בזמן עיבוד")
+        if self.mask.empty:
+            raise EmptyMaskError("לא סומן אזור")
+        h, w = self._rgb.shape[:2]
+        f = 3 if feather_px is None else max(0, min(int(feather_px), 64))
+        m = (self.mask.snapshot() > 0).astype(np.uint8)
+        x, y, bw, bh = cv2.boundingRect(m)
+        pad = 2 * f + 1
+        x0, y0, x1, y1 = max(0, x - pad), max(0, y - pad), min(w, x + bw + pad), min(h, y + bh + pad)
+        core = m[y0:y1, x0:x1].astype(np.float32)
+        wt = core
+        if f > 0:
+            k = 2 * f + 1
+            wt = np.maximum(core, cv2.GaussianBlur(core, (k, k), max(f / 2.0, 0.5)))
+        try:
+            sub = wt > 0.01
+            if not sub.any():
+                self.mask.clear()
+                return None
+            wv = wt[sub][:, None]
+            before = self._rgb[y0:y1, x0:x1][sub]
+            orig = self._orig_rgb[y0:y1, x0:x1][sub]
+            after = np.rint(before * (1 - wv) + orig * wv).astype(np.uint8)
+            a_before = a_after = None
+            if self._alpha is not None:
+                a_before = self._alpha[y0:y1, x0:x1][sub]
+                oa = self._orig_alpha[y0:y1, x0:x1][sub] if self._orig_alpha is not None else a_before
+                a_after = np.rint(a_before * (1 - wv[:, 0]) + oa * wv[:, 0]).astype(np.uint8)
+            changed = bool((before != after).any()) or (a_before is not None and bool((a_before != a_after).any()))
+            self.mask.clear()
+            if not changed:
+                return None
+            patch = Patch.create(self.history.next_id(), (x0, y0, x1, y1), (h, w), sub, before, after, a_before, a_after)
+            new_rgb, new_alpha = patch.apply(self._rgb, self._alpha, forward=True)
+        except MemoryError as e:
+            raise OutOfMemoryError(f"נגמר הזיכרון בשחזור: {e}") from e
+        self._swap(new_rgb, new_alpha)
+        self.history.push(patch)
+        return patch
+
     # ------------------------------------------------------------- Undo / Redo
     def cancel_pending(self) -> bool:
         """מבטל את כל המשיכות שבעיבוד ובתור (המסכות שלהן נזרקות, התמונה וההיסטוריה לא נוגעות). מחזיר True אם היה

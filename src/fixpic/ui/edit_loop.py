@@ -63,6 +63,7 @@ class EditController(QObject):
         self.engine_error: str | None = None
         self.diameter = 20.0                # קוטר המברשת בפיקסלי תמונה
         self.erase_mode = False
+        self.restore_mode = False            # מברשת שחזור: שחרור = החזרת האזור מהמקור (בלי Inpaint)
         self.feather_px: int | None = None   # None = לפי ה-cfg של המנוע (M4: סליידר Feathering)
         self.indicator_on = False
         self.long_on = False
@@ -172,7 +173,35 @@ class EditController(QObject):
         if st["erase"]:
             self.changed.emit()
             return
+        if self.restore_mode:
+            self.restore()
+            return
         self.submit()
+
+    def restore(self) -> None:
+        """מחזיר את אזור המסכה מהמקור (Session.restore_from_original). בזמן עיבוד/המתנה: המסכה נזרקת עם הודעה."""
+        s = self.session
+        if s is None or s.mask.empty:
+            self.changed.emit()
+            return
+        if s.busy or self._waiting is not None:
+            s.mask.clear()
+            self.message.emit(t("status.restore_busy"))
+            self.changed.emit()
+            return
+        try:
+            patch = s.restore_from_original(self.feather_px)
+        except FixPicError as e:
+            s.mask.clear()
+            self.failed.emit(str(e))
+            self.changed.emit()
+            return
+        if patch is None:
+            self.message.emit(t("status.restore_nochange"))
+        else:
+            self.committed.emit(JobOutcome(OutcomeKind.COMMITTED, patch=patch))
+            self.imageChanged.emit(patch.box)
+        self.changed.emit()
 
     # --------------------------------------------------------------- הגשה
     def submit(self) -> None:
