@@ -257,7 +257,7 @@ class Session:
             a_before = a_after = None
             if self._alpha is not None:
                 a_before = self._alpha[y0:y1, x0:x1][sub]
-                oa = self._orig_alpha[y0:y1, x0:x1][sub] if self._orig_alpha is not None else a_before
+                oa = self._orig_alpha[y0:y1, x0:x1][sub] if self._orig_alpha is not None else np.uint8(255)
                 a_after = np.rint(a_before * (1 - wv[:, 0]) + oa * wv[:, 0]).astype(np.uint8)
             changed = bool((before != after).any()) or (a_before is not None and bool((a_before != a_after).any()))
             self.mask.clear()
@@ -267,6 +267,47 @@ class Session:
             new_rgb, new_alpha = patch.apply(self._rgb, self._alpha, forward=True)
         except MemoryError as e:
             raise OutOfMemoryError(f"נגמר הזיכרון בשחזור: {e}") from e
+        self._swap(new_rgb, new_alpha)
+        self.history.push(patch)
+        return patch
+
+    def remove_background(self, rect: tuple[int, int, int, int], window: np.ndarray, feather_px: int = 2) -> Patch | None:
+        """הסרת רקע (GrabCut מינימלי): האובייקט הוא `window` (uint8, 0/255) בגודל `rect`; כל השאר הופך שקוף.
+        הקצה מוחלק (טשטוש גאוסי של המסכה, `feather_px` 0..16). RGB אינו משתנה, רק Alpha (נוצר מלא אם לא היה, כך ש-Undo של
+        צעדים קודמים בלי Alpha ממשיך לעבוד). צעד Undo אחד; None אם לא השתנה דבר. **עלות:** ה-Patch שומר את פיקסלי הרקע
+        (עד כ-8 בייט לפיקסל), ולכן בתמונת 24MP ורקע גדול הוא כבד (עד כ-150MB מתקרת ההיסטוריה)."""
+        if self._pending:
+            raise InvalidInputError("אי אפשר להסיר רקע בזמן עיבוד")
+        h, w = self._rgb.shape[:2]
+        x0, y0, x1, y1 = (int(v) for v in rect)
+        if (not isinstance(window, np.ndarray) or window.ndim != 2 or window.shape != (y1 - y0, x1 - x0)
+                or x0 < 0 or y0 < 0 or x1 > w or y1 > h):
+            raise InvalidInputError("חלון האובייקט אינו בתוך התמונה")
+        if not (window > 0).any():
+            raise EmptyMaskError("לא נבחר אובייקט")
+        f = max(0, min(int(feather_px), 16))
+        pad = 2 * f + 1
+        px0, py0, px1, py1 = max(0, x0 - pad), max(0, y0 - pad), min(w, x1 + pad), min(h, y1 + pad)
+        core = np.zeros((py1 - py0, px1 - px0), np.float32)
+        core[y0 - py0:y1 - py0, x0 - px0:x1 - px0] = (window > 0)
+        wt = cv2.GaussianBlur(core, (2 * f + 1, 2 * f + 1), max(f / 2.0, 0.5)) if f > 0 else core
+        w8 = np.zeros((h, w), np.uint8)
+        w8[py0:py1, px0:px1] = np.rint(wt * 255).astype(np.uint8)
+        a_before_full = self._alpha if self._alpha is not None else np.full((h, w), 255, np.uint8)
+        a_after_full = ((a_before_full.astype(np.uint16) * w8 + 127) // 255).astype(np.uint8)
+        diff = a_after_full != a_before_full
+        if not diff.any():
+            return None
+        x, y, bw, bh = cv2.boundingRect(diff.astype(np.uint8))
+        box = (x, y, x + bw, y + bh)
+        try:
+            sub = diff[y:y + bh, x:x + bw]
+            before = self._rgb[y:y + bh, x:x + bw][sub]
+            patch = Patch.create(self.history.next_id(), box, (h, w), sub, before, before.copy(),
+                                 a_before_full[y:y + bh, x:x + bw][sub], a_after_full[y:y + bh, x:x + bw][sub])
+            new_rgb, new_alpha = patch.apply(self._rgb, a_before_full, forward=True)
+        except MemoryError as e:
+            raise OutOfMemoryError(f"נגמר הזיכרון בהסרת הרקע: {e}") from e
         self._swap(new_rgb, new_alpha)
         self.history.push(patch)
         return patch

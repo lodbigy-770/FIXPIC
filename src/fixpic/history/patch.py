@@ -73,8 +73,9 @@ class Patch:
         """forward=True: מצב "אחרי" (Redo / Commit); False: מצב "לפני" (Undo). מחזיר (rgb, alpha) חדשים."""
         if rgb.shape[:2] != self.image_hw or (alpha is not None and alpha.shape != self.image_hw):
             raise InvalidInputError("Patch לא מתאים לגודל התמונה הנוכחית")
-        if self.has_alpha != (alpha is not None):
+        if self.has_alpha and alpha is None:
             raise InvalidInputError("Patch לא מתאים: חוסר התאמה בנוכחות Alpha")
+        # Patch בלי Alpha על תמונה עם Alpha (נוצר אחרי הסרת רקע) מותר: ה-Alpha אינו משתנה בו
         x0, y0, x1, y1 = self.box
         sub = self._sub_mask()
         new_rgb = rgb.copy()
@@ -82,5 +83,6 @@ class Patch:
         new_alpha = None
         if alpha is not None:
             new_alpha = alpha.copy()
-            new_alpha[y0:y1, x0:x1][sub] = self.after_alpha if forward else self.before_alpha
+            if self.has_alpha:
+                new_alpha[y0:y1, x0:x1][sub] = self.after_alpha if forward else self.before_alpha
         return new_rgb, new_alpha

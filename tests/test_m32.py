@@ -199,8 +199,10 @@ class TestPatch:
         p = make_patch(History(), rgb, em, (1, 1, 1))
         with pytest.raises(InvalidInputError):
             p.apply(rnd(50, 50), None, forward=True)                 # גודל אחר
-        with pytest.raises(InvalidInputError):
-            p.apply(rgb, np.zeros(rgb.shape[:2], np.uint8), forward=True)   # Alpha שלא היה
+        # M3.9: Patch בלי Alpha על תמונה עם Alpha מותר (נוצר אחרי הסרת רקע), וה-Alpha אינו משתנה
+        a0 = np.full(rgb.shape[:2], 77, np.uint8)
+        r2, a2 = p.apply(rgb, a0, forward=True)
+        assert np.array_equal(a2, a0) and (r2[5:15, 5:15] == 1).all()
         pa = make_patch(History(), rgb, em, (1, 1, 1), np.zeros(rgb.shape[:2], np.uint8), 0)
         with pytest.raises(InvalidInputError):
             pa.apply(rgb, None, forward=True)                         # Alpha חסר

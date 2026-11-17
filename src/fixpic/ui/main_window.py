@@ -373,6 +373,7 @@ class MainWindow(QMainWindow):
         cv.strokeEnded.connect(c.end_stroke)
         self.brush_panel.diameterChanged.connect(self._brush_changed)
         self.brush_panel.eraseChanged.connect(self._erase_changed)
+        self.select_panel.removeBackgroundRequested.connect(self._remove_background)
         self.brush_panel.restoreChanged.connect(self._restore_changed)
         self.brush_panel.featherChanged.connect(lambda px: setattr(self.controller, "feather_px", px))
         c.changed.connect(self._edit_changed)
@@ -498,6 +499,23 @@ class MainWindow(QMainWindow):
         self.mask_panel.refresh()
         self.canvas.invalidate_overlay()
         self.controller.submit()
+
+    def _remove_background(self) -> None:
+        """הסרת רקע: האובייקט המסומן (הצעה ירוקה) נשאר, כל השאר שקוף. צעד Undo אחד, בלי Inpaint."""
+        s, ctl = self.session, self._active_ctl
+        if s is None or self.busy or ctl.proposal is None:
+            return
+        prop = ctl.proposal
+        try:
+            patch = s.remove_background(prop.rect, prop.window)
+        except FixPicError as e:
+            self._error("error.unexpected", detail=str(e))
+            return
+        if patch is None:
+            self.statusBar().showMessage(t("status.bg_nochange"))
+            return
+        self.statusBar().showMessage(t("status.bg_removed"))
+        self.controller.imageChanged.emit(patch.box)      # מנקה את ההצעה ומרענן את הקנבס
 
     def _select_accept(self) -> None:
         if self.session is not None and not self.busy:
