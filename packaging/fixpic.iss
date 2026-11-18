@@ -1,4 +1,4 @@
-; M5: מתקין Inno Setup יחיד שעוטף את dist\FixPic (פלט PyInstaller onedir, כולל המודל) בקובץ EXE אחד.
+﻿; M5: מתקין Inno Setup יחיד שעוטף את dist\FixPic (פלט PyInstaller onedir, כולל המודל) בקובץ EXE אחד.
 ; משתמש הקצה מוריד ומריץ קובץ אחד; אין צורך להכניס את המודל ידנית.
 ;
 ; בנייה (בסדר הזה, ב-Windows; ראו גם DEVELOPMENT_LOG.md):

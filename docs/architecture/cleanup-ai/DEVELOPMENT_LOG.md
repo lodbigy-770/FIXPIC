@@ -2015,3 +2015,5 @@ Release עם המתקין. אם הוא נכשל, ה-artifact שהועלה (של�
 
 **ריצה רביעית (2026-11-18):** הבדיקות עברו ב-Windows. `third_party_notices.py` נכשל ב-`UnicodeEncodeError` בהדפסת עברית (קונסולת cp1252 ב-runner). תיקון: `PYTHONUTF8=1` ברמת ה-job, ו-`reconfigure` ל-UTF-8 ב-`third_party_notices.py`. שלבי PyInstaller, `check_dist`, Inno Setup ו-Release טרם רצו.
 
+**ריצה חמישית (2026-11-18):** `third_party_notices`, PyInstaller (3.14) ו-`check_dist` עברו על Windows; נכשלה קומפילציית Inno Setup (הסיבה לא נראתה, אין גישה ללוג). שינויים לאבחון ולהקשחה: `packaging/fixpic.iss` נשמר כ-UTF-8 עם BOM (יש בו עברית ו-Inno קורא בלי BOM כ-ANSI), איתור `ISCC.exe` גמיש (לא רק Inno Setup 6 ב-x86), ופלט שורות השגיאה כהערה.
+

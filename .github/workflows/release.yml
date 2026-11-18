@@ -160,7 +160,20 @@ jobs:
       - name: קומפילציית המתקין (Inno Setup)
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ needs.decide.outputs.version }}" packaging\fixpic.iss
+          $iscc = (Get-Command ISCC.exe -ErrorAction SilentlyContinue).Source
+          if (-not $iscc) {
+            $iscc = Get-ChildItem "C:\Program Files*\Inno Setup*\ISCC.exe" -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $iscc) { Write-Host "::error title=iscc::ISCC.exe לא נמצא"; exit 1 }
+          Write-Host "ISCC: $iscc"
+          $out = & $iscc "/DMyAppVersion=${{ needs.decide.outputs.version }}" packaging\fixpic.iss 2>&1
+          $code = $LASTEXITCODE
+          $out | ForEach-Object { Write-Host $_ }
+          if ($code -ne 0) {
+            $msg = (($out | Select-Object -Last 12) -join ' | ') -replace '[\r\n%]', ' '
+            Write-Host "::error title=iscc-exit-$code::$msg"
+            exit $code
+          }
 
       - name: העלאת המתקין כ-artifact (גיבוי, גם אם שלב ה-Release נכשל)
         uses: actions/upload-artifact@v4
