@@ -373,6 +373,9 @@ class EWin:
         if engine and factory is None:
             factory = lambda: self.sched      # noqa: E731
         self.w = MainWindow(engine_factory=factory if engine else None)
+        # MainWindow מתאים את גודלו למסך (M3.10); במסך offscreen קטן (למשל runner של Windows) ה-Canvas יצא צר מ-300px
+        # והבדיקות שמצלמות אזור 300x300 נכשלו. גודל מינימלי קבוע = אותו Canvas בכל מסך.
+        self.w.resize(max(self.w.width(), 736), max(self.w.height(), 736))
         self.errors: list[tuple[str, dict]] = []
         self.w._error = lambda key, **f: self.errors.append((key, f))
         self.w.show()

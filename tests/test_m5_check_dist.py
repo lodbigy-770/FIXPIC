@@ -7,6 +7,8 @@ import re
 import sys
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location("check_dist", REPO / "tools" / "m5" / "check_dist.py")
 cd = importlib.util.module_from_spec(spec)
@@ -73,6 +75,7 @@ def test_main_exit_codes_and_json(tmp_path):
     assert cd.main([str(tmp_path / "nope")]) == 2
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="סקריפט sh כקובץ הרצה; ה-smoke האמיתי ב-Windows רץ על FixPic.exe")
 def test_smoke_fails_when_process_exits_by_itself(tmp_path, monkeypatch):
     root = make_dist(tmp_path)
     (root / "FixPic").write_text("#!/bin/sh\nexit 3\n")
@@ -81,6 +84,7 @@ def test_smoke_fails_when_process_exits_by_itself(tmp_path, monkeypatch):
     assert r["status"] == "fail" and "קוד 3" in r["detail"]
 
 
+@pytest.mark.skipif(sys.platform == "win32", reason="סקריפט sh כקובץ הרצה; ה-smoke האמיתי ב-Windows רץ על FixPic.exe")
 def test_smoke_ok_when_process_stays_alive(tmp_path):
     root = make_dist(tmp_path)
     (root / "FixPic").write_text("#!/bin/sh\nexec sleep 30\n")
