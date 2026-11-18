@@ -16,7 +16,8 @@
   #define MyAppVersion "0.0.0-dev"
 #endif
 #define MyAppName "FixPic"
-#define MyAppId "{5A2ACA77-157D-4C60-9FA2-AE82BC02E680}"
+; הסוגר הפותח מוכפל ({{) כי Inno מפרש {…} כקבוע; ה-GUID עצמו נשאר כפי שהיה
+#define MyAppId "{{5A2ACA77-157D-4C60-9FA2-AE82BC02E680}"
 #define MyAppExeName "FixPic.exe"
 #define SourceDist "..\dist\FixPic"
 
