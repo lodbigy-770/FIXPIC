@@ -56,6 +56,8 @@ def netguard(monkeypatch):
         return guarded
 
     for n in _BLOCKED_METHODS:
+        if not hasattr(socket.socket, n):                                      # sendmsg לא קיים ב-Windows
+            continue
         monkeypatch.setattr(socket.socket, n, wrap_method(n, getattr(socket.socket, n)))
     for n in _BLOCKED_FUNCS:
         monkeypatch.setattr(socket, n, wrap_func(n))

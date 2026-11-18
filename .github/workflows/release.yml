@@ -131,6 +131,10 @@ jobs:
           } else {
             Write-Host "::error title=pytest::אין pytest.log"
           }
+          $env:QT_QPA_PLATFORM = "offscreen"
+          $env:PYTHONPATH = "src;tests"
+          $diag = python -c "from PySide6.QtWidgets import QApplication; from PySide6.QtGui import QGuiApplication; a=QApplication([]); from test_m34 import EWin; h=EWin(); s=QGuiApplication.primaryScreen(); print('screen', s.availableGeometry().size().toTuple(), 'window', h.w.size().toTuple(), 'minimum', h.w.minimumSize().toTuple(), 'canvas', h.canvas.size().toTuple()); h.close()" 2>&1 | Select-Object -Last 3
+          Write-Host "::error title=qt-diag::$($diag -join ' | ')"
 
       - name: העלאת לוג הבדיקות
         if: failure()

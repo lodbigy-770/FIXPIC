@@ -52,4 +52,10 @@ def test_make_icon_is_deterministic(tmp_path, monkeypatch):
     monkeypatch.setattr(m, "OUT", tmp_path)
     assert m.main() == 0
     assert (tmp_path / "fixpic.ico").stat().st_size > 5000
-    assert (tmp_path / "fixpic.png").read_bytes() == (ic.assets_dir() / "fixpic.png").read_bytes()
+    made, committed = tmp_path / "fixpic.png", ic.assets_dir() / "fixpic.png"
+    if sys.platform == "linux":
+        assert made.read_bytes() == committed.read_bytes()
+    else:                                                                       # Windows/macOS: גרסת Pillow אחרת = בייטים אחרים
+        import numpy as np
+        a, b = (np.asarray(Image.open(f).convert("RGBA"), dtype=np.int16) for f in (made, committed))
+        assert a.shape == b.shape and np.abs(a - b).mean() < 2.0
