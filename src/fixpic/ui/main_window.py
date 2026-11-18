@@ -44,6 +44,7 @@ from .canvas import Canvas
 from .convert import qimage_to_array
 from .edit_loop import EditController
 from .mask_panel import MaskToolsPanel
+from .scroll import MIN_WINDOW, PanelScroll, initial_window_size
 from .select_panel import SelectPanel
 from .select_tool import SmartSelectController
 from .wand_tool import WandController
@@ -55,7 +56,7 @@ _EXT_BY_FILTER = {"filter.png": ".png", "filter.jpg": ".jpg", "filter.webp": ".w
 _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
 _LOSSY = {".jpg", ".jpeg", ".webp"}
 DEFAULT_QUALITY = 92
-_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך", "M": "צ", "D": "ג", "R": "ר"}     # קיצורי אות במקלדת עברית
+_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך", "M": "צ", "D": "ג", "R": "ר", "G": "ע", "T": "א"}     # קיצורי אות במקלדת עברית
 
 
 class MainWindow(QMainWindow):
@@ -78,7 +79,9 @@ class MainWindow(QMainWindow):
         self.wand_ctl = WandController(self, history_source=lambda: self.mask_panel.history, busy=self._inpaint_busy)
         self.setCentralWidget(self.canvas)
         self.setAcceptDrops(True)
-        self.resize(1100, 760)
+        scr = QGuiApplication.primaryScreen()
+        self.setMinimumSize(MIN_WINDOW)
+        self.resize(initial_window_size(scr.availableGeometry().size() if scr is not None else None))
         self._build_actions()
         self._build_status()
         self._build_brush_dock()
@@ -137,6 +140,8 @@ class MainWindow(QMainWindow):
                                                 lambda: self._mask_tool("mask_erase"), "D")
         self.act_tool_mask_component = self._action("action.mask_component",
                                                     lambda: self._mask_tool("mask_component"), "R")
+        self.act_remove_bg = self._action("action.remove_bg", self._remove_background, "G")
+        self.act_make_transparent = self._action("action.make_transparent", self._make_selected_transparent, "T")
         self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
         self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
         self.act_save_case = self._action("action.save_case", self.save_case)
@@ -155,7 +160,8 @@ class MainWindow(QMainWindow):
             ed.addAction(a)
         ed.addSeparator()
         for a in (self.act_tool_brush, self.act_tool_wand, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
-                  self.act_tool_mask_erase, self.act_tool_mask_component, self.act_select_accept):
+                  self.act_tool_mask_erase, self.act_tool_mask_component, self.act_select_accept, self.act_remove_bg,
+                  self.act_make_transparent):
             ed.addAction(a)
         v = mb.addMenu(t("menu.view"))
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
@@ -177,7 +183,7 @@ class MainWindow(QMainWindow):
     def _build_brush_dock(self) -> None:
         self.brush_panel = BrushPanel(self)
         self.brush_dock = QDockWidget(t("dock.brush"), self)
-        self.brush_dock.setWidget(self.brush_panel)
+        self.brush_dock.setWidget(PanelScroll(self.brush_panel))
         self.brush_dock.setFeatures(QDockWidget.DockWidgetMovable)
         self.addDockWidget(Qt.RightDockWidgetArea, self.brush_dock)
 
@@ -185,7 +191,7 @@ class MainWindow(QMainWindow):
         """לוח כלי המסכה (M4). הלוח משנה את `Session.mask`; ציור שכבת המסכה על ה-Canvas הוא של M3.4."""
         self.mask_panel = MaskToolsPanel(self)
         self.mask_dock = QDockWidget(t("dock.mask"), self)
-        self.mask_dock.setWidget(self.mask_panel)
+        self.mask_dock.setWidget(PanelScroll(self.mask_panel))
         self.mask_dock.setFeatures(QDockWidget.DockWidgetMovable)
         self.addDockWidget(Qt.RightDockWidgetArea, self.mask_dock)
         self.mask_panel.maskChanged.connect(lambda _rect: self.canvas.update())
@@ -194,7 +200,7 @@ class MainWindow(QMainWindow):
     def _build_select_dock(self) -> None:
         self.select_panel = SelectPanel(self)
         self.select_dock = QDockWidget(t("dock.select"), self)
-        self.select_dock.setWidget(self.select_panel)
+        self.select_dock.setWidget(PanelScroll(self.select_panel))
         self.select_dock.setFeatures(QDockWidget.DockWidgetMovable)
         self.addDockWidget(Qt.RightDockWidgetArea, self.select_dock)
 
@@ -254,6 +260,8 @@ class MainWindow(QMainWindow):
         self.select_panel.set_enabled_for_work(can_select)
         self.select_panel.set_state(sel.has_proposal, sel.has_input)
         self.act_select_accept.setEnabled(can_select and sel.has_proposal)
+        self.act_remove_bg.setEnabled(can_select and sel.has_proposal)
+        self.act_make_transparent.setEnabled(can_select and sel.has_proposal)
         for a in (self.act_tool_brush, self.act_tool_wand, self.act_tool_box, self.act_tool_lasso, self.act_tool_mask_fill,
                   self.act_tool_mask_erase, self.act_tool_mask_component):
             a.setEnabled(can_select)

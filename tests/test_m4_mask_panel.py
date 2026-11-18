@@ -173,7 +173,7 @@ def make_window():
 
 def test_window_has_dock_and_binds_session(app):
     w = make_window()
-    assert w.mask_dock.widget() is w.mask_panel and not w.mask_panel.active
+    assert w.mask_dock.widget().panel is w.mask_panel and not w.mask_panel.active
     img = image_from_array(np.random.default_rng(0).integers(0, 256, (60, 80, 3), dtype=np.uint8))
     w._install(img, "x")
     assert w.mask_panel.layer is w.session.mask and w.mask_panel.active
