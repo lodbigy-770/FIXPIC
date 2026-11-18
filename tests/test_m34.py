@@ -375,10 +375,10 @@ class EWin:
         self.w = MainWindow(engine_factory=factory if engine else None)
         if big:
             # MainWindow מתאים את גודלו למסך (M3.10); במסך offscreen קטן (למשל runner של Windows) ה-Canvas יצא צר מ-300px
-            # והבדיקות שמצלמות אזור 300x300 נכשלו. גודל מינימלי קבוע = אותו Canvas בכל מסך (רק בפיקסטורות; בדיקות
+            # (הלוחות הצדדיים רחבים יותר ב-Windows) והבדיקות שמצלמות אזור 300x300 נכשלו. גודל מינימלי קבוע = אותו Canvas בכל מסך (רק בפיקסטורות; בדיקות
             # M3.10 בודקות במפורש את ההתאמה למסך קטן).
-            self.w.setMinimumSize(max(self.w.minimumWidth(), 736), max(self.w.minimumHeight(), 736))
-            self.w.resize(max(self.w.width(), 736), max(self.w.height(), 736))
+            self.w.setMinimumSize(max(self.w.minimumWidth(), 1100), max(self.w.minimumHeight(), 800))
+            self.w.resize(max(self.w.width(), 1100), max(self.w.height(), 800))
         self.errors: list[tuple[str, dict]] = []
         self.w._error = lambda key, **f: self.errors.append((key, f))
         self.w.show()

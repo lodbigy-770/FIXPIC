@@ -118,23 +118,22 @@ jobs:
           pytest -q -rfE --tb=short 2>&1 | Tee-Object -FilePath pytest.log
           exit $LASTEXITCODE
 
-      - name: סיכום כשלי בדיקות (כהערות, וכ-artifact עם הלוג המלא)
+      - name: סיכום כשלי בדיקות (הערה אחת, כי GitHub מגביל ל-10 הערות לשלב)
         if: failure()
         shell: pwsh
         run: |
-          if (Test-Path pytest.log) {
-            $lines = Get-Content pytest.log -Encoding utf8
-            $bad = @($lines | Where-Object { $_ -match '^(FAILED|ERROR) ' }) | Select-Object -First 15
-            foreach ($l in $bad) { $m = ($l -replace '[\r\n%]', ' '); Write-Host "::error title=pytest::$m" }
-            $tail = ($lines | Select-Object -Last 3) -join ' | '
-            Write-Host "::error title=pytest-summary::$tail"
-          } else {
-            Write-Host "::error title=pytest::אין pytest.log"
-          }
           $env:QT_QPA_PLATFORM = "offscreen"
           $env:PYTHONPATH = "src;tests"
-          $diag = python -c "from PySide6.QtWidgets import QApplication; from PySide6.QtGui import QGuiApplication; a=QApplication([]); from test_m34 import EWin; h=EWin(); s=QGuiApplication.primaryScreen(); print('screen', s.availableGeometry().size().toTuple(), 'window', h.w.size().toTuple(), 'minimum', h.w.minimumSize().toTuple(), 'canvas', h.canvas.size().toTuple()); h.close()" 2>&1 | Select-Object -Last 3
-          Write-Host "::error title=qt-diag::$($diag -join ' | ')"
+          $diag = python -c "from PySide6.QtWidgets import QApplication; from PySide6.QtGui import QGuiApplication; a=QApplication([]); from test_m34 import EWin; h=EWin(big=True); s=QGuiApplication.primaryScreen(); print('screen', s.availableGeometry().size().toTuple(), 'window', h.w.size().toTuple(), 'canvas', h.canvas.size().toTuple()); h.close()" 2>&1 | Select-Object -Last 2
+          $names = @()
+          if (Test-Path pytest.log) {
+            $lines = Get-Content pytest.log -Encoding utf8
+            $names = @($lines | Where-Object { $_ -match '^(FAILED|ERROR) ' } | ForEach-Object { ($_ -replace '^(FAILED|ERROR) tests/', '') -replace ' - .*$', '' })
+            $last = ($lines | Select-Object -Last 1)
+          }
+          $msg = "diag: $($diag -join ' | ') ;; $($names.Count) כשלים: $($names -join ' ; ') ;; $last"
+          $msg = $msg -replace '[\r\n%]', ' '
+          Write-Host "::error title=pytest::$msg"
 
       - name: העלאת לוג הבדיקות
         if: failure()
