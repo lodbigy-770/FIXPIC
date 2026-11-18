@@ -81,6 +81,8 @@ jobs:
     needs: decide
     if: needs.decide.outputs.release == 'true'
     runs-on: windows-latest
+    env:
+      PYTHONUTF8: "1"          # פלט עברי מסקריפטי tools/ בקונסולת Windows (cp1252)
     steps:
       - name: Checkout (כולל Git LFS, לקבלת המודל האמיתי)
         uses: actions/checkout@v4
