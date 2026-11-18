@@ -367,16 +367,18 @@ class TestCanvasOverlay:
 class EWin:
     """MainWindow עם Scheduler אמיתי ומודל מדומה; דיאלוגי שגיאה נרשמים."""
 
-    def __init__(self, model=None, engine=True, factory=None):
+    def __init__(self, model=None, engine=True, factory=None, big=False):
         self.model = model if model is not None else FakeModel()
         self.sched = JobScheduler(Pipeline(self.model, PipelineConfig()))
         if engine and factory is None:
             factory = lambda: self.sched      # noqa: E731
         self.w = MainWindow(engine_factory=factory if engine else None)
-        # MainWindow מתאים את גודלו למסך (M3.10); במסך offscreen קטן (למשל runner של Windows) ה-Canvas יצא צר מ-300px
-        # והבדיקות שמצלמות אזור 300x300 נכשלו. גודל מינימלי קבוע = אותו Canvas בכל מסך.
-        self.w.setMinimumSize(max(self.w.minimumWidth(), 736), max(self.w.minimumHeight(), 736))
-        self.w.resize(max(self.w.width(), 736), max(self.w.height(), 736))
+        if big:
+            # MainWindow מתאים את גודלו למסך (M3.10); במסך offscreen קטן (למשל runner של Windows) ה-Canvas יצא צר מ-300px
+            # והבדיקות שמצלמות אזור 300x300 נכשלו. גודל מינימלי קבוע = אותו Canvas בכל מסך (רק בפיקסטורות; בדיקות
+            # M3.10 בודקות במפורש את ההתאמה למסך קטן).
+            self.w.setMinimumSize(max(self.w.minimumWidth(), 736), max(self.w.minimumHeight(), 736))
+            self.w.resize(max(self.w.width(), 736), max(self.w.height(), 736))
         self.errors: list[tuple[str, dict]] = []
         self.w._error = lambda key, **f: self.errors.append((key, f))
         self.w.show()
@@ -416,7 +418,7 @@ class EWin:
 
 @pytest.fixture()
 def ew(app):
-    h = EWin()
+    h = EWin(big=True)
     assert h.ready()
     yield h
     h.close()
@@ -424,7 +426,7 @@ def ew(app):
 
 @pytest.fixture()
 def ew_gate(app):
-    h = EWin(model=GateModel())
+    h = EWin(model=GateModel(), big=True)
     assert h.ready()
     yield h
     h.close()
@@ -432,7 +434,7 @@ def ew_gate(app):
 
 @pytest.fixture()
 def ew_noengine(app):
-    h = EWin(engine=False)
+    h = EWin(engine=False, big=True)
     yield h
     h.close()
 
