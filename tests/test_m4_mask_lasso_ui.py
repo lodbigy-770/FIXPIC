@@ -101,6 +101,9 @@ class TestWindow:
 
     def test_shortcut_actions(self, sw):
         w = sw.w
+        w.act_tool_mask_fill.trigger()                       # M3.8: בלי החלה ידנית הקיצור אינו עושה דבר
+        assert w.select_panel.tool == "brush"
+        w.brush_panel.set_manual(True)
         w.act_tool_mask_fill.trigger()
         assert w.select_panel.tool == "mask_fill" and w.canvas.select_mode == "mask_fill"
         w.act_tool_mask_erase.trigger()
@@ -259,6 +262,7 @@ class TestComponentClick:
         s = ew.install(h=200, w=300)
         before = s.rgb.copy()
         s.mask.fill_polygon(SQUARE)
+        ew.w.brush_panel.set_manual(True)                     # M3.8: כלי המסכה זמינים בהחלה ידנית
         ew.w.act_tool_mask_component.trigger()
         assert ew.canvas.select_mode == "mask_component"
         drag(ew.canvas, [(100, 90), (100, 90)])

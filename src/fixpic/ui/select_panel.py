@@ -76,6 +76,7 @@ class SelectPanel(QWidget):
         self.btn_cancel.clicked.connect(lambda _c=False: self.cancelRequested.emit())
         self.btn_bg.clicked.connect(lambda _c=False: self.removeBackgroundRequested.emit())
         self.btn_tr.clicked.connect(lambda _c=False: self.makeTransparentRequested.emit())
+        self.set_mask_tools_visible(False)
         self.set_state(False, False)
 
     # ------------------------------------------------------------------ מצב
@@ -108,6 +109,13 @@ class SelectPanel(QWidget):
             self._tool = name
             self.set_state(self._has_proposal, self._has_input)
             self.toolChanged.emit(name)
+
+    def set_mask_tools_visible(self, on: bool) -> None:
+        """שלושת כלי עריכת המסכה (לאסו מילוי/מחיקה, מחיקת רכיב) מוצגים רק כשיש מסכה נצברת (החלה ידנית)."""
+        for n in ("mask_fill", "mask_erase", "mask_component"):
+            self.radios[n].setVisible(on)
+        if not on and self._tool.startswith("mask_"):
+            self.set_tool("brush")
 
     def set_enabled_for_work(self, ok: bool) -> None:
         self._work_ok = ok

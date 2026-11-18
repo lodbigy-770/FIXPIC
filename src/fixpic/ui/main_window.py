@@ -83,6 +83,7 @@ class MainWindow(QMainWindow):
         self._build_status()
         self._build_brush_dock()
         self._build_mask_dock()
+        self.mask_dock.setVisible(False)                 # מוצג רק בהחלה ידנית (`_manual_changed`)
         self._build_select_dock()
         self.canvas.scaleChanged.connect(self._update_status)
         self._connect_editing()
@@ -131,11 +132,11 @@ class MainWindow(QMainWindow):
         self.act_tool_wand = self._action("action.select_wand", lambda: self.select_panel.set_tool("wand"), "W")
         self.act_tool_box = self._action("action.select_box", lambda: self.select_panel.set_tool("box"), "S")
         self.act_tool_lasso = self._action("action.select_lasso", lambda: self.select_panel.set_tool("lasso"), "L")
-        self.act_tool_mask_fill = self._action("action.mask_lasso_fill", lambda: self.select_panel.set_tool("mask_fill"), "M")
+        self.act_tool_mask_fill = self._action("action.mask_lasso_fill", lambda: self._mask_tool("mask_fill"), "M")
         self.act_tool_mask_erase = self._action("action.mask_lasso_erase",
-                                                lambda: self.select_panel.set_tool("mask_erase"), "D")
+                                                lambda: self._mask_tool("mask_erase"), "D")
         self.act_tool_mask_component = self._action("action.mask_component",
-                                                    lambda: self.select_panel.set_tool("mask_component"), "R")
+                                                    lambda: self._mask_tool("mask_component"), "R")
         self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
         self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
         self.act_save_case = self._action("action.save_case", self.save_case)
@@ -425,8 +426,19 @@ class MainWindow(QMainWindow):
         self.canvas.update()
         self._refresh()
 
+    def _mask_tool(self, name: str) -> None:
+        """כלי עריכת מסכה (קיצורי M/D/R): רק בהחלה ידנית, כי אחרת המסכה מוגשת מיד ואין מה לערוך."""
+        if self.controller.manual_apply:
+            self.select_panel.set_tool(name)
+
     def _manual_changed(self, on: bool) -> None:
+        """החלה ידנית: רק אז כלי המסכה (לוח, שלושת כלי הלאסו/רכיב ומצב מחיקה) מוצגים; בלעדיה הם חסרי שימוש (מושבתים תמיד)."""
         self.controller.manual_apply = on
+        self.mask_dock.setVisible(on)
+        self.select_panel.set_mask_tools_visible(on)
+        self.brush_panel.chk_erase.setVisible(on)
+        if not on:
+            self.brush_panel.set_erase(False)
         self._refresh()
 
     def _edit_changed(self) -> None:

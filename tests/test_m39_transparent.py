@@ -134,3 +134,21 @@ def test_make_selected_transparent_button_end_to_end(app):
         assert not w.select_ctl.has_proposal and sw.s.history.undo_count == 1
     finally:
         sw.close()
+
+
+def test_mask_tools_visible_only_in_manual_mode(app):
+    sw = SWin()
+    try:
+        w = sw.w
+        assert w.mask_dock.isHidden() and not w.select_panel.radios["mask_fill"].isVisibleTo(w.select_panel)
+        assert not w.brush_panel.chk_erase.isVisibleTo(w.brush_panel)
+        w.brush_panel.set_manual(True)
+        assert not w.mask_dock.isHidden()
+        assert w.select_panel.radios["mask_fill"].isVisibleTo(w.select_panel)
+        assert w.brush_panel.chk_erase.isVisibleTo(w.brush_panel)
+        w.act_tool_mask_fill.trigger()
+        assert w.select_panel.tool == "mask_fill"
+        w.brush_panel.set_manual(False)                      # חוזרים למברשת, ומצב מחיקה כבוי
+        assert w.select_panel.tool == "brush" and w.mask_dock.isHidden() and not w.brush_panel.erase
+    finally:
+        sw.close()

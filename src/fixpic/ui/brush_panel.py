@@ -50,6 +50,7 @@ class BrushPanel(QWidget):
         self.chk_manual = QCheckBox(t("brush.manual"))
         self.btn_apply = QPushButton(t("brush.apply"))
         self.btn_apply.setEnabled(False)
+        self.chk_erase.setVisible(False)         # מצב מחיקה מהמסכה רלוונטי רק בהחלה ידנית (MainWindow מציג)
         self.chk_feather_auto = QCheckBox(t("brush.feather_auto"))
         self.chk_feather_auto.setChecked(True)
         self.feather_slider = QSlider(Qt.Horizontal)
