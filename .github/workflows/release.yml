@@ -110,9 +110,35 @@ jobs:
           pip install pyinstaller
 
       - name: הרצת הבדיקות
+        shell: pwsh
         env:
           QT_QPA_PLATFORM: offscreen
-        run: pytest -q
+          PYTHONUTF8: "1"
+        run: |
+          pytest -q -rfE --tb=short 2>&1 | Tee-Object -FilePath pytest.log
+          exit $LASTEXITCODE
+
+      - name: סיכום כשלי בדיקות (כהערות, וכ-artifact עם הלוג המלא)
+        if: failure()
+        shell: pwsh
+        run: |
+          if (Test-Path pytest.log) {
+            $lines = Get-Content pytest.log -Encoding utf8
+            $bad = @($lines | Where-Object { $_ -match '^(FAILED|ERROR) ' }) | Select-Object -First 15
+            foreach ($l in $bad) { $m = ($l -replace '[\r\n%]', ' '); Write-Host "::error title=pytest::$m" }
+            $tail = ($lines | Select-Object -Last 3) -join ' | '
+            Write-Host "::error title=pytest-summary::$tail"
+          } else {
+            Write-Host "::error title=pytest::אין pytest.log"
+          }
+
+      - name: העלאת לוג הבדיקות
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-log
+          path: pytest.log
+          if-no-files-found: ignore
 
       - name: THIRD_PARTY_NOTICES
         run: python tools/m5/third_party_notices.py
