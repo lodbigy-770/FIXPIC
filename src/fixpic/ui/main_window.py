@@ -46,6 +46,7 @@ from .edit_loop import EditController
 from .mask_panel import MaskToolsPanel
 from .scroll import MIN_WINDOW, PanelScroll, initial_window_size
 from .select_panel import SelectPanel
+from .shortcuts import ShortcutsDialog, ShortcutStore, normalize, with_hebrew
 from .select_tool import SmartSelectController
 from .wand_tool import WandController
 from .workers import BackgroundRunner
@@ -56,13 +57,15 @@ _EXT_BY_FILTER = {"filter.png": ".png", "filter.jpg": ".jpg", "filter.webp": ".w
 _FILTER_BY_FORMAT = {"JPEG": "filter.jpg", "WEBP": "filter.webp"}
 _LOSSY = {".jpg", ".jpeg", ".webp"}
 DEFAULT_QUALITY = 92
-_HEBREW_KEY = {"C": "ב", "E": "ק", "P": "פ", "S": "ד", "L": "ך", "M": "צ", "D": "ג", "R": "ר", "G": "ע", "T": "א"}     # קיצורי אות במקלדת עברית
 
 
 class MainWindow(QMainWindow):
-    def __init__(self, engine_factory: Callable | None = None) -> None:
+    def __init__(self, engine_factory: Callable | None = None, shortcut_store: ShortcutStore | None = None) -> None:
         """`engine_factory`: פונקציה בלי ארגומנטים שמחזירה `JobScheduler` (שטרם הופעל); רצה ב-thread ברקע."""
         super().__init__()
+        self.shortcut_store = shortcut_store if shortcut_store is not None else ShortcutStore()
+        self._sc_actions: dict[str, QAction] = {}          # מפתח פעולה -> QAction (הניתנים להתאמה)
+        self._sc_defaults: dict[str, list[str]] = {}
         self.session: Session | None = None
         self.display_name: str = ""
         self.save_path: Path | None = None
@@ -83,6 +86,7 @@ class MainWindow(QMainWindow):
         self.setMinimumSize(MIN_WINDOW)
         self.resize(initial_window_size(scr.availableGeometry().size() if scr is not None else None))
         self._build_actions()
+        self.apply_shortcuts()
         self._build_status()
         self._build_brush_dock()
         self._build_mask_dock()
@@ -97,13 +101,21 @@ class MainWindow(QMainWindow):
 
     # ------------------------------------------------------------------ בנייה
     def _action(self, key: str, slot: Callable, shortcut=None) -> QAction:
+        """`shortcut`: קיצור אחד (טקסט או QKeySequence) או רשימה; הראשון הוא המוצג והניתן להתאמה אישית."""
         a = QAction(t(key), self)
         if shortcut is not None:
-            he = _HEBREW_KEY.get(shortcut) if isinstance(shortcut, str) else None
-            if he:      # אות לטינית + האות העברית שעל אותו מקש (פריסה עברית סטנדרטית)
-                a.setShortcuts([QKeySequence(shortcut), QKeySequence(he)])
-            else:
-                a.setShortcut(QKeySequence(shortcut))
+            seqs = shortcut if isinstance(shortcut, (list, tuple)) else [shortcut]
+            texts = []
+            for x in seqs:
+                if isinstance(x, str):
+                    texts.append(x)
+                elif isinstance(x, QKeySequence):
+                    texts.append(x.toString(QKeySequence.PortableText))
+                else:                                            # QKeySequence.StandardKey (Open, Save, Undo...)
+                    texts.extend(k.toString(QKeySequence.PortableText) for k in QKeySequence.keyBindings(x))
+            self._sc_actions[key] = a
+            self._sc_defaults[key] = [n for n in (normalize(x) for x in texts) if n]
+            a.setShortcuts(with_hebrew(self._sc_defaults[key]))
         a.triggered.connect(lambda _checked=False: slot())
         self.addAction(a)
         return a
@@ -114,14 +126,14 @@ class MainWindow(QMainWindow):
         self.act_save_as = self._action("action.save_as", self.save_as, QKeySequence("Ctrl+Shift+S"))
         self.act_paste = self._action("action.paste", self.paste, QKeySequence.Paste)
         self.act_quit = self._action("action.quit", self.close, QKeySequence("Ctrl+Q"))
-        self.act_fit = self._action("action.fit", self.canvas.fit, "Ctrl+0")
-        self.act_actual = self._action("action.actual_size", self.canvas.actual_size, "Ctrl+1")
-        self.act_zoom_in = self._action("action.zoom_in", lambda: self._zoom(1.25), QKeySequence.ZoomIn)
-        self.act_zoom_out = self._action("action.zoom_out", lambda: self._zoom(0.8), QKeySequence.ZoomOut)
+        self.act_fit = self._action("action.fit", self.canvas.fit, ["Ctrl+0", "0"])
+        self.act_actual = self._action("action.actual_size", self.canvas.actual_size, ["Ctrl+1", "1"])
+        self.act_zoom_in = self._action("action.zoom_in", lambda: self._zoom(1.25),
+                                       ["Ctrl++", "Ctrl+=", "+", "="])
+        self.act_zoom_out = self._action("action.zoom_out", lambda: self._zoom(0.8), ["Ctrl+-", "-"])
         self.act_cancel = self._action("action.cancel_jobs", self._escape, "Esc")
         self.act_undo = self._action("action.undo", self._undo, QKeySequence.Undo)
-        self.act_redo = self._action("action.redo", self._redo, QKeySequence.Redo)
-        self.act_redo.setShortcuts([QKeySequence("Ctrl+Y"), QKeySequence("Ctrl+Shift+Z")])
+        self.act_redo = self._action("action.redo", self._redo, ["Ctrl+Y", "Ctrl+Shift+Z"])
         self.act_reset = self._action("action.reset_all", self.reset_all, "Ctrl+Shift+R")
         self.act_compare = self._action("action.compare_toggle", lambda: None, "C")
         self.act_compare.setCheckable(True)
@@ -142,10 +154,11 @@ class MainWindow(QMainWindow):
                                                     lambda: self._mask_tool("mask_component"), "R")
         self.act_remove_bg = self._action("action.remove_bg", self._remove_background, "G")
         self.act_make_transparent = self._action("action.make_transparent", self._make_selected_transparent, "T")
-        self.act_select_accept = self._action("action.select_accept", self._select_accept, "Return")
-        self.act_select_accept.setShortcuts([QKeySequence("Return"), QKeySequence("Enter")])
+        self.act_select_accept = self._action("action.select_accept", self._select_accept,
+                                               ["Return", "Enter"])
         self.act_save_case = self._action("action.save_case", self.save_case)
         self.act_about = self._action("action.about", self.show_about)
+        self.act_shortcuts = self._action("action.shortcuts", self.edit_shortcuts)
         mb = self.menuBar()
         m = mb.addMenu(t("menu.file"))
         for a in (self.act_open, self.act_save, self.act_save_as, self.act_paste):
@@ -167,6 +180,7 @@ class MainWindow(QMainWindow):
         for a in (self.act_zoom_in, self.act_zoom_out, self.act_fit, self.act_actual):
             v.addAction(a)
         hm = mb.addMenu(t("menu.help"))
+        hm.addAction(self.act_shortcuts)
         hm.addAction(self.act_about)
         tb = QToolBar(t("toolbar.main"), self)
         tb.setMovable(False)
@@ -179,6 +193,31 @@ class MainWindow(QMainWindow):
         self.btn_hold.released.connect(lambda: self._compare_hold(False))
         tb.addWidget(self.btn_hold)
         self.addToolBar(tb)
+
+    # ----------------------------------------------------- קיצורי מקלדת אישיים
+    def apply_shortcuts(self, overrides: dict[str, list[str]] | None = None) -> None:
+        """מחיל על הפעולות את ההחלפות (ברירת מחדל לפעולה בלי החלפה). בלי ארגומנט: טוען מהקובץ."""
+        if overrides is None:
+            overrides = self.shortcut_store.load()
+        for key, a in self._sc_actions.items():
+            a.setShortcuts(with_hebrew(overrides.get(key, self._sc_defaults[key])))
+
+    def shortcut_entries(self) -> list[tuple[str, str, list[str], list[str]]]:
+        ov = self.shortcut_store.overrides
+        return [(k, a.text().replace("&", "").replace("...", ""), self._sc_defaults[k], ov.get(k, self._sc_defaults[k]))
+                for k, a in self._sc_actions.items()]
+
+    def edit_shortcuts(self) -> None:
+        dlg = ShortcutsDialog(self.shortcut_entries(), self)
+        if dlg.exec() != ShortcutsDialog.Accepted:
+            return
+        over = dlg.result_overrides()
+        try:
+            self.shortcut_store.save(over)
+        except OSError as e:
+            self._error("error.unexpected", detail=t("shortcuts.save_failed") + f": {e}")
+        self.apply_shortcuts(over)
+        self.statusBar().showMessage(t("shortcuts.saved"))
 
     def _build_brush_dock(self) -> None:
         self.brush_panel = BrushPanel(self)
