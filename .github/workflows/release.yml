@@ -1,26 +1,85 @@
-# M5: שחרור אוטומטי. כשנדחף תג בתבנית v* (למשל v0.1.0, ראו tools/m5/make_release.py):
-# בונה את dist/FixPic (PyInstaller onedir) על Windows, עוטף ב-Inno Setup (packaging/fixpic.iss)
+# M5: שחרור אוטומטי.
+#  - פעם ראשונה: דחיפה ל-main כשעדיין אין אף תג v* בריפו מריצה את כל השרשרת לבד ויוצרת את
+#    השחרור הראשון (גרסה FIRST_VERSION, ברירת מחדל 0.1.0; התג נוצר ע"י ה-Release עצמו).
+#    אם הריצה נכשלה (למשל המודל לא נדחף ל-LFS), לא נוצר תג, ולכן הדחיפה הבאה תנסה שוב.
+#  - בפעמים הבאות: רק כשנדחף תג בתבנית v* (למשל v0.2.0). דחיפה רגילה ל-main כבר לא בונה,
+#    ורק בודקת (כמה שניות) שכבר קיים תג ויוצאת.
+# השרשרת: בונה dist/FixPic (PyInstaller onedir) על Windows, עוטף ב-Inno Setup (packaging/fixpic.iss)
 # למתקין FixPicSetup-X.Y.Z.exe יחיד, ויוצר GitHub Release עם המתקין כנספח.
 #
 # הערה: צריך windows-latest (Inno Setup הוא כלי Windows). כדי שהמודל ב-models/big-lama/inpainter.onnx
 # ייפרש כקובץ אמיתי ולא כ-pointer של Git LFS, הריפו ב-GitHub חייב להכיל את תוכן ה-LFS בפועל
 # (lfs: true ב-checkout בלבד לא מספיק אם לא בוצע git lfs push מתישהו).
 #
-# שימוש: git tag -a v0.1.0 -m "..." && git push origin v0.1.0  — זה כל מה שצריך; השאר אוטומטי.
+# שחרור הבא: git tag -a v0.2.0 -m "..." && git push origin v0.2.0  — זה כל מה שצריך; השאר אוטומטי.
+# (תג ש-Release יוצר בעצמו, כמו בריצה הראשונה, אינו מפעיל ריצה נוספת: אירועי GITHUB_TOKEN לא מפעילים workflows.)
 # (tools/m5/make_release.py עדיין קיים כנתיב גיבוי ידני, למקרה שה-workflow נכשל.)
+# הרצה ידנית (workflow_dispatch) מתנהגת כמו דחיפה ל-main: משחררת רק אם עדיין אין תג.
 
 name: Release
 
 on:
   push:
+    branches:
+      - main
     tags:
       - "v*"
+  workflow_dispatch:
 
 permissions:
   contents: write
 
+# ריצות ברצף ולא במקביל, כדי ששתי דחיפות סמוכות לא יבנו פעמיים את השחרור הראשון.
+# (אין ביטול של ריצה בעיצומה; ריצה ממתינה שנדחקה ע"י חדשה יותר פשוט לא תרוץ.)
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+env:
+  FIRST_VERSION: "0.1.0"
+
 jobs:
+  decide:
+    name: האם לשחרר ובאיזו גרסה
+    runs-on: ubuntu-latest
+    outputs:
+      release: ${{ steps.d.outputs.release }}
+      version: ${{ steps.d.outputs.version }}
+      tag: ${{ steps.d.outputs.tag }}
+    steps:
+      - id: d
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          if [ "$REF_TYPE" = "tag" ]; then
+            # שחרור רגיל: הגרסה נקבעת מהתג שנדחף
+            if ! [[ "$REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+              echo "::error::שם התג '$REF_NAME' אינו בתבנית vX.Y.Z (או vX.Y.Z-סיומת)"
+              exit 1
+            fi
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=$REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "version=${REF_NAME#v}" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # דחיפה ל-main / הרצה ידנית: משחררים רק אם עדיין אין שום תג v*
+          n=$(gh api "repos/$GITHUB_REPOSITORY/git/matching-refs/tags/v" --jq 'length')
+          if [ "$n" = "0" ]; then
+            echo "אין עדיין תג v*, מבצע את השחרור הראשון (v$FIRST_VERSION)"
+            echo "release=true" >> "$GITHUB_OUTPUT"
+            echo "tag=v$FIRST_VERSION" >> "$GITHUB_OUTPUT"
+            echo "version=$FIRST_VERSION" >> "$GITHUB_OUTPUT"
+          else
+            echo "כבר קיימים $n תגי v*; שחרור נוסף רק בדחיפת תג חדש. מדלג."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          fi
+
   build-and-release:
+    needs: decide
+    if: needs.decide.outputs.release == 'true'
     runs-on: windows-latest
     steps:
       - name: Checkout (כולל Git LFS, לקבלת המודל האמיתי)
@@ -33,13 +92,6 @@ jobs:
         with:
           python-version: "3.14"
           cache: "pip"
-
-      - name: גרסה מתוך שם התג (בלי 'v' מוביל)
-        id: ver
-        shell: pwsh
-        run: |
-          $v = "${{ github.ref_name }}" -replace '^v',''
-          "version=$v" >> $env:GITHUB_OUTPUT
 
       - name: אימות שהמודל אמיתי ולא pointer של Git LFS
         shell: pwsh
@@ -77,12 +129,12 @@ jobs:
       - name: קומפילציית המתקין (Inno Setup)
         shell: pwsh
         run: |
-          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ steps.ver.outputs.version }}" packaging\fixpic.iss
+          & "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" "/DMyAppVersion=${{ needs.decide.outputs.version }}" packaging\fixpic.iss
 
       - name: העלאת המתקין כ-artifact (גיבוי, גם אם שלב ה-Release נכשל)
         uses: actions/upload-artifact@v4
         with:
-          name: FixPicSetup-${{ steps.ver.outputs.version }}
+          name: FixPicSetup-${{ needs.decide.outputs.version }}
           path: dist/installer/FixPicSetup-*.exe
           if-no-files-found: error
 
@@ -91,6 +143,8 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          gh release create "${{ github.ref_name }}" "dist/installer/FixPicSetup-${{ steps.ver.outputs.version }}.exe" `
-            --title "FixPic ${{ steps.ver.outputs.version }}" `
+          # --target: בשחרור הראשון התג עוד לא קיים, ו-gh יוצר אותו על הקומיט שנבנה; בתג קיים הפרמטר לא בשימוש
+          gh release create "${{ needs.decide.outputs.tag }}" "dist/installer/FixPicSetup-${{ needs.decide.outputs.version }}.exe" `
+            --target "${{ github.sha }}" `
+            --title "FixPic ${{ needs.decide.outputs.version }}" `
             --generate-notes
